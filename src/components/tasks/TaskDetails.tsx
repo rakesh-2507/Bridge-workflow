@@ -11,7 +11,7 @@ import {
 import { deleteTask } from "../../api/tasks";
 import type { Task } from "../../types/task";
 
-import TaskStatus from "./TaskStatus";
+// import TaskStatus from "./TaskStatus";
 
 
 interface TaskDetailsProps {
@@ -38,7 +38,7 @@ function TaskDetails({
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center border-l border-gray-200 bg-gray-50 px-6 text-center dark:border-gray-800 dark:bg-gray-950">
                 <div>
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-gray-900">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-sky-100 shadow-sm dark:bg-gray-900">
                         <Pencil
                             size={20}
                             className="text-gray-400"
@@ -96,9 +96,9 @@ function TaskDetails({
                                     "Untitled Task"}
                             </h2>
 
-                            <TaskStatus
+                            {/* <TaskStatus
                                 status={task.status}
-                            />
+                            /> */}
                         </div>
 
                         <p className="mt-1.5 text-xs font-medium text-gray-400">
@@ -226,7 +226,7 @@ function TaskDetails({
                             Description:
                         </h3>
 
-                        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-800 dark:bg-gray-950">
+                        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-800 dark:bg-gray-950 shadow-sm">
 
                             <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">
                                 {task.task_description ||
@@ -261,6 +261,30 @@ function TaskDetails({
                         </div>
 
                     </section>
+                    <section>
+
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                           Need Action:
+                        </h3>
+
+                        <div className="flex items-center justify-start gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => alert("Task rejected")}
+                                className="rounded-lg border border-red-200 bg-white px-4 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
+                            >
+                                Reject
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => alert("Task accepted")}
+                                className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-green-700"
+                            >
+                                Accept
+                            </button>
+                        </div>
+                    </section>
 
                 </div>
             </div>
@@ -278,7 +302,7 @@ function DateInfo({
     value,
 }: DateInfoProps) {
     return (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950 shadow-sm">
 
             <div className="flex items-center gap-2">
 
@@ -311,7 +335,7 @@ function TaskUser({
     value,
 }: TaskUserProps) {
     return (
-        <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
+        <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950 shadow-sm">
 
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white dark:bg-gray-900">
 

@@ -4,9 +4,9 @@ import {
 } from "react";
 
 import {
-    CalendarDays,
+    // CalendarDays,
     Loader2,
-    Plus,
+    // Plus,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
@@ -85,6 +85,20 @@ function TasksPage() {
                 task.status !== 3
         );
 
+    // const today = new Date().toISOString().split("T")[0];
+
+    // const todayTasks = tasks.filter((task) => {
+    //     if (!task.start_date || !task.end_date) {
+    //         return false;
+    //     }
+
+    //     return (
+    //         task.status !== 3 &&
+    //         task.start_date <= today &&
+    //         task.end_date >= today
+    //     );
+    // });
+
     const handleDeleted = (
         taskId: number
     ) => {
@@ -116,7 +130,7 @@ function TasksPage() {
     }
 
     return (
-        <div className="flex h-[calc(100vh-64px)] flex-col bg-gray-50 dark:bg-gray-950">
+        <div className="flex h-[calc(100vh-90px)] flex-col bg-gray-50 dark:bg-gray-950">
 
             {/* Header */}
             <div className="shrink-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
@@ -125,7 +139,7 @@ function TasksPage() {
 
                     <div>
                         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                            Tasks
+                            Tasks ({pendingTasks.length})
                         </h1>
 
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -133,9 +147,8 @@ function TasksPage() {
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    {/* <div className="flex items-center gap-2">
 
-                        {/* Today Tasks */}
                         <button
                             type="button"
                             onClick={() =>
@@ -149,10 +162,9 @@ function TasksPage() {
                                 size={16}
                             />
 
-                            Today Tasks
+                            Today Tasks ({todayTasks.length})
                         </button>
 
-                        {/* Create Task */}
                         <button
                             type="button"
                             onClick={() =>
@@ -169,7 +181,7 @@ function TasksPage() {
                             Create Task
                         </button>
 
-                    </div>
+                    </div> */}
                 </div>
             </div>
 

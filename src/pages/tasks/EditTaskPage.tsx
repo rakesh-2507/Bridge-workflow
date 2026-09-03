@@ -136,7 +136,7 @@ function EditTaskPage() {
     if (error || !task) {
         return (
             <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950">
-                <div className="mx-auto max-w-3xl">
+                <div className="mx-auto w-full">
 
                     <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
                         {error || "Task not found."}
@@ -161,7 +161,7 @@ function EditTaskPage() {
 
     return (
         <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950">
-            <div className="mx-auto max-w-6xl">
+            <div className="mx-auto">
 
                 <div className="mb-6 flex items-center gap-3">
 

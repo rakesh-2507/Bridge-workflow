@@ -28,7 +28,7 @@ function TaskCard({
                 selected
                     ? [
                         // Light mode - active
-                        "border-sky-500 bg-sky-100 shadow-lg ring-2 ring-sky-500/20",
+                        "border-sky-200 bg-sky-100 shadow-sm ring-2 ring-sky-500/20",
 
                         // Dark mode - active
                         "dark:border-sky-400 dark:bg-gray-700 dark:ring-sky-400/30 dark:shadow-sky-950/30",

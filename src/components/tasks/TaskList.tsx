@@ -12,23 +12,10 @@ function TaskList({
     tasks,
     selectedTask,
     onSelect,
-    title = "Pending Tasks",
 }: TaskListProps) {
     return (
         <div className="flex min-h-0 flex-col">
-            {/* Header */}
-            <div className="relative z-50 shrink-0 border-b border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {title}
-                    </h2>
-
-                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                        {tasks.length}
-                    </span>
-                </div>
-            </div>
-
+           
             {/* Scroll Area */}
             <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
                 {tasks.length === 0 ? (
@@ -58,7 +45,7 @@ function TaskList({
                                         style={{
                                             top: `${index * 25}px`,
                                             zIndex: selected
-                                                ? 1000
+                                                ? 10
                                                 : index + 1,
                                         }}
                                     >

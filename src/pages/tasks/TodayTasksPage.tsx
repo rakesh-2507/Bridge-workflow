@@ -212,7 +212,7 @@ function TodayTasksPage() {
     }
 
     return (
-        <div className="flex h-[calc(100vh-64px)] min-w-0 flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
+        <div className="flex h-[calc(100vh-85px)] min-w-0 flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
 
             <TaskDateStrip
                 selectedDate={selectedDate}
