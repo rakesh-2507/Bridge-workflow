@@ -9,9 +9,18 @@ export interface LoginCredentials {
     password: string;
 }
 
+export interface AuthUser {
+    uid: number;
+    loginname: string;
+    firstname?: string;
+    lastname?: string;
+    email?: string;
+    mtype?: string;
+}
+
 export interface LoginResponse {
     token: string;
-    user: Record<string, unknown>;
+    user: AuthUser;
 }
 
 export interface GenerateTokenResponse {
@@ -20,16 +29,16 @@ export interface GenerateTokenResponse {
 
 export interface TokenLoginResponse {
     token: string;
-    user: Record<string, unknown>;
+    user: AuthUser;
 }
 
 // --------------------------------------------------
-// Normal Login
+// Login
 // POST /api/login
 // --------------------------------------------------
 
 export async function login(
-    credentials: LoginCredentials
+    credentials: LoginCredentials,
 ): Promise<LoginResponse> {
     return apiRequest<LoginResponse>(
         "/api/login",
@@ -37,7 +46,6 @@ export async function login(
             method: "POST",
             body: JSON.stringify(credentials),
         },
-        false
     );
 }
 
@@ -47,7 +55,7 @@ export async function login(
 // --------------------------------------------------
 
 export async function generateToken(
-    uid: string
+    uid: number,
 ): Promise<GenerateTokenResponse> {
     return apiRequest<GenerateTokenResponse>(
         "/api/token",
@@ -57,7 +65,6 @@ export async function generateToken(
                 uid,
             }),
         },
-        false
     );
 }
 
@@ -67,7 +74,7 @@ export async function generateToken(
 // --------------------------------------------------
 
 export async function tokenLogin(
-    token: string
+    token: string,
 ): Promise<TokenLoginResponse> {
     return apiRequest<TokenLoginResponse>(
         "/api/token/login",
@@ -77,7 +84,6 @@ export async function tokenLogin(
                 token,
             }),
         },
-        false
     );
 }
 
@@ -86,7 +92,7 @@ export async function tokenLogin(
 // --------------------------------------------------
 
 export function getJwtPayload(
-    token: string
+    token: string,
 ): Record<string, unknown> | null {
     try {
         const parts = token.split(".");
@@ -97,24 +103,23 @@ export function getJwtPayload(
 
         const payload = parts[1];
 
-        // Add padding if required
         const paddedPayload =
             payload +
             "=".repeat(
-                (4 - (payload.length % 4)) % 4
+                (4 - (payload.length % 4)) % 4,
             );
 
         const decoded = atob(
             paddedPayload
                 .replace(/-/g, "+")
-                .replace(/_/g, "/")
+                .replace(/_/g, "/"),
         );
 
         return JSON.parse(decoded);
     } catch (error) {
         console.error(
             "JWT DECODE ERROR:",
-            error
+            error,
         );
 
         return null;
@@ -126,9 +131,10 @@ export function getJwtPayload(
 // --------------------------------------------------
 
 export function getLoginType(
-    token: string
+    token: string,
 ): string {
-    const payload = getJwtPayload(token);
+    const payload =
+        getJwtPayload(token);
 
     if (!payload) {
         return "";
@@ -150,9 +156,10 @@ export function getLoginType(
 // --------------------------------------------------
 
 export function isAdminUser(
-    token: string
+    token: string,
 ): boolean {
-    const loginType = getLoginType(token);
+    const loginType =
+        getLoginType(token);
 
     return (
         loginType === "admin" ||

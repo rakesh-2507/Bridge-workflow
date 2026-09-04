@@ -47,11 +47,143 @@ function Login() {
     const [success, setSuccess] = useState("");
 
     // ==================================================
+    // Store Authentication
+    // ==================================================
+
+    function storeAuthentication(
+        accessToken: string,
+        user: {
+            uid: number;
+            loginname: string;
+            firstname?: string;
+            lastname?: string;
+            email?: string;
+            mtype?: string;
+        },
+    ) {
+        // ----------------------------------------------
+        // Get login type from JWT first
+        // ----------------------------------------------
+
+        let loginType = getLoginType(
+            accessToken,
+        );
+
+        // ----------------------------------------------
+        // JWT may not contain login_type.
+        // Fall back to user.mtype from API response.
+        // ----------------------------------------------
+
+        if (!loginType && user?.mtype) {
+            loginType = user.mtype
+                .trim()
+                .toLowerCase();
+        }
+
+        // ----------------------------------------------
+        // Determine admin
+        // ----------------------------------------------
+
+        const adminFromJwt =
+            isAdminUser(accessToken);
+
+        const adminFromUser =
+            loginType === "admin" ||
+            loginType === "sysadmin" ||
+            loginType === "administrator";
+
+        const admin =
+            adminFromJwt ||
+            adminFromUser;
+
+        // ----------------------------------------------
+        // Debug
+        // ----------------------------------------------
+
+        console.log(
+            "AUTHENTICATED USER:",
+            user,
+        );
+
+        console.log(
+            "LOGIN TYPE:",
+            loginType,
+        );
+
+        console.log(
+            "IS ADMIN:",
+            admin,
+        );
+
+        // ----------------------------------------------
+        // Store authentication
+        // ----------------------------------------------
+
+        localStorage.setItem(
+            "access_token",
+            accessToken,
+        );
+
+        localStorage.setItem(
+            "login_type",
+            loginType,
+        );
+
+        localStorage.setItem(
+            "login_user",
+            JSON.stringify(user),
+        );
+
+        // ----------------------------------------------
+        // Remove stale authentication data
+        // ----------------------------------------------
+
+        localStorage.removeItem(
+            "refresh_token",
+        );
+
+        localStorage.removeItem(
+            "token_type",
+        );
+
+        return {
+            loginType,
+            admin,
+        };
+    }
+
+    // ==================================================
+    // Clear Authentication
+    // ==================================================
+
+    function clearAuthentication() {
+        localStorage.removeItem(
+            "access_token",
+        );
+
+        localStorage.removeItem(
+            "login_type",
+        );
+
+        localStorage.removeItem(
+            "login_user",
+        );
+
+        localStorage.removeItem(
+            "refresh_token",
+        );
+
+        localStorage.removeItem(
+            "token_type",
+        );
+    }
+
+    // ==================================================
     // Password Login
     // ==================================================
 
     async function handlePasswordLogin(
-        e: SubmitEvent<HTMLFormElement>
+        e: SubmitEvent<HTMLFormElement>,
     ) {
         e.preventDefault();
 
@@ -60,83 +192,92 @@ function Login() {
         setSuccess("");
 
         try {
-            const data = await login({
-                loginname: loginname.trim(),
+            // ------------------------------------------
+            // Login API
+            //
+            // Response:
+            // {
+            //     token: string,
+            //     user: {...}
+            // }
+            // ------------------------------------------
+
+            const response = await login({
+                loginname:
+                    loginname.trim(),
                 password,
             });
 
             console.log(
                 "LOGIN API RESPONSE:",
-                data
+                response,
             );
 
-            const accessToken = data.token;
+            // ------------------------------------------
+            // Get access token
+            // ------------------------------------------
+
+            const accessToken =
+                response?.token;
 
             if (
                 !accessToken ||
-                typeof accessToken !== "string"
+                typeof accessToken !==
+                    "string"
             ) {
                 throw new Error(
-                    "Login successful but no valid token was returned."
+                    "Login successful but no valid token was returned.",
                 );
             }
 
             // ------------------------------------------
-            // Read JWT
+            // Get user
+            // ------------------------------------------
+
+            const user =
+                response?.user;
+
+            if (!user) {
+                throw new Error(
+                    "Login successful but user information was not returned.",
+                );
+            }
+
+            // ------------------------------------------
+            // Decode JWT
             // ------------------------------------------
 
             const jwtPayload =
-                getJwtPayload(accessToken);
+                getJwtPayload(
+                    accessToken,
+                );
 
             console.log(
                 "JWT PAYLOAD:",
-                jwtPayload
+                jwtPayload,
             );
 
-            const loginType =
-                getLoginType(accessToken);
+            // ------------------------------------------
+            // Store authentication
+            // ------------------------------------------
 
-            const admin =
-                isAdminUser(accessToken);
+            const {
+                admin,
+                loginType,
+            } =
+                storeAuthentication(
+                    accessToken,
+                    user,
+                );
 
             console.log(
-                "LOGIN TYPE FROM JWT:",
-                loginType
+                "LOGIN TYPE:",
+                loginType,
             );
 
             console.log(
                 "IS ADMIN:",
-                admin
-            );
-
-            // ------------------------------------------
-            // Store Authentication
-            // ------------------------------------------
-
-            localStorage.setItem(
-                "access_token",
-                accessToken
-            );
-
-            localStorage.setItem(
-                "login_type",
-                loginType
-            );
-
-            if (data.user) {
-                localStorage.setItem(
-                    "login_user",
-                    JSON.stringify(data.user)
-                );
-            }
-
-            // Remove stale authentication data
-            localStorage.removeItem(
-                "refresh_token"
-            );
-
-            localStorage.removeItem(
-                "token_type"
+                admin,
             );
 
             // ------------------------------------------
@@ -155,42 +296,49 @@ function Login() {
         } catch (err) {
             console.error(
                 "LOGIN ERROR:",
-                err
+                err,
             );
 
-            // Clear invalid authentication
-            localStorage.removeItem(
-                "access_token"
-            );
-
-            localStorage.removeItem(
-                "login_type"
-            );
-
-            localStorage.removeItem(
-                "login_user"
-            );
+            clearAuthentication();
 
             setError(
                 err instanceof Error
                     ? err.message
-                    : "Invalid login credentials."
+                    : "Invalid login credentials.",
             );
         } finally {
             setLoading(false);
         }
     }
 
+    // ==================================================
+    // Generate Token
+    // ==================================================
+
     async function handleGenerateToken() {
         setError("");
         setSuccess("");
         setCopied(false);
 
-        const uid = userId.trim();
+        const uidText =
+            userId.trim();
 
-        if (!uid) {
+        if (!uidText) {
             setError(
-                "Please enter a User ID."
+                "Please enter a User ID.",
+            );
+            return;
+        }
+
+        const uid =
+            Number(uidText);
+
+        if (
+            !Number.isInteger(uid) ||
+            uid <= 0
+        ) {
+            setError(
+                "User ID must be a valid number.",
             );
             return;
         }
@@ -198,52 +346,67 @@ function Login() {
         setLoading(true);
 
         try {
+            // ------------------------------------------
+            // Generate token API
+            //
+            // Response:
+            // {
+            //     token: string
+            // }
+            // ------------------------------------------
+
             const response =
-                await generateToken(uid);
+                await generateToken(
+                    uid,
+                );
 
             console.log(
                 "GENERATE TOKEN RESPONSE:",
-                response
+                response,
             );
 
-            // API response:
-            // {
-            //     token: "..."
-            // }
+            // ------------------------------------------
+            // Get token from response
+            // ------------------------------------------
 
             const generated =
                 response?.token;
 
             if (
                 !generated ||
-                typeof generated !== "string"
+                typeof generated !==
+                    "string"
             ) {
                 throw new Error(
-                    "Token was not returned by the server."
+                    "Token was not returned by the server.",
                 );
             }
 
+            // ------------------------------------------
+            // Store token in UI
+            // ------------------------------------------
+
             setGeneratedToken(
-                generated
+                generated,
             );
 
-            // Automatically place generated token
-            // inside the Token textarea.
-            setToken(generated);
+            setToken(
+                generated,
+            );
 
             setSuccess(
-                "Token generated successfully."
+                "Token generated successfully.",
             );
         } catch (err) {
             console.error(
                 "TOKEN GENERATION ERROR:",
-                err
+                err,
             );
 
             setError(
                 err instanceof Error
                     ? err.message
-                    : "Unable to generate token."
+                    : "Unable to generate token.",
             );
         } finally {
             setLoading(false);
@@ -261,7 +424,7 @@ function Login() {
 
         try {
             await navigator.clipboard.writeText(
-                generatedToken
+                generatedToken,
             );
 
             setCopied(true);
@@ -273,11 +436,11 @@ function Login() {
         } catch (err) {
             console.error(
                 "COPY TOKEN ERROR:",
-                err
+                err,
             );
 
             setError(
-                "Unable to copy token."
+                "Unable to copy token.",
             );
         }
     }
@@ -287,7 +450,7 @@ function Login() {
     // ==================================================
 
     async function handleTokenSubmit(
-        e: SubmitEvent<HTMLFormElement>
+        e: SubmitEvent<HTMLFormElement>,
     ) {
         e.preventDefault();
 
@@ -295,11 +458,11 @@ function Login() {
         setSuccess("");
 
         const tokenValue =
-            String(token).trim();
+            token.trim();
 
         if (!tokenValue) {
             setError(
-                "Please enter a token."
+                "Please enter a token.",
             );
             return;
         }
@@ -309,112 +472,99 @@ function Login() {
         try {
             console.log(
                 "TOKEN LOGIN REQUEST:",
-                tokenValue
+                tokenValue,
             );
 
             // ------------------------------------------
-            // Authenticate generated token
-            // POST /api/token/login
+            // Token Login API
             //
             // Response:
             // {
-            //     token: "...JWT...",
+            //     token: string,
             //     user: {...}
             // }
             // ------------------------------------------
 
             const response =
                 await tokenLogin(
-                    tokenValue
+                    tokenValue,
                 );
 
             console.log(
                 "TOKEN LOGIN RESPONSE:",
-                response
+                response,
             );
 
+            // ------------------------------------------
+            // Get access token
+            // ------------------------------------------
+
+            const accessToken =
+                response?.token;
+
             if (
-                !response ||
-                !response.token ||
-                typeof response.token !== "string"
+                !accessToken ||
+                typeof accessToken !==
+                    "string"
             ) {
                 throw new Error(
-                    "Token login failed. No authentication token returned."
+                    "Token login failed. No authentication token returned.",
                 );
             }
 
-            // IMPORTANT:
-            // Store response.token, NOT the entire response object.
-            const accessToken =
-                response.token;
+            // ------------------------------------------
+            // Get user
+            // ------------------------------------------
+
+            const user =
+                response?.user;
+
+            if (!user) {
+                throw new Error(
+                    "Token login successful but user information was not returned.",
+                );
+            }
 
             console.log(
                 "AUTHENTICATED ACCESS TOKEN:",
-                accessToken
+                accessToken,
             );
 
             // ------------------------------------------
-            // Verify token looks like JWT
+            // Decode JWT
             // ------------------------------------------
 
             const jwtPayload =
-                getJwtPayload(accessToken);
+                getJwtPayload(
+                    accessToken,
+                );
 
             console.log(
                 "TOKEN JWT PAYLOAD:",
-                jwtPayload
+                jwtPayload,
             );
 
             // ------------------------------------------
-            // Determine user type
+            // Store authentication
             // ------------------------------------------
 
-            const loginType =
-                getLoginType(accessToken);
-
-            const admin =
-                isAdminUser(accessToken);
+            const {
+                admin,
+                loginType,
+            } =
+                storeAuthentication(
+                    accessToken,
+                    user,
+                );
 
             console.log(
                 "TOKEN LOGIN TYPE:",
-                loginType
+                loginType,
             );
 
             console.log(
                 "TOKEN IS ADMIN:",
-                admin
-            );
-
-            // ------------------------------------------
-            // Store Authentication
-            // ------------------------------------------
-
-            localStorage.setItem(
-                "access_token",
-                accessToken
-            );
-
-            localStorage.setItem(
-                "login_type",
-                loginType
-            );
-
-            if (response.user) {
-                localStorage.setItem(
-                    "login_user",
-                    JSON.stringify(
-                        response.user
-                    )
-                );
-            }
-
-            // Remove stale authentication data
-            localStorage.removeItem(
-                "refresh_token"
-            );
-
-            localStorage.removeItem(
-                "token_type"
+                admin,
             );
 
             // ------------------------------------------
@@ -422,7 +572,7 @@ function Login() {
             // ------------------------------------------
 
             setSuccess(
-                "Token login successful."
+                "Token login successful.",
             );
 
             // ------------------------------------------
@@ -441,26 +591,15 @@ function Login() {
         } catch (err) {
             console.error(
                 "TOKEN LOGIN ERROR:",
-                err
+                err,
             );
 
-            // Remove invalid authentication
-            localStorage.removeItem(
-                "access_token"
-            );
-
-            localStorage.removeItem(
-                "login_type"
-            );
-
-            localStorage.removeItem(
-                "login_user"
-            );
+            clearAuthentication();
 
             setError(
                 err instanceof Error
                     ? err.message
-                    : "Invalid token."
+                    : "Invalid token.",
             );
         } finally {
             setLoading(false);
@@ -472,7 +611,7 @@ function Login() {
     // ==================================================
 
     function switchLoginMode(
-        mode: "password" | "token"
+        mode: "password" | "token",
     ) {
         setLoginMode(mode);
 
@@ -483,6 +622,7 @@ function Login() {
         if (mode === "password") {
             setGeneratedToken("");
             setToken("");
+            setUserId("");
         }
     }
 
@@ -494,9 +634,7 @@ function Login() {
         <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4 dark:bg-gray-950">
             <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg dark:bg-gray-900">
 
-                {/* ======================================
-                    Header
-                   ====================================== */}
+                {/* Header */}
 
                 <div className="mb-6 text-center">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -504,27 +642,27 @@ function Login() {
                     </h1>
 
                     <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                        {loginMode === "password"
+                        {loginMode ===
+                        "password"
                             ? "Sign in to your account"
                             : "Sign in using a token"}
                     </p>
                 </div>
 
-                {/* ======================================
-                    Login Mode Switch
-                   ====================================== */}
+                {/* Login Mode Switch */}
 
                 <div className="mb-6 grid grid-cols-2 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
                     <button
                         type="button"
                         onClick={() =>
                             switchLoginMode(
-                                "password"
+                                "password",
                             )
                         }
                         disabled={loading}
                         className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                            loginMode === "password"
+                            loginMode ===
+                            "password"
                                 ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white"
                                 : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                         }`}
@@ -536,12 +674,13 @@ function Login() {
                         type="button"
                         onClick={() =>
                             switchLoginMode(
-                                "token"
+                                "token",
                             )
                         }
                         disabled={loading}
                         className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                            loginMode === "token"
+                            loginMode ===
+                            "token"
                                 ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white"
                                 : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                         }`}
@@ -550,9 +689,7 @@ function Login() {
                     </button>
                 </div>
 
-                {/* ======================================
-                    Error Message
-                   ====================================== */}
+                {/* Error */}
 
                 {error && (
                     <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
@@ -560,9 +697,7 @@ function Login() {
                     </div>
                 )}
 
-                {/* ======================================
-                    Success Message
-                   ====================================== */}
+                {/* Success */}
 
                 {success && (
                     <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
@@ -574,7 +709,8 @@ function Login() {
                     PASSWORD LOGIN
                    ================================================== */}
 
-                {loginMode === "password" && (
+                {loginMode ===
+                    "password" && (
                     <form
                         onSubmit={
                             handlePasswordLogin
@@ -594,16 +730,23 @@ function Login() {
                             <input
                                 id="loginname"
                                 type="text"
-                                value={loginname}
-                                onChange={(e) =>
+                                value={
+                                    loginname
+                                }
+                                onChange={(
+                                    e,
+                                ) =>
                                     setLoginname(
-                                        e.target.value
+                                        e.target
+                                            .value,
                                     )
                                 }
                                 placeholder="Enter your login name"
                                 autoComplete="username"
                                 required
-                                disabled={loading}
+                                disabled={
+                                    loading
+                                }
                                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             />
                         </div>
@@ -621,16 +764,23 @@ function Login() {
                             <input
                                 id="password"
                                 type="password"
-                                value={password}
-                                onChange={(e) =>
+                                value={
+                                    password
+                                }
+                                onChange={(
+                                    e,
+                                ) =>
                                     setPassword(
-                                        e.target.value
+                                        e.target
+                                            .value,
                                     )
                                 }
                                 placeholder="Enter your password"
                                 autoComplete="current-password"
                                 required
-                                disabled={loading}
+                                disabled={
+                                    loading
+                                }
                                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             />
                         </div>
@@ -657,7 +807,8 @@ function Login() {
                     TOKEN LOGIN
                    ================================================== */}
 
-                {loginMode === "token" && (
+                {loginMode ===
+                    "token" && (
                     <form
                         onSubmit={
                             handleTokenSubmit
@@ -676,22 +827,32 @@ function Login() {
 
                             <input
                                 id="userId"
-                                type="text"
-                                value={userId}
-                                onChange={(e) =>
+                                type="number"
+                                value={
+                                    userId
+                                }
+                                onChange={(
+                                    e,
+                                ) =>
                                     setUserId(
-                                        e.target.value
+                                        e.target
+                                            .value,
                                     )
                                 }
                                 placeholder="Enter your user ID"
                                 required
-                                disabled={loading}
+                                disabled={
+                                    loading
+                                }
+                                min="1"
                                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             />
 
                             <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                Enter the user ID for which
-                                you want to generate a token.
+                                Enter the user ID
+                                for which you
+                                want to generate
+                                a token.
                             </p>
                         </div>
 
@@ -721,7 +882,8 @@ function Login() {
                                     htmlFor="generatedToken"
                                     className="block text-sm font-medium text-gray-700 dark:text-gray-300"
                                 >
-                                    Generated Token
+                                    Generated
+                                    Token
                                 </label>
 
                                 <div className="flex gap-2">
@@ -762,17 +924,26 @@ function Login() {
 
                             <textarea
                                 id="token"
-                                value={token}
-                                onChange={(e) =>
+                                value={
+                                    token
+                                }
+                                onChange={(
+                                    e,
+                                ) =>
                                     setToken(
-                                        e.target.value
+                                        e.target
+                                            .value,
                                     )
                                 }
                                 placeholder="Paste or enter your token"
                                 rows={4}
                                 required
-                                disabled={loading}
-                                spellCheck={false}
+                                disabled={
+                                    loading
+                                }
+                                spellCheck={
+                                    false
+                                }
                                 className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             />
                         </div>
@@ -783,7 +954,7 @@ function Login() {
                             type="submit"
                             disabled={
                                 loading ||
-                                !String(token).trim()
+                                !token.trim()
                             }
                             className="w-full rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
                         >

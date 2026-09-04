@@ -119,16 +119,7 @@ export function clearAuthentication(): void {
     localStorage.removeItem(
         "login_user",
     );
-
-    localStorage.removeItem(
-        "refresh_token",
-    );
-
-    localStorage.removeItem(
-        "token_type",
-    );
 }
-
 // --------------------------------------------------
 // Build Request Headers
 // --------------------------------------------------
