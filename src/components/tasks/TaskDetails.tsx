@@ -6,6 +6,8 @@ import {
     Pencil,
     Trash2,
     User,
+    FileText,
+    // File,
 } from "lucide-react";
 
 import { deleteTask } from "../../api/tasks";
@@ -262,16 +264,73 @@ function TaskDetails({
 
                     </section>
                     <section>
-
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                           Need Action:
+                            Uploaded Files:
                         </h3>
 
-                        <div className="flex items-center justify-start gap-3 pt-2">
+                        <div className="mt-4 space-y-3">
+                            {[
+                                {
+                                    id: 1,
+                                    name: "bridge_new.png",
+                                    size: "1.4 kb",
+                                },
+                            ].map((file) => (
+                                <div
+                                    key={file.id}
+                                    className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-950"
+                                >
+                                    <div className="flex min-w-0 items-center gap-3">
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-gray-900">
+                                            <FileText
+                                                size={17}
+                                                className="text-gray-500 dark:text-gray-400"
+                                            />
+                                        </div>
+
+                                        <div className="min-w-0">
+                                            <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                                                {file.name}
+                                            </p>
+
+                                            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                                {file.size}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div>
+
+                                        <button
+                                            type="button"
+                                            className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                                            onClick={() =>
+                                                alert(`Opening ${file.name}`)
+                                            }
+                                        >
+                                            View
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                                            onClick={() =>
+                                                alert(`Downloading ${file.name}`)
+                                            }
+                                        >
+                                            Download
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                    <section>
+
+                        <div className="flex w-full gap-3 pt-2">
                             <button
                                 type="button"
                                 onClick={() => alert("Task rejected")}
-                                className="rounded-lg border border-red-200 bg-white px-4 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
+                                className="flex flex-1 items-center justify-center rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
                             >
                                 Reject
                             </button>
@@ -279,13 +338,12 @@ function TaskDetails({
                             <button
                                 type="button"
                                 onClick={() => alert("Task accepted")}
-                                className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-green-700"
+                                className="flex flex-1 items-center justify-center rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700"
                             >
                                 Accept
                             </button>
                         </div>
                     </section>
-
                 </div>
             </div>
         </div>

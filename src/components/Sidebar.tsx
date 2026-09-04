@@ -6,6 +6,7 @@ import {
   Moon,
   Sun,
   File,
+  MessageCircle,
 } from "lucide-react";
 
 import {
@@ -71,6 +72,11 @@ function Sidebar({
         label: "Files",
         icon: File,
         to: "/files",
+      },
+      {
+        label: "Chat",
+        icon: MessageCircle,
+        to: "/task-conversations",
       },
     ];
 

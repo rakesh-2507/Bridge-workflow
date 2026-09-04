@@ -28,7 +28,7 @@ import TodayTasksPage from "./pages/tasks/TodayTasksPage";
 import CreateTaskPage from "./pages/tasks/CreateTaskPage";
 import EditTaskPage from "./pages/tasks/EditTaskPage";
 import FileUploadPage from "./pages/FileUploadPage";
-
+import TaskChatPage from "./pages/TaskChatPage";
 function App() {
   const [darkMode, setDarkMode] = useState(false);
 
@@ -112,6 +112,11 @@ function App() {
             <Route
               path="/files"
               element={<FileUploadPage />}
+            />
+
+            <Route
+              path="/task-conversations"
+              element={<TaskChatPage  />}
             />
 
             <Route

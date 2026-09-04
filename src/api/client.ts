@@ -1,52 +1,80 @@
-const API_BASE_URL = "https://bridgeworkflow.sidpz.com";
+const API_BASE_URL =
+    "https://bridgeworkflow.sidpz.com";
 
-interface RefreshResponse {
-    access_token: string;
-    refresh_token: string;
-    token_type: string;
-}
+// --------------------------------------------------
+// Error Message
+// --------------------------------------------------
 
-function getErrorMessage(data: unknown): string {
+function getErrorMessage(
+    data: unknown,
+): string {
     if (typeof data === "string") {
         return data;
     }
 
-    if (!data || typeof data !== "object") {
+    if (
+        !data ||
+        typeof data !== "object"
+    ) {
         return "Something went wrong";
     }
 
-    const errorData = data as Record<string, unknown>;
+    const errorData =
+        data as Record<
+            string,
+            unknown
+        >;
 
     // Simple message
-    if (typeof errorData.message === "string") {
+    if (
+        typeof errorData.message ===
+        "string"
+    ) {
         return errorData.message;
     }
 
-    if (typeof errorData.error === "string") {
+    // Error
+    if (
+        typeof errorData.error ===
+        "string"
+    ) {
         return errorData.error;
     }
 
-    // FastAPI commonly uses `detail`
-    if (typeof errorData.detail === "string") {
+    // FastAPI detail
+    if (
+        typeof errorData.detail ===
+        "string"
+    ) {
         return errorData.detail;
     }
 
-    // FastAPI/Pydantic validation errors
-    if (Array.isArray(errorData.detail)) {
+    // FastAPI / Pydantic validation errors
+    if (
+        Array.isArray(
+            errorData.detail,
+        )
+    ) {
         return errorData.detail
             .map((item) => {
                 if (
                     item &&
-                    typeof item === "object"
+                    typeof item ===
+                        "object"
                 ) {
                     const validationError =
-                        item as Record<string, unknown>;
+                        item as Record<
+                            string,
+                            unknown
+                        >;
 
                     const location =
                         Array.isArray(
-                            validationError.loc
+                            validationError.loc,
                         )
-                            ? validationError.loc.join(".")
+                            ? validationError.loc.join(
+                                  ".",
+                              )
                             : "";
 
                     const message =
@@ -67,195 +95,227 @@ function getErrorMessage(data: unknown): string {
 
     // Fallback
     try {
-        return JSON.stringify(data);
+        return JSON.stringify(
+            data,
+        );
     } catch {
         return "Something went wrong";
     }
 }
 
-async function refreshAccessToken(): Promise<string> {
-    const refreshToken =
-        localStorage.getItem("refresh_token");
+// --------------------------------------------------
+// Clear Authentication
+// --------------------------------------------------
 
-    if (!refreshToken) {
-        throw new Error(
-            "No refresh token available"
-        );
-    }
-
-    const response = await fetch(
-        `${API_BASE_URL}/api/refresh-token`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                refresh_token: refreshToken,
-            }),
-        }
-    );
-
-    const data: unknown =
-        await response.json();
-
-    if (!response.ok) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("token_type");
-
-        throw new Error(
-            getErrorMessage(data) ||
-                "Session expired"
-        );
-    }
-
-    const tokenData =
-        data as RefreshResponse;
-
-    localStorage.setItem(
+export function clearAuthentication(): void {
+    localStorage.removeItem(
         "access_token",
-        tokenData.access_token
     );
 
-    localStorage.setItem(
+    localStorage.removeItem(
+        "login_type",
+    );
+
+    localStorage.removeItem(
+        "login_user",
+    );
+
+    localStorage.removeItem(
         "refresh_token",
-        tokenData.refresh_token
     );
 
-    localStorage.setItem(
+    localStorage.removeItem(
         "token_type",
-        tokenData.token_type
     );
-
-    return tokenData.access_token;
 }
+
+// --------------------------------------------------
+// Build Request Headers
+// --------------------------------------------------
+
+function createHeaders(
+    options: RequestInit,
+    accessToken: string | null,
+): Headers {
+    const headers =
+        new Headers(
+            options.headers,
+        );
+
+    const isFormData =
+        options.body instanceof
+        FormData;
+
+    // ----------------------------------------------
+    // Content-Type
+    // ----------------------------------------------
+
+    if (isFormData) {
+        /*
+         * IMPORTANT:
+         *
+         * Never manually set Content-Type
+         * for FormData.
+         *
+         * Browser automatically adds:
+         *
+         * multipart/form-data;
+         * boundary=...
+         */
+
+        headers.delete(
+            "Content-Type",
+        );
+    } else {
+        headers.set(
+            "Content-Type",
+            "application/json",
+        );
+    }
+
+    // ----------------------------------------------
+    // Authorization
+    // ----------------------------------------------
+
+    if (accessToken) {
+        headers.set(
+            "Authorization",
+            `Bearer ${accessToken}`,
+        );
+    } else {
+        headers.delete(
+            "Authorization",
+        );
+    }
+
+    return headers;
+}
+
+// --------------------------------------------------
+// Read Response
+// --------------------------------------------------
+
+async function readResponse(
+    response: Response,
+): Promise<unknown> {
+    const contentType =
+        response.headers.get(
+            "content-type",
+        );
+
+    if (
+        contentType?.includes(
+            "application/json",
+        )
+    ) {
+        return response.json();
+    }
+
+    return response.text();
+}
+
+// --------------------------------------------------
+// API Request
+// --------------------------------------------------
 
 export async function apiRequest<T>(
     endpoint: string,
     options: RequestInit = {},
-    retry = true
 ): Promise<T> {
-    let accessToken =
-        localStorage.getItem("access_token");
-
-    let response = await fetch(
-        `${API_BASE_URL}${endpoint}`,
-        {
-            ...options,
-
-            headers: {
-                "Content-Type":
-                    "application/json",
-
-                ...(accessToken
-                    ? {
-                          Authorization:
-                              `Bearer ${accessToken}`,
-                      }
-                    : {}),
-
-                ...options.headers,
-            },
-        }
-    );
-
-    /*
-     * ----------------------------------------
-     * ACCESS TOKEN EXPIRED
-     * ----------------------------------------
-     */
-
-    if (
-        response.status === 401 &&
-        retry
-    ) {
-        try {
-            accessToken =
-                await refreshAccessToken();
-
-            response = await fetch(
-                `${API_BASE_URL}${endpoint}`,
-                {
-                    ...options,
-
-                    headers: {
-                        "Content-Type":
-                            "application/json",
-
-                        Authorization:
-                            `Bearer ${accessToken}`,
-
-                        ...options.headers,
-                    },
-                }
-            );
-        } catch {
-            localStorage.removeItem(
-                "access_token"
-            );
-
-            localStorage.removeItem(
-                "refresh_token"
-            );
-
-            localStorage.removeItem(
-                "token_type"
-            );
-
-            window.location.href =
-                "/login";
-
-            throw new Error(
-                "Session expired. Please login again."
-            );
-        }
-    }
-
-    /*
-     * ----------------------------------------
-     * READ RESPONSE
-     * ----------------------------------------
-     */
-
-    const contentType =
-        response.headers.get(
-            "content-type"
+    const accessToken =
+        localStorage.getItem(
+            "access_token",
         );
 
-    let data: unknown;
+    // ----------------------------------------------
+    // Request
+    // ----------------------------------------------
+
+    const response =
+        await fetch(
+            `${API_BASE_URL}${endpoint}`,
+            {
+                ...options,
+
+                headers:
+                    createHeaders(
+                        options,
+                        accessToken,
+                    ),
+            },
+        );
+
+    // ----------------------------------------------
+    // Read response
+    // ----------------------------------------------
+
+    const data =
+        await readResponse(
+            response,
+        );
+
+    // ----------------------------------------------
+    // Unauthorized
+    // ----------------------------------------------
 
     if (
-        contentType?.includes(
-            "application/json"
-        )
+        response.status === 401
     ) {
-        data = await response.json();
-    } else {
-        data = await response.text();
+        console.error(
+            "Authentication failed:",
+            {
+                endpoint,
+                status:
+                    response.status,
+                hasAccessToken:
+                    Boolean(
+                        accessToken,
+                    ),
+            },
+        );
+
+        /*
+         * Do not automatically redirect.
+         *
+         * Do not attempt refresh-token
+         * because this authentication
+         * system currently doesn't provide
+         * a refresh token.
+         */
+
+        throw new Error(
+            "Authentication failed. Please login again.",
+        );
     }
 
-    /*
-     * ----------------------------------------
-     * ERROR
-     * ----------------------------------------
-     */
+    // ----------------------------------------------
+    // Other API errors
+    // ----------------------------------------------
 
     if (!response.ok) {
         const message =
-            getErrorMessage(data);
+            getErrorMessage(
+                data,
+            );
 
         console.error(
             `API Error ${response.status}:`,
             {
                 endpoint,
-                status: response.status,
+                status:
+                    response.status,
                 response: data,
-            }
+            },
         );
 
-        throw new Error(message);
+        throw new Error(
+            message,
+        );
     }
+
+    // ----------------------------------------------
+    // Success
+    // ----------------------------------------------
 
     return data as T;
 }
