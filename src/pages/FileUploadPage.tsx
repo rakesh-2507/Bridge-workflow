@@ -25,63 +25,8 @@ import {
 } from "../api/folders";
 
 import {
-    getUsers,
-    type User,
-} from "../api/users";
-
-import {
     uploadFileToFolder,
 } from "../api/files";
-
-// --------------------------------------------------
-// Current User Helper
-// --------------------------------------------------
-
-function getCurrentUserId(): number | null {
-    const possibleKeys = [
-        "user",
-        "current_user",
-        "currentUser",
-        "logged_in_user",
-    ];
-
-    for (const key of possibleKeys) {
-        const stored = localStorage.getItem(key);
-
-        if (!stored) {
-            continue;
-        }
-
-        try {
-            const parsed = JSON.parse(stored);
-
-            const uid =
-                parsed?.uid ??
-                parsed?.user?.uid ??
-                parsed?.id ??
-                parsed?.user_id;
-
-            if (typeof uid === "number") {
-                return uid;
-            }
-
-            if (
-                typeof uid === "string" &&
-                uid.trim() !== ""
-            ) {
-                const numericUid = Number(uid);
-
-                if (!Number.isNaN(numericUid)) {
-                    return numericUid;
-                }
-            }
-        } catch {
-            // Ignore invalid localStorage data
-        }
-    }
-
-    return null;
-}
 
 // --------------------------------------------------
 // Component
@@ -90,6 +35,66 @@ function getCurrentUserId(): number | null {
 function FileUploadPage() {
     const fileInputRef =
         useRef<HTMLInputElement | null>(null);
+
+    // --------------------------------------------------
+    // Current User
+    // --------------------------------------------------
+
+    const currentUserId = useMemo(
+        () => {
+            try {
+                const storedUser =
+                    localStorage.getItem(
+                        "login_user"
+                    );
+
+                if (!storedUser) {
+                    return null;
+                }
+
+                const user =
+                    JSON.parse(storedUser) as Record<
+                        string,
+                        unknown
+                    >;
+
+                const userId =
+                    user.uid ??
+                    user.user_id ??
+                    user.id;
+
+                if (
+                    typeof userId === "number"
+                ) {
+                    return userId;
+                }
+
+                if (
+                    typeof userId === "string" &&
+                    userId.trim() !== ""
+                ) {
+                    const parsedId =
+                        Number(userId);
+
+                    return Number.isNaN(
+                        parsedId
+                    )
+                        ? null
+                        : parsedId;
+                }
+
+                return null;
+            } catch (err) {
+                console.error(
+                    "Failed to read logged-in user:",
+                    err
+                );
+
+                return null;
+            }
+        },
+        []
+    );
 
     // --------------------------------------------------
     // Data
@@ -101,9 +106,6 @@ function FileUploadPage() {
     const [folders, setFolders] =
         useState<ProjectFolder[]>([]);
 
-    const [users, setUsers] =
-        useState<User[]>([]);
-
     // --------------------------------------------------
     // Loading
     // --------------------------------------------------
@@ -112,9 +114,6 @@ function FileUploadPage() {
         useState(false);
 
     const [isLoadingFolders, setIsLoadingFolders] =
-        useState(false);
-
-    const [isLoadingUsers, setIsLoadingUsers] =
         useState(false);
 
     const [isUploading, setIsUploading] =
@@ -134,19 +133,6 @@ function FileUploadPage() {
         useState<number | "">("");
 
     // --------------------------------------------------
-    // Current user
-    // --------------------------------------------------
-
-    /*
-     * This is derived from localStorage.
-     * It does NOT need React state.
-     */
-    const currentUserId = useMemo(
-        () => getCurrentUserId(),
-        []
-    );
-
-    // --------------------------------------------------
     // Messages
     // --------------------------------------------------
 
@@ -164,6 +150,7 @@ function FileUploadPage() {
         async function loadProjects() {
             try {
                 setIsLoadingProjects(true);
+                setError("");
 
                 const response =
                     await getProjects();
@@ -225,34 +212,6 @@ function FileUploadPage() {
     }, []);
 
     // --------------------------------------------------
-    // Load users
-    // --------------------------------------------------
-
-    useEffect(() => {
-        async function loadUsers() {
-            try {
-                setIsLoadingUsers(true);
-
-                const response =
-                    await getUsers();
-
-                setUsers(
-                    response.users
-                );
-            } catch (err) {
-                console.error(
-                    "Failed to load users:",
-                    err
-                );
-            } finally {
-                setIsLoadingUsers(false);
-            }
-        }
-
-        loadUsers();
-    }, []);
-
-    // --------------------------------------------------
     // Folders for selected project
     // --------------------------------------------------
 
@@ -309,23 +268,6 @@ function FileUploadPage() {
     );
 
     // --------------------------------------------------
-    // Current user
-    // --------------------------------------------------
-
-    const currentUser = useMemo(
-        () =>
-            users.find(
-                (user) =>
-                    user.uid ===
-                    currentUserId
-            ),
-        [
-            users,
-            currentUserId,
-        ]
-    );
-
-    // --------------------------------------------------
     // File selection
     // --------------------------------------------------
 
@@ -375,7 +317,6 @@ function FileUploadPage() {
             projectId
         );
 
-        // Reset folder
         setSelectedFolderId("");
 
         setUploadSuccess(false);
@@ -414,7 +355,7 @@ function FileUploadPage() {
         setUploadSuccess(false);
 
         // ----------------------------------------------
-        // File
+        // Validate file
         // ----------------------------------------------
 
         if (!selectedFile) {
@@ -425,7 +366,7 @@ function FileUploadPage() {
         }
 
         // ----------------------------------------------
-        // Project
+        // Validate project
         // ----------------------------------------------
 
         if (selectedProjectId === "") {
@@ -436,7 +377,7 @@ function FileUploadPage() {
         }
 
         // ----------------------------------------------
-        // Folder
+        // Validate folder
         // ----------------------------------------------
 
         if (selectedFolderId === "") {
@@ -447,12 +388,12 @@ function FileUploadPage() {
         }
 
         // ----------------------------------------------
-        // User
+        // Validate current user
         // ----------------------------------------------
 
         if (currentUserId === null) {
             setError(
-                "Unable to identify the logged-in user."
+                "Unable to identify the logged-in user. Please login again."
             );
             return;
         }
@@ -460,11 +401,20 @@ function FileUploadPage() {
         try {
             setIsUploading(true);
 
+            console.log("UPLOAD REQUEST:", {
+                project_id: selectedProjectId,
+                folder_id: selectedFolderId,
+                uploaded_by: currentUserId,
+                file_name: selectedFile.name,
+                selectedProject,
+                selectedFolder,
+            });
+
             await uploadFileToFolder(
                 selectedProjectId,
                 selectedFolderId,
                 currentUserId,
-                selectedFile
+                selectedFile,
             );
 
             // ------------------------------------------
@@ -663,8 +613,6 @@ function FileUploadPage() {
                             </p>
                         </div>
 
-                        {/* File picker */}
-
                         {!selectedFile ? (
                             <>
                                 <button
@@ -845,68 +793,6 @@ function FileUploadPage() {
                                 </div>
                             </div>
                         )}
-
-                        {/* Current user */}
-
-                        {currentUser && (
-                            <div
-                                className="
-                                    mt-5
-                                    rounded-xl
-                                    border
-                                    border-gray-200
-                                    bg-gray-50
-                                    p-4
-                                    dark:border-gray-800
-                                    dark:bg-gray-950
-                                "
-                            >
-                                <p
-                                    className="
-                                        text-xs
-                                        font-semibold
-                                        uppercase
-                                        tracking-wider
-                                        text-gray-500
-                                        dark:text-gray-400
-                                    "
-                                >
-                                    Uploaded By
-                                </p>
-
-                                <div className="mt-2">
-                                    <p
-                                        className="
-                                            text-sm
-                                            font-medium
-                                            text-gray-900
-                                            dark:text-white
-                                        "
-                                    >
-                                        {
-                                            currentUser.firstname
-                                        }{" "}
-                                        {
-                                            currentUser.lastname
-                                        }
-                                    </p>
-
-                                    <p
-                                        className="
-                                            mt-0.5
-                                            text-xs
-                                            text-gray-500
-                                            dark:text-gray-400
-                                        "
-                                    >
-                                        User ID:{" "}
-                                        {
-                                            currentUser.uid
-                                        }
-                                    </p>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     {/* RIGHT */}
@@ -1069,7 +955,7 @@ function FileUploadPage() {
                                     }
                                     disabled={
                                         selectedProjectId ===
-                                            "" ||
+                                        "" ||
                                         isLoadingFolders ||
                                         isUploading
                                     }
@@ -1100,14 +986,14 @@ function FileUploadPage() {
                                 >
                                     <option value="">
                                         {selectedProjectId ===
-                                        ""
+                                            ""
                                             ? "Select a project first"
                                             : isLoadingFolders
-                                            ? "Loading folders..."
-                                            : availableFolders.length ===
-                                              0
-                                            ? "No folders found"
-                                            : "Select folder"}
+                                                ? "Loading folders..."
+                                                : availableFolders.length ===
+                                                    0
+                                                    ? "No folders found"
+                                                    : "Select folder"}
                                     </option>
 
                                     {availableFolders.map(
@@ -1132,7 +1018,7 @@ function FileUploadPage() {
 
                                 {isLoadingFolders &&
                                     selectedProjectId !==
-                                        "" && (
+                                    "" && (
                                         <Loader2
                                             size={16}
                                             className="
@@ -1151,8 +1037,8 @@ function FileUploadPage() {
 
                         {(selectedProject ||
                             selectedFolder) && (
-                            <div
-                                className="
+                                <div
+                                    className="
                                     mt-6
                                     rounded-xl
                                     border
@@ -1162,9 +1048,9 @@ function FileUploadPage() {
                                     dark:border-sky-900
                                     dark:bg-sky-950
                                 "
-                            >
-                                <p
-                                    className="
+                                >
+                                    <p
+                                        className="
                                         mb-4
                                         text-xs
                                         font-semibold
@@ -1173,104 +1059,104 @@ function FileUploadPage() {
                                         text-sky-700
                                         dark:text-sky-300
                                     "
-                                >
-                                    Upload
-                                    Destination
-                                </p>
+                                    >
+                                        Upload
+                                        Destination
+                                    </p>
 
-                                {selectedProject && (
-                                    <div
-                                        className="
+                                    {selectedProject && (
+                                        <div
+                                            className="
                                             flex
                                             items-start
                                             gap-3
                                         "
-                                    >
-                                        <FileIcon
-                                            size={17}
-                                            className="
+                                        >
+                                            <FileIcon
+                                                size={17}
+                                                className="
                                                 mt-0.5
                                                 shrink-0
                                                 text-sky-700
                                                 dark:text-sky-300
                                             "
-                                        />
+                                            />
 
-                                        <div className="min-w-0">
-                                            <p
-                                                className="
+                                            <div className="min-w-0">
+                                                <p
+                                                    className="
                                                     text-xs
                                                     text-gray-500
                                                     dark:text-gray-400
                                                 "
-                                            >
-                                                Project
-                                            </p>
+                                                >
+                                                    Project
+                                                </p>
 
-                                            <p
-                                                className="
+                                                <p
+                                                    className="
                                                     mt-0.5
                                                     text-sm
                                                     font-medium
                                                     text-gray-900
                                                     dark:text-white
                                                 "
-                                            >
-                                                {selectedProject.projectname ||
-                                                    "Unnamed project"}
-                                            </p>
+                                                >
+                                                    {selectedProject.projectname ||
+                                                        "Unnamed project"}
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
 
-                                {selectedFolder && (
-                                    <div
-                                        className="
+                                    {selectedFolder && (
+                                        <div
+                                            className="
                                             mt-4
                                             flex
                                             items-start
                                             gap-3
                                         "
-                                    >
-                                        <Folder
-                                            size={17}
-                                            className="
+                                        >
+                                            <Folder
+                                                size={17}
+                                                className="
                                                 mt-0.5
                                                 shrink-0
                                                 text-sky-700
                                                 dark:text-sky-300
                                             "
-                                        />
+                                            />
 
-                                        <div className="min-w-0">
-                                            <p
-                                                className="
+                                            <div className="min-w-0">
+                                                <p
+                                                    className="
                                                     text-xs
                                                     text-gray-500
                                                     dark:text-gray-400
                                                 "
-                                            >
-                                                Folder
-                                            </p>
+                                                >
+                                                    Folder
+                                                </p>
 
-                                            <p
-                                                className="
+                                                <p
+                                                    className="
                                                     mt-0.5
                                                     text-sm
                                                     font-medium
                                                     text-gray-900
                                                     dark:text-white
                                                 "
-                                            >
-                                                {
-                                                    selectedFolder.fname
-                                                }
-                                            </p>
+                                                >
+                                                    {
+                                                        selectedFolder.fname
+                                                    }
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                                    )}
+                                </div>
+                            )}
 
                         {/* Upload Button */}
 
@@ -1282,8 +1168,7 @@ function FileUploadPage() {
                             disabled={
                                 isUploading ||
                                 isLoadingProjects ||
-                                isLoadingFolders ||
-                                isLoadingUsers
+                                isLoadingFolders
                             }
                             className="
                                 mt-6
@@ -1353,7 +1238,7 @@ function formatFileSize(
 
     const index = Math.floor(
         Math.log(bytes) /
-            Math.log(1024)
+        Math.log(1024)
     );
 
     return `${(

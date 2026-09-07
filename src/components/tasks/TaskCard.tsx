@@ -2,6 +2,7 @@ import {
     CalendarDays,
     Clock3,
     Folder,
+    X,
 } from "lucide-react";
 
 import type { Task } from "../../types/task";
@@ -101,17 +102,20 @@ function TaskCard({
             </div>
 
             <div className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-600 dark:text-gray-400">
+                {task.status === 2 ? (
+                    <X
+                        size={13}
+                        className="text-red-500"
+                    />
+                ) : (
+                    <Clock3 size={13} />
+                )}
 
-                <Clock3
-                    size={13}
-                />
-
-                {task.status === 3
-                    ? "Task completed"
+                {task.status === 1
+                    ? "Task Accepted"
                     : task.status === 2
-                        ? "Currently in progress"
+                        ? "Task Rejected"
                         : "Waiting for completion"}
-
             </div>
         </button>
     );

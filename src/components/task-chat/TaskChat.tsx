@@ -28,35 +28,74 @@ import TaskChatUsers from "./TaskChatUsers";
 import TaskChatHeader from "./TaskChatHeader";
 import TaskChatMessages from "./TaskChatMessages";
 import TaskChatEmpty from "./TaskChatEmpty";
+import {
+    getJwtPayload,
+} from "../../api/auth";
 
-
-/**
- * Get logged-in user's ID from JWT.
- */
 function getCurrentUserId(): number | null {
     const token =
         localStorage.getItem("access_token");
 
     if (!token) {
+        console.error(
+            "No access token found."
+        );
+
         return null;
     }
 
     try {
-        const parts = token.split(".");
+        const payload =
+            getJwtPayload(token);
 
-        if (parts.length < 2) {
-            return null;
-        }
-
-        const payload = JSON.parse(
-            atob(parts[1])
+        console.log(
+            "JWT payload:",
+            payload
         );
 
-        if (!payload.uid) {
+        if (!payload) {
+            console.error(
+                "Unable to decode JWT payload."
+            );
+
             return null;
         }
 
-        return Number(payload.uid);
+        const userId =
+            payload.uid ??
+            payload.user_id ??
+            payload.id ??
+            payload.sub;
+
+        if (
+            userId === undefined ||
+            userId === null
+        ) {
+            console.error(
+                "JWT does not contain a user ID:",
+                payload
+            );
+
+            return null;
+        }
+
+        const numericUserId =
+            Number(userId);
+
+        if (
+            !Number.isFinite(
+                numericUserId
+            )
+        ) {
+            console.error(
+                "Invalid user ID in JWT:",
+                userId
+            );
+
+            return null;
+        }
+
+        return numericUserId;
     } catch (error) {
         console.error(
             "Unable to read current user from token:",
@@ -67,10 +106,6 @@ function getCurrentUserId(): number | null {
     }
 }
 
-
-/**
- * Convert API user into display name.
- */
 function getUserName(user: {
     firstname: string;
     lastname: string;
@@ -87,9 +122,6 @@ function getUserName(user: {
 }
 
 
-/**
- * Convert task date into timestamp.
- */
 function getTaskTimestamp(task: Task) {
     const value =
         task.start_date ||
@@ -105,15 +137,6 @@ function getTaskTimestamp(task: Task) {
 }
 
 
-/**
- * Build the user list.
- *
- * IMPORTANT:
- * Users are NOT derived from tasks.
- *
- * This means the left sidebar will always show
- * users returned by GET /api/getusers.
- */
 function buildChatUsers(
     users: Awaited<
         ReturnType<typeof getUsers>
@@ -151,11 +174,6 @@ function buildChatUsers(
                         getTaskTimestamp(a)
                 );
 
-            /**
-             * Tasks assigned TO me by this user.
-             *
-             * These are treated as unread.
-             */
             const unreadCount =
                 userTasks.filter(
                     (task) =>
@@ -185,9 +203,6 @@ function buildChatUsers(
 }
 
 
-/**
- * Build the conversation for one selected user.
- */
 function buildConversation(
     user: TaskChatUser,
     tasks: Task[],
@@ -257,9 +272,6 @@ function TaskChat() {
         getCurrentUserId();
 
 
-    /**
-     * Load users and tasks.
-     */
     useEffect(() => {
         let mounted = true;
 
@@ -317,9 +329,6 @@ function TaskChat() {
 
                 setChatUsers(users);
 
-                /**
-                 * Select first user automatically.
-                 */
                 if (
                     users.length > 0
                 ) {
@@ -356,11 +365,6 @@ function TaskChat() {
         };
     }, [currentUserId]);
 
-
-    /**
-     * Build conversation only for
-     * the selected user.
-     */
     const selectedConversation =
         useMemo(() => {
             if (
@@ -393,10 +397,6 @@ function TaskChat() {
             tasks,
         ]);
 
-
-    /**
-     * Loading state
-     */
     if (isLoading) {
         return (
             <div className="flex h-full min-h-[500px] items-center justify-center bg-white dark:bg-gray-950">
@@ -412,10 +412,6 @@ function TaskChat() {
         );
     }
 
-
-    /**
-     * Error state
-     */
     if (error) {
         return (
             <div className="flex h-full min-h-[500px] items-center justify-center bg-white p-6 dark:bg-gray-950">
@@ -431,8 +427,6 @@ function TaskChat() {
 
     return (
         <div className="flex h-full min-h-0 overflow-hidden rounded-xl border border-gray-200 shadow-sm dark:border-gray-800 dark:bg-gray-950 ">
-
-            {/* LEFT SIDEBAR */}
 
             <div
                 className={`
@@ -454,9 +448,6 @@ function TaskChat() {
                     }
                 />
             </div>
-
-
-            {/* RIGHT CHAT */}
 
             <div
                 className={`

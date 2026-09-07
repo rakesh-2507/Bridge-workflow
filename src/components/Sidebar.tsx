@@ -7,6 +7,7 @@ import {
   Sun,
   File,
   MessageCircle,
+  FileBox,
 } from "lucide-react";
 
 import {
@@ -77,6 +78,11 @@ function Sidebar({
         label: "Chat",
         icon: MessageCircle,
         to: "/task-conversations",
+      },
+       {
+        label: "Asset Requests",
+        icon: FileBox,
+        to: "/asset-requests",
       },
     ];
 

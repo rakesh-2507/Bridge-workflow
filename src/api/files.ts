@@ -1,8 +1,22 @@
 import { apiRequest } from "./client";
 
+export interface UploadedFile {
+    pffid: number;
+    project_id: number;
+    folder_id: number;
+    filename: string;
+    filesize: number;
+    MIME: string;
+    uploaded_by: number;
+}
+
 export interface UploadFileResponse {
+    success: boolean;
+    code?: string;
     message?: string;
-    [key: string]: unknown;
+    data?: {
+        file?: UploadedFile;
+    };
 }
 
 export async function uploadFileToFolder(

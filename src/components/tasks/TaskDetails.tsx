@@ -6,15 +6,17 @@ import {
     Pencil,
     Trash2,
     User,
-    FileText,
-    // File,
 } from "lucide-react";
 
-import { deleteTask } from "../../api/tasks";
+import {
+    approveTask,
+    deleteTask,
+    rejectTask,
+} from "../../api/tasks";
+
 import type { Task } from "../../types/task";
 
-// import TaskStatus from "./TaskStatus";
-
+import TaskStatus from "./TaskStatus";
 
 interface TaskDetailsProps {
     task: Task | null;
@@ -34,6 +36,15 @@ function TaskDetails({
         useState(false);
 
     const [deleteError, setDeleteError] =
+        useState("");
+
+    const [actionLoading, setActionLoading] =
+        useState<"approve" | "reject" | null>(null);
+
+    const [actionMessage, setActionMessage] =
+        useState("");
+
+    const [actionError, setActionError] =
         useState("");
 
     if (!task) {
@@ -60,7 +71,18 @@ function TaskDetails({
         );
     }
 
+    // Status 2 = In Progress
+    const isInProgress = task.status === 2;
+
+    // --------------------------------------------------
+    // Delete Task
+    // --------------------------------------------------
+
     const handleDelete = async () => {
+        if (deleteLoading) {
+            return;
+        }
+
         setDeleteLoading(true);
         setDeleteError("");
 
@@ -81,16 +103,81 @@ function TaskDetails({
         }
     };
 
+    // --------------------------------------------------
+    // Approve Task
+    // --------------------------------------------------
+
+    const handleApprove = async () => {
+        if (actionLoading !== null) {
+            return;
+        }
+
+        setActionLoading("approve");
+        setActionMessage("");
+        setActionError("");
+
+        try {
+            const response = await approveTask(
+                task.task_id
+            );
+
+            setActionMessage(
+                response || "Task approved successfully."
+            );
+        } catch (err) {
+            setActionError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to approve task."
+            );
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    // --------------------------------------------------
+    // Reject Task
+    // --------------------------------------------------
+
+    const handleReject = async () => {
+        if (actionLoading !== null) {
+            return;
+        }
+
+        setActionLoading("reject");
+        setActionMessage("");
+        setActionError("");
+
+        try {
+            const response = await rejectTask(
+                task.task_id
+            );
+
+            setActionMessage(
+                response || "Task rejected successfully."
+            );
+        } catch (err) {
+            setActionError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to reject task."
+            );
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     return (
         <div className="flex min-h-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
 
+            {/* ==================================================
+                Header
+            ================================================== */}
 
             <div className="shrink-0 border-b border-gray-200 px-6 py-5 dark:border-gray-800">
-
                 <div className="flex items-start justify-between gap-4">
 
                     <div className="min-w-0">
-
                         <div className="flex flex-wrap items-center gap-3">
 
                             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -98,49 +185,73 @@ function TaskDetails({
                                     "Untitled Task"}
                             </h2>
 
-                            {/* <TaskStatus
+                            <TaskStatus
                                 status={task.status}
-                            /> */}
+                            />
+
                         </div>
 
                         <p className="mt-1.5 text-xs font-medium text-gray-400">
                             Task #{task.task_id}
                         </p>
-
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-2">
+                    {/* ==================================================
+                        Edit / Delete
+                        Hidden when status === 2
+                    ================================================== */}
 
-                        <button
-                            type="button"
-                            onClick={() =>
-                                onEdit(task)
-                            }
-                            className="flex items-center gap-2 rounded-lg bg-gray-900 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-                        >
-                            <Pencil size={14} />
-                            Edit
-                        </button>
+                    {!isInProgress && (
+                        <div className="flex shrink-0 items-center gap-2">
 
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setDeleteError("");
-                                setShowDeleteConfirm(true);
-                            }}
-                            className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
-                        >
-                            <Trash2 size={14} />
-                            Delete
-                        </button>
+                            {/* Edit */}
 
-                    </div>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    onEdit(task)
+                                }
+                                className="flex items-center gap-2 rounded-lg bg-gray-900 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                            >
+                                <Pencil size={14} />
+
+                                Edit
+                            </button>
+
+                            {/* Delete */}
+
+                            <button
+                                type="button"
+                                disabled={deleteLoading}
+                                onClick={() => {
+                                    setDeleteError("");
+                                    setShowDeleteConfirm(
+                                        true
+                                    );
+                                }}
+                                className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
+                            >
+                                <Trash2 size={14} />
+
+                                Delete
+                            </button>
+
+                        </div>
+                    )}
                 </div>
             </div>
+
+            {/* ==================================================
+                Content
+            ================================================== */}
 
             <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
 
                 <div className="space-y-7 p-6">
+
+                    {/* ==================================================
+                        Delete Error
+                    ================================================== */}
 
                     {deleteError && (
                         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
@@ -148,7 +259,11 @@ function TaskDetails({
                         </div>
                     )}
 
-                    {showDeleteConfirm && (
+                    {/* ==================================================
+                        Delete Confirmation
+                    ================================================== */}
+
+                    {showDeleteConfirm && !isInProgress && (
                         <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
 
                             <div className="flex items-start gap-3">
@@ -176,7 +291,9 @@ function TaskDetails({
                                     type="button"
                                     disabled={deleteLoading}
                                     onClick={() =>
-                                        setShowDeleteConfirm(false)
+                                        setShowDeleteConfirm(
+                                            false
+                                        )
                                     }
                                     className="rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                                 >
@@ -187,7 +304,7 @@ function TaskDetails({
                                     type="button"
                                     disabled={deleteLoading}
                                     onClick={handleDelete}
-                                    className="flex items-center gap-2 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                                    className="flex items-center gap-2 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     {deleteLoading && (
                                         <Loader2
@@ -204,6 +321,10 @@ function TaskDetails({
                             </div>
                         </div>
                     )}
+
+                    {/* ==================================================
+                        Dates
+                    ================================================== */}
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
@@ -222,13 +343,17 @@ function TaskDetails({
                         />
 
                     </div>
-                    <section>
 
+                    {/* ==================================================
+                        Description
+                    ================================================== */}
+
+                    <section>
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                             Description:
                         </h3>
 
-                        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-800 dark:bg-gray-950 shadow-sm">
+                        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
 
                             <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-gray-300">
                                 {task.task_description ||
@@ -236,10 +361,13 @@ function TaskDetails({
                             </p>
 
                         </div>
-
                     </section>
-                    <section>
 
+                    {/* ==================================================
+                        Task Users
+                    ================================================== */}
+
+                    <section>
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                             Task Users:
                         </h3>
@@ -261,94 +389,95 @@ function TaskDetails({
                             />
 
                         </div>
-
                     </section>
-                    <section>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                            Uploaded Files:
-                        </h3>
 
-                        <div className="mt-4 space-y-3">
-                            {[
-                                {
-                                    id: 1,
-                                    name: "bridge_new.png",
-                                    size: "1.4 kb",
-                                },
-                            ].map((file) => (
-                                <div
-                                    key={file.id}
-                                    className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-950"
-                                >
-                                    <div className="flex min-w-0 items-center gap-3">
-                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-gray-900">
-                                            <FileText
-                                                size={17}
-                                                className="text-gray-500 dark:text-gray-400"
-                                            />
-                                        </div>
+                    {/* ==================================================
+                        Approve / Reject
+                        Hidden when status === 2
+                    ================================================== */}
 
-                                        <div className="min-w-0">
-                                            <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                                                {file.name}
-                                            </p>
+                    {!isInProgress && (
+                        <section>
 
-                                            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                                {file.size}
-                                            </p>
-                                        </div>
-                                    </div>
+                            {/* Success */}
 
-                                    <div>
-
-                                        <button
-                                            type="button"
-                                            className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-                                            onClick={() =>
-                                                alert(`Opening ${file.name}`)
-                                            }
-                                        >
-                                            View
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-                                            onClick={() =>
-                                                alert(`Downloading ${file.name}`)
-                                            }
-                                        >
-                                            Download
-                                        </button>
-                                    </div>
+                            {actionMessage && (
+                                <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
+                                    {actionMessage}
                                 </div>
-                            ))}
-                        </div>
-                    </section>
-                    <section>
+                            )}
 
-                        <div className="flex w-full gap-3 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => alert("Task rejected")}
-                                className="flex flex-1 items-center justify-center rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
-                            >
-                                Reject
-                            </button>
+                            {/* Error */}
 
-                            <button
-                                type="button"
-                                onClick={() => alert("Task accepted")}
-                                className="flex flex-1 items-center justify-center rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700"
-                            >
-                                Accept
-                            </button>
-                        </div>
-                    </section>
+                            {actionError && (
+                                <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                                    {actionError}
+                                </div>
+                            )}
+
+                            <div className="flex w-full gap-3 pt-2">
+
+                                {/* Reject */}
+
+                                <button
+                                    type="button"
+                                    disabled={
+                                        actionLoading !== null
+                                    }
+                                    onClick={handleReject}
+                                    className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
+                                >
+                                    {actionLoading ===
+                                        "reject" && (
+                                        <Loader2
+                                            size={14}
+                                            className="animate-spin"
+                                        />
+                                    )}
+
+                                    {actionLoading ===
+                                    "reject"
+                                        ? "Rejecting..."
+                                        : "Reject"}
+                                </button>
+
+                                {/* Accept */}
+
+                                <button
+                                    type="button"
+                                    disabled={
+                                        actionLoading !== null
+                                    }
+                                    onClick={handleApprove}
+                                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {actionLoading ===
+                                        "approve" && (
+                                        <Loader2
+                                            size={14}
+                                            className="animate-spin"
+                                        />
+                                    )}
+
+                                    {actionLoading ===
+                                    "approve"
+                                        ? "Approving..."
+                                        : "Accept"}
+                                </button>
+
+                            </div>
+                        </section>
+                    )}
+
                 </div>
             </div>
         </div>
     );
 }
+
+/* ======================================================
+   Date Info
+====================================================== */
 
 interface DateInfoProps {
     label: string;
@@ -360,7 +489,7 @@ function DateInfo({
     value,
 }: DateInfoProps) {
     return (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950 shadow-sm">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-950">
 
             <div className="flex items-center gap-2">
 
@@ -383,6 +512,10 @@ function DateInfo({
     );
 }
 
+/* ======================================================
+   Task User
+====================================================== */
+
 interface TaskUserProps {
     label: string;
     value: string;
@@ -393,7 +526,7 @@ function TaskUser({
     value,
 }: TaskUserProps) {
     return (
-        <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950 shadow-sm">
+        <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-950">
 
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white dark:bg-gray-900">
 

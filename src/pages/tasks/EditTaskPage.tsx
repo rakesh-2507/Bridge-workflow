@@ -8,7 +8,6 @@ import {
     CheckCircle2,
     File,
     Loader2,
-    Trash2,
     Upload,
     X,
 } from "lucide-react";
@@ -23,6 +22,14 @@ import {
     getTask,
 } from "../../api/tasks";
 
+import {
+    uploadFileToFolder,
+} from "../../api/files";
+
+import {
+    getJwtPayload,
+} from "../../api/auth";
+
 import type { Task } from "../../types/task";
 
 import TaskForm from "../../components/tasks/TaskForm";
@@ -34,47 +41,62 @@ interface TaskFile {
     type: string;
 }
 
-/*
- * Dummy files for now.
- *
- * Later these can come from your API using task.task_id.
- */
-const dummyTaskFiles: TaskFile[] = [
-    {
-        id: 1,
-        name: "project-document.pdf",
-        size: 2457600,
-        type: "application/pdf",
-    },
-    {
-        id: 2,
-        name: "reference-image.png",
-        size: 1048576,
-        type: "image/png",
-    },
-];
+function getCurrentUserId(): number | null {
+    try {
+        const token =
+            localStorage.getItem("access_token");
 
+        if (!token) {
+            return null;
+        }
+
+        const payload =
+            getJwtPayload(token);
+
+        if (!payload?.sub) {
+            return null;
+        }
+
+        const userId = Number(
+            payload.sub
+        );
+
+        return Number.isNaN(userId)
+            ? null
+            : userId;
+    } catch {
+        return null;
+    }
+}
 function TaskFiles({
     task,
 }: {
     task: Task;
 }) {
-    const [selectedFile, setSelectedFile] =
-        useState<File | null>(null);
+    const [
+        selectedFile,
+        setSelectedFile,
+    ] = useState<File | null>(null);
 
-    const [files, setFiles] =
-        useState<TaskFile[]>(
-            dummyTaskFiles
-        );
+    const [
+        files,
+        setFiles,
+    ] = useState<TaskFile[]>([]);
 
-    const [isUploading, setIsUploading] =
-        useState(false);
+    const [
+        isUploading,
+        setIsUploading,
+    ] = useState(false);
 
-    const [uploadSuccess, setUploadSuccess] =
-        useState(false);
+    const [
+        uploadSuccess,
+        setUploadSuccess,
+    ] = useState(false);
 
-    const [error, setError] =
-        useState("");
+    const [
+        error,
+        setError,
+    ] = useState("");
 
     const formatFileSize = (
         bytes: number
@@ -90,9 +112,12 @@ function TaskFiles({
             "GB",
         ];
 
-        const index = Math.floor(
-            Math.log(bytes) /
+        const index = Math.min(
+            Math.floor(
+                Math.log(bytes) /
                 Math.log(1024)
+            ),
+            units.length - 1
         );
 
         return `${(
@@ -116,7 +141,8 @@ function TaskFiles({
         setError("");
 
         /*
-         * Allow selecting the same file again.
+         * Allow selecting the same
+         * file again.
          */
         event.target.value = "";
     };
@@ -129,38 +155,67 @@ function TaskFiles({
             return;
         }
 
+        const uploadedBy =
+            getCurrentUserId();
+
+        if (!uploadedBy) {
+            setError(
+                "Unable to identify the current user."
+            );
+            return;
+        }
+
         try {
             setIsUploading(true);
             setUploadSuccess(false);
             setError("");
 
             /*
-             * Dummy upload.
-             *
-             * Later replace this with your API call
-             * and pass task.task_id.
+             * The file is associated with
+             * the currently opened task
+             * through its project_id and
+             * folder_id.
              */
-            await new Promise((resolve) =>
-                setTimeout(resolve, 1000)
-            );
+            const response =
+                await uploadFileToFolder(
+                    task.project_id,
+                    task.folder_id,
+                    uploadedBy,
+                    selectedFile
+                );
 
+            if (!response.success) {
+                throw new Error(
+                    response.message ||
+                    "Failed to upload file."
+                );
+            }
+
+            const uploadedFile =
+                response.data?.file;
+
+            if (!uploadedFile) {
+                throw new Error(
+                    "File upload succeeded, but no file information was returned."
+                );
+            }
+
+            /*
+             * Add the REAL file returned
+             * by the backend.
+             */
             const newFile: TaskFile = {
-                id:
-                    Date.now(),
-                name: selectedFile.name,
-                size: selectedFile.size,
-                type: selectedFile.type,
+                id: uploadedFile.pffid,
+                name: uploadedFile.filename,
+                size: uploadedFile.filesize,
+                type: uploadedFile.MIME,
             };
 
-            setFiles((currentFiles) => [
-                ...currentFiles,
-                newFile,
-            ]);
-
-            console.log(
-                "Uploading file for task:",
-                task.task_id,
-                selectedFile
+            setFiles(
+                (currentFiles) => [
+                    ...currentFiles,
+                    newFile,
+                ]
             );
 
             setSelectedFile(null);
@@ -174,17 +229,6 @@ function TaskFiles({
         } finally {
             setIsUploading(false);
         }
-    };
-
-    const handleRemoveFile = (
-        fileId: number
-    ) => {
-        setFiles((currentFiles) =>
-            currentFiles.filter(
-                (file) =>
-                    file.id !== fileId
-            )
-        );
     };
 
     return (
@@ -409,6 +453,9 @@ function TaskFiles({
                                         null
                                     )
                                 }
+                                disabled={
+                                    isUploading
+                                }
                                 className="
                                     rounded-lg
                                     p-1.5
@@ -416,6 +463,8 @@ function TaskFiles({
                                     transition
                                     hover:bg-gray-200
                                     hover:text-red-500
+                                    disabled:cursor-not-allowed
+                                    disabled:opacity-50
                                     dark:hover:bg-gray-800
                                     dark:hover:text-red-400
                                 "
@@ -529,7 +578,7 @@ function TaskFiles({
                     </div>
                 )}
 
-                {/* Existing Files */}
+                {/* Attached Files */}
                 <div className="mt-6">
                     <div className="mb-3 flex items-center justify-between">
                         <h3
@@ -666,32 +715,6 @@ function TaskFiles({
                                                 )}
                                             </p>
                                         </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                handleRemoveFile(
-                                                    file.id
-                                                )
-                                            }
-                                            className="
-                                                rounded-lg
-                                                p-1.5
-                                                text-gray-400
-                                                transition
-                                                hover:bg-red-50
-                                                hover:text-red-500
-                                                dark:hover:bg-red-950
-                                                dark:hover:text-red-400
-                                            "
-                                            aria-label={`Delete ${file.name}`}
-                                        >
-                                            <Trash2
-                                                size={
-                                                    16
-                                                }
-                                            />
-                                        </button>
                                     </div>
                                 )
                             )}
@@ -714,8 +737,8 @@ function EditTaskPage() {
 
     const existingTask =
         location.state?.task as
-            | Task
-            | undefined;
+        | Task
+        | undefined;
 
     const [task, setTask] =
         useState<Task | null>(
@@ -1009,11 +1032,7 @@ function EditTaskPage() {
                         "
                     >
                         {/* Task Information */}
-                        <div
-                            className="
-                                min-w-0
-                            "
-                        >
+                        <div className="min-w-0">
                             <div
                                 className="
                                     border-b

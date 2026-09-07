@@ -1,5 +1,10 @@
+
+import { useState } from "react";
+
+import type { Task } from "../../types/task";
 import type { TaskConversation } from "../../types/taskChat";
 
+import TaskDetails from "../tasks/TaskDetails";
 import TaskChatMessage from "./TaskChatMessage";
 
 interface TaskChatMessagesProps {
@@ -9,6 +14,9 @@ interface TaskChatMessagesProps {
 function TaskChatMessages({
     conversation,
 }: TaskChatMessagesProps) {
+    const [selectedTask, setSelectedTask] =
+        useState<Task | null>(null);
+
     if (!conversation) {
         return null;
     }
@@ -23,20 +31,72 @@ function TaskChatMessages({
         );
     }
 
+    const handleEdit = (task: Task) => {
+        console.log("Edit task:", task);
+
+        // Connect your existing edit UI here.
+    };
+
+    const handleDeleted = (taskId: number) => {
+        if (selectedTask?.task_id === taskId) {
+            setSelectedTask(null);
+        }
+    };
+
     return (
-        <div className="flex-1 overflow-y-auto bg-gray-50 px-4 py-6 dark:bg-gray-950">
-            <div className="flex w-full flex-col gap-4">
-                {conversation.messages.map(
-                    (message) => (
-                        <TaskChatMessage
-                            key={message.task.task_id}
-                            message={message}
-                        />
-                    )
-                )}
+        <div className="flex min-h-0 flex-1 overflow-hidden bg-gray-50 dark:bg-gray-950">
+
+            {/* ==================================================
+                Task Messages
+            ================================================== */}
+
+            <div
+                className={`min-w-0 overflow-y-auto px-4 py-6 transition-all ${
+                    selectedTask
+                        ? "w-[55%]"
+                        : "w-full"
+                }`}
+            >
+                <div className="flex w-full flex-col gap-4">
+                    {conversation.messages.map(
+                        (message) => (
+                            <TaskChatMessage
+                                key={
+                                    message.task.task_id
+                                }
+                                message={message}
+                                onClick={() =>
+                                    setSelectedTask(
+                                        message.task
+                                    )
+                                }
+                                isSelected={
+                                    selectedTask?.task_id ===
+                                    message.task.task_id
+                                }
+                            />
+                        )
+                    )}
+                </div>
             </div>
+
+            {/* ==================================================
+                Task Details
+                Only rendered when a task is selected
+            ================================================== */}
+
+            {selectedTask && (
+                <div className="w-[45%] min-w-[380px] max-w-[600px]">
+                    <TaskDetails
+                        task={selectedTask}
+                        onEdit={handleEdit}
+                        onDeleted={handleDeleted}
+                    />
+                </div>
+            )}
         </div>
     );
 }
 
 export default TaskChatMessages;
+
