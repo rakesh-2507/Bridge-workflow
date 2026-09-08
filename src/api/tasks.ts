@@ -144,3 +144,37 @@ export async function rejectTask(taskId: number): Promise<string> {
     method: "POST",
   });
 }
+
+
+export async function approveAssetPurchaseTask(
+  taskId: number
+): Promise<string> {
+  return apiRequest<string>(
+    `/api/asset-purchase/tasks/${taskId}/approve`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+export async function rejectAssetPurchaseTask(
+  taskId: number
+): Promise<string> {
+  return apiRequest<string>(
+    `/api/asset-purchase/tasks/${taskId}/reject`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+export async function backwardAssetPurchaseTask(
+  taskId: number
+): Promise<string> {
+  return apiRequest<string>(
+    `/api/asset-purchase/tasks/${taskId}/backward`,
+    {
+      method: "POST",
+    }
+  );
+}

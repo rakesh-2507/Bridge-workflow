@@ -9,7 +9,6 @@ import {
     IndianRupee,
     Loader2,
     Send,
-    Store,
 } from "lucide-react";
 
 import {
@@ -293,20 +292,6 @@ function AssetPurchaseQuoteForm({
                 onSubmit={handleSubmit}
                 className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
             >
-                {/* Section Header */}
-
-                <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-                    <div className="flex items-center gap-2">
-                        <Store
-                            size={18}
-                            className="text-gray-500"
-                        />
-
-                        <h2 className="font-medium text-gray-900 dark:text-white">
-                            Quote Details
-                        </h2>
-                    </div>
-                </div>
 
                 <div className="space-y-6 p-6">
                     {/* Document Number */}

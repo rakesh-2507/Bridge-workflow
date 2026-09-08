@@ -10,8 +10,11 @@ import {
 
 import {
     approveTask,
-    deleteTask,
     rejectTask,
+    approveAssetPurchaseTask,
+    rejectAssetPurchaseTask,
+    backwardAssetPurchaseTask,
+    deleteTask,
 } from "../../api/tasks";
 
 import type { Task } from "../../types/task";
@@ -39,13 +42,19 @@ function TaskDetails({
         useState("");
 
     const [actionLoading, setActionLoading] =
-        useState<"approve" | "reject" | null>(null);
+        useState<
+            "approve" | "reject" | "backward" | null
+        >(null);
 
     const [actionMessage, setActionMessage] =
         useState("");
 
     const [actionError, setActionError] =
         useState("");
+
+    // --------------------------------------------------
+    // No Task Selected
+    // --------------------------------------------------
 
     if (!task) {
         return (
@@ -71,8 +80,42 @@ function TaskDetails({
         );
     }
 
-    // Status 2 = In Progress
-    const isInProgress = task.status === 2;
+    // --------------------------------------------------
+    // Logged In User
+    // --------------------------------------------------
+
+    const storedUser =
+        localStorage.getItem("login_user");
+
+    let loggedInUser: {
+        uid?: number;
+        mtype?: string;
+    } | null = null;
+
+    if (storedUser) {
+        try {
+            loggedInUser = JSON.parse(storedUser);
+        } catch {
+            loggedInUser = null;
+        }
+    }
+
+    const isSeniorAssetManager =
+        loggedInUser?.mtype ===
+        "Assets Manager-Senior";
+
+    const isAssetExecutive =
+        loggedInUser?.mtype === "Assets-Executive";
+
+    // --------------------------------------------------
+    // Task Status
+    //
+    // 0 = In Progress
+    // 1 = Accepted
+    // 2 = Rejected
+    // --------------------------------------------------
+
+    const canTakeAction = task.status === 0;
 
     // --------------------------------------------------
     // Delete Task
@@ -104,11 +147,14 @@ function TaskDetails({
     };
 
     // --------------------------------------------------
-    // Approve Task
+    // Generic Task - Approve
     // --------------------------------------------------
 
     const handleApprove = async () => {
-        if (actionLoading !== null) {
+        if (
+            actionLoading !== null ||
+            !canTakeAction
+        ) {
             return;
         }
 
@@ -122,7 +168,8 @@ function TaskDetails({
             );
 
             setActionMessage(
-                response || "Task approved successfully."
+                response ||
+                "Task approved successfully."
             );
         } catch (err) {
             setActionError(
@@ -136,11 +183,14 @@ function TaskDetails({
     };
 
     // --------------------------------------------------
-    // Reject Task
+    // Generic Task - Reject
     // --------------------------------------------------
 
     const handleReject = async () => {
-        if (actionLoading !== null) {
+        if (
+            actionLoading !== null ||
+            !canTakeAction
+        ) {
             return;
         }
 
@@ -154,13 +204,125 @@ function TaskDetails({
             );
 
             setActionMessage(
-                response || "Task rejected successfully."
+                response ||
+                "Task rejected successfully."
             );
         } catch (err) {
             setActionError(
                 err instanceof Error
                     ? err.message
                     : "Failed to reject task."
+            );
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    // --------------------------------------------------
+    // Asset Purchase - Approve
+    // --------------------------------------------------
+
+    const handleAssetPurchaseApprove = async () => {
+        if (
+            actionLoading !== null ||
+            !canTakeAction
+        ) {
+            return;
+        }
+
+        setActionLoading("approve");
+        setActionMessage("");
+        setActionError("");
+
+        try {
+            const response =
+                await approveAssetPurchaseTask(
+                    task.task_id
+                );
+
+            setActionMessage(
+                response ||
+                "Task approved successfully."
+            );
+        } catch (err) {
+            setActionError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to approve task."
+            );
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    // --------------------------------------------------
+    // Asset Purchase - Reject
+    // --------------------------------------------------
+
+    const handleAssetPurchaseReject = async () => {
+        if (
+            actionLoading !== null ||
+            !canTakeAction
+        ) {
+            return;
+        }
+
+        setActionLoading("reject");
+        setActionMessage("");
+        setActionError("");
+
+        try {
+            const response =
+                await rejectAssetPurchaseTask(
+                    task.task_id
+                );
+
+            setActionMessage(
+                response ||
+                "Task rejected successfully."
+            );
+        } catch (err) {
+            setActionError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to reject task."
+            );
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    // --------------------------------------------------
+    // Asset Purchase - Backward
+    // --------------------------------------------------
+
+    const handleBackward = async () => {
+        if (
+            actionLoading !== null ||
+            !canTakeAction
+        ) {
+            return;
+        }
+
+        setActionLoading("backward");
+        setActionMessage("");
+        setActionError("");
+
+        try {
+            const response =
+                await backwardAssetPurchaseTask(
+                    task.task_id
+                );
+
+            setActionMessage(
+                response ||
+                "Task moved backward successfully."
+            );
+        } catch (err) {
+            setActionError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to move task backward."
             );
         } finally {
             setActionLoading(null);
@@ -198,10 +360,9 @@ function TaskDetails({
 
                     {/* ==================================================
                         Edit / Delete
-                        Hidden when status === 2
                     ================================================== */}
 
-                    {!isInProgress && (
+                    {canTakeAction && (
                         <div className="flex shrink-0 items-center gap-2">
 
                             {/* Edit */}
@@ -222,7 +383,9 @@ function TaskDetails({
 
                             <button
                                 type="button"
-                                disabled={deleteLoading}
+                                disabled={
+                                    deleteLoading
+                                }
                                 onClick={() => {
                                     setDeleteError("");
                                     setShowDeleteConfirm(
@@ -263,64 +426,71 @@ function TaskDetails({
                         Delete Confirmation
                     ================================================== */}
 
-                    {showDeleteConfirm && !isInProgress && (
-                        <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
+                    {showDeleteConfirm &&
+                        canTakeAction && (
+                            <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
 
-                            <div className="flex items-start gap-3">
+                                <div className="flex items-start gap-3">
 
-                                <Trash2
-                                    size={18}
-                                    className="mt-0.5 shrink-0 text-red-600 dark:text-red-400"
-                                />
+                                    <Trash2
+                                        size={18}
+                                        className="mt-0.5 shrink-0 text-red-600 dark:text-red-400"
+                                    />
 
-                                <div>
-                                    <p className="text-sm font-semibold text-red-800 dark:text-red-300">
-                                        Delete this task?
-                                    </p>
+                                    <div>
+                                        <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                                            Delete this task?
+                                        </p>
 
-                                    <p className="mt-1 text-xs text-red-700 dark:text-red-400">
-                                        This action cannot be undone.
-                                    </p>
+                                        <p className="mt-1 text-xs text-red-700 dark:text-red-400">
+                                            This action cannot be undone.
+                                        </p>
+                                    </div>
+
                                 </div>
 
+                                <div className="mt-4 flex justify-end gap-2">
+
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            deleteLoading
+                                        }
+                                        onClick={() =>
+                                            setShowDeleteConfirm(
+                                                false
+                                            )
+                                        }
+                                        className="rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                                    >
+                                        Cancel
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            deleteLoading
+                                        }
+                                        onClick={
+                                            handleDelete
+                                        }
+                                        className="flex items-center gap-2 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {deleteLoading && (
+                                            <Loader2
+                                                size={14}
+                                                className="animate-spin"
+                                            />
+                                        )}
+
+                                        {deleteLoading
+                                            ? "Deleting..."
+                                            : "Delete Task"}
+                                    </button>
+
+                                </div>
                             </div>
-
-                            <div className="mt-4 flex justify-end gap-2">
-
-                                <button
-                                    type="button"
-                                    disabled={deleteLoading}
-                                    onClick={() =>
-                                        setShowDeleteConfirm(
-                                            false
-                                        )
-                                    }
-                                    className="rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                                >
-                                    Cancel
-                                </button>
-
-                                <button
-                                    type="button"
-                                    disabled={deleteLoading}
-                                    onClick={handleDelete}
-                                    className="flex items-center gap-2 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {deleteLoading && (
-                                        <Loader2
-                                            size={14}
-                                            className="animate-spin"
-                                        />
-                                    )}
-
-                                    {deleteLoading
-                                        ? "Deleting..."
-                                        : "Delete Task"}
-                                </button>
-
-                            </div>
-                        </div>
-                    )}
+                        )}
 
                     {/* ==================================================
                         Dates
@@ -331,14 +501,16 @@ function TaskDetails({
                         <DateInfo
                             label="Start Date"
                             value={
-                                task.start_date || "N/A"
+                                task.start_date ||
+                                "N/A"
                             }
                         />
 
                         <DateInfo
                             label="End Date"
                             value={
-                                task.end_date || "N/A"
+                                task.end_date ||
+                                "N/A"
                             }
                         />
 
@@ -377,14 +549,16 @@ function TaskDetails({
                             <TaskUser
                                 label="Assigned By"
                                 value={String(
-                                    task.assigned_by ?? "N/A"
+                                    task.assigned_by ??
+                                    "N/A"
                                 )}
                             />
 
                             <TaskUser
                                 label="Assigned To"
                                 value={String(
-                                    task.assigned_to ?? "N/A"
+                                    task.assigned_to ??
+                                    "N/A"
                                 )}
                             />
 
@@ -392,82 +566,160 @@ function TaskDetails({
                     </section>
 
                     {/* ==================================================
-                        Approve / Reject
-                        Hidden when status === 2
+                        Task Actions
+
+                        Assets Manager-Senior:
+                        Backward / Reject / Approve
+
+                        Other users:
+                        Reject / Accept
                     ================================================== */}
 
-                    {!isInProgress && (
-                        <section>
+                    {canTakeAction &&
+                        !isAssetExecutive && (
+                            <section>
 
-                            {/* Success */}
+                                {/* Success */}
 
-                            {actionMessage && (
-                                <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
-                                    {actionMessage}
-                                </div>
-                            )}
+                                {actionMessage && (
+                                    <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
+                                        {actionMessage}
+                                    </div>
+                                )}
 
-                            {/* Error */}
+                                {/* Error */}
 
-                            {actionError && (
-                                <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-                                    {actionError}
-                                </div>
-                            )}
+                                {actionError && (
+                                    <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                                        {actionError}
+                                    </div>
+                                )}
 
-                            <div className="flex w-full gap-3 pt-2">
+                                {isSeniorAssetManager ? (
+                                    <div className="flex w-full gap-3 pt-2">
 
-                                {/* Reject */}
+                                        {/* Backward */}
 
-                                <button
-                                    type="button"
-                                    disabled={
-                                        actionLoading !== null
-                                    }
-                                    onClick={handleReject}
-                                    className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
-                                >
-                                    {actionLoading ===
-                                        "reject" && (
-                                        <Loader2
-                                            size={14}
-                                            className="animate-spin"
-                                        />
-                                    )}
+                                        <button
+                                            type="button"
+                                            disabled={
+                                                actionLoading !== null
+                                            }
+                                            onClick={handleBackward}
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                                        >
+                                            {actionLoading === "backward" && (
+                                                <Loader2
+                                                    size={14}
+                                                    className="animate-spin"
+                                                />
+                                            )}
 
-                                    {actionLoading ===
-                                    "reject"
-                                        ? "Rejecting..."
-                                        : "Reject"}
-                                </button>
+                                            {actionLoading === "backward"
+                                                ? "Moving Back..."
+                                                : "Backward"}
+                                        </button>
 
-                                {/* Accept */}
+                                        {/* Reject */}
 
-                                <button
-                                    type="button"
-                                    disabled={
-                                        actionLoading !== null
-                                    }
-                                    onClick={handleApprove}
-                                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {actionLoading ===
-                                        "approve" && (
-                                        <Loader2
-                                            size={14}
-                                            className="animate-spin"
-                                        />
-                                    )}
+                                        <button
+                                            type="button"
+                                            disabled={
+                                                actionLoading !== null
+                                            }
+                                            onClick={
+                                                handleAssetPurchaseReject
+                                            }
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
+                                        >
+                                            {actionLoading === "reject" && (
+                                                <Loader2
+                                                    size={14}
+                                                    className="animate-spin"
+                                                />
+                                            )}
 
-                                    {actionLoading ===
-                                    "approve"
-                                        ? "Approving..."
-                                        : "Accept"}
-                                </button>
+                                            {actionLoading === "reject"
+                                                ? "Rejecting..."
+                                                : "Reject"}
+                                        </button>
 
-                            </div>
-                        </section>
-                    )}
+                                        {/* Approve */}
+
+                                        <button
+                                            type="button"
+                                            disabled={
+                                                actionLoading !== null
+                                            }
+                                            onClick={
+                                                handleAssetPurchaseApprove
+                                            }
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {actionLoading === "approve" && (
+                                                <Loader2
+                                                    size={14}
+                                                    className="animate-spin"
+                                                />
+                                            )}
+
+                                            {actionLoading === "approve"
+                                                ? "Approving..."
+                                                : "Approve"}
+                                        </button>
+
+                                    </div>
+                                ) : (
+                                    <div className="flex w-full gap-3 pt-2">
+
+                                        {/* Reject */}
+
+                                        <button
+                                            type="button"
+                                            disabled={
+                                                actionLoading !== null
+                                            }
+                                            onClick={handleReject}
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
+                                        >
+                                            {actionLoading === "reject" && (
+                                                <Loader2
+                                                    size={14}
+                                                    className="animate-spin"
+                                                />
+                                            )}
+
+                                            {actionLoading === "reject"
+                                                ? "Rejecting..."
+                                                : "Reject"}
+                                        </button>
+
+                                        {/* Accept */}
+
+                                        <button
+                                            type="button"
+                                            disabled={
+                                                actionLoading !== null
+                                            }
+                                            onClick={handleApprove}
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {actionLoading === "approve" && (
+                                                <Loader2
+                                                    size={14}
+                                                    className="animate-spin"
+                                                />
+                                            )}
+
+                                            {actionLoading === "approve"
+                                                ? "Approving..."
+                                                : "Accept"}
+                                        </button>
+
+                                    </div>
+                                )}
+                            </section>
+                        )}
 
                 </div>
             </div>
