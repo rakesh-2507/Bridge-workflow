@@ -29,6 +29,9 @@ import CreateTaskPage from "./pages/tasks/CreateTaskPage";
 import EditTaskPage from "./pages/tasks/EditTaskPage";
 import FileUploadPage from "./pages/FileUploadPage";
 import TaskChatPage from "./pages/TaskChatPage";
+import AssetPurchaseRequest from "./pages/asset-purchase/AssetPurchaseRequest";
+import AssetPurchaseQuote from "./pages/asset-purchase/AssetPurchaseQuote";
+
 function App() {
   const [darkMode, setDarkMode] = useState(false);
 
@@ -116,9 +119,19 @@ function App() {
 
             <Route
               path="/task-conversations"
-              element={<TaskChatPage  />}
+              element={<TaskChatPage />}
             />
-           
+
+            <Route
+              path="/asset-request"
+              element={<AssetPurchaseRequest />}
+            />
+
+            <Route
+              path="/asset-quote"
+              element={<AssetPurchaseQuote />}
+            />
+
             <Route
               path="/projects"
               element={<Projects />}

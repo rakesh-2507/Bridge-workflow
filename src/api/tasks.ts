@@ -1,7 +1,11 @@
 import { apiRequest } from "./client";
 
-import type { Task, CreateTaskPayload, UpdateTaskPayload } from "../types/task";
-
+import type {
+    Task,
+    GetTaskResponse,
+    CreateTaskPayload,
+    UpdateTaskPayload,
+} from "../types/task";
 /**
 
 * Normalize different API response formats into Task[].
@@ -65,12 +69,16 @@ export async function getTasks(): Promise<Task[]> {
 
 * Get a single task
   */
-export async function getTask(taskId: number): Promise<Task> {
-  return apiRequest<Task>(`/api/gettask/${taskId}`, {
-    method: "GET",
-  });
+export async function getTask(
+    taskId: number
+): Promise<GetTaskResponse> {
+    return apiRequest<GetTaskResponse>(
+        `/api/gettask/${taskId}`,
+        {
+            method: "GET",
+        }
+    );
 }
-
 /**
 
 * Get tasks belonging to a project

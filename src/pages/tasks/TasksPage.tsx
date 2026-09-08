@@ -4,7 +4,6 @@ import {
 } from "react";
 
 import {
-    CalendarDays,
     Loader2,
     Package,
     // User,
@@ -18,7 +17,7 @@ import type { Task } from "../../types/task";
 
 import TaskList from "../../components/tasks/TaskList";
 import TaskDetails from "../../components/tasks/TaskDetails";
-
+import AssetPurchaseQuoteForm from "../../components/asset-purchase/AssetPurchaseQuoteForm";
 
 // import { getUserLogs } from "../../api/userLogs";
 // import type { UserLog } from "../../api/userLogs";
@@ -473,152 +472,42 @@ function TasksPage() {
 
                     <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
 
-                        <div className="shrink-0 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+                        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
 
-                            <div className="flex items-center gap-3">
+                            {selectedTask ? (
+                                <AssetPurchaseQuoteForm
+                                    taskId={selectedTask.task_id}
+                                    onSuccess={(response) => {
+                                        console.log(
+                                            "Vendor quote created:",
+                                            response
+                                        );
+                                    }}
+                                />
+                            ) : (
+                                <div className="flex h-full items-center justify-center text-center">
 
-
-                                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
-
-                                    <Package
-                                        size={18}
-                                        className="text-gray-600 dark:text-gray-300"
-                                    />
-
-                                </div>
-
-
-                                <div>
-
-                                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-
-                                        Asset Purchase Request
-
-                                    </h2>
-
-                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-
-                                        Request details
-
-                                    </p>
-
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                        <div className="min-h-0 flex-1 overflow-y-auto p-5 scrollbar-hide">
-
-                            <div className="space-y-5">
-
-                                <div>
-
-                                    <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-
-                                        Asset to be Purchased
-
-                                    </p>
-
-                                    <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
-
-                                        MacBook Pro
-
-                                    </p>
-
-                                </div>
-
-                                <div>
-
-                                    <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-
-                                        Asset Type
-
-                                    </p>
-
-                                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-
-                                        Laptop
-
-                                    </p>
-
-                                </div>
-
-                                <div>
-
-                                    <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-
-                                        Asset Description
-
-                                    </p>
-
-                                    <div className="mt-1 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/60">
-
-                                        <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-
-                                            MacBook Pro with 16GB RAM, 512GB SSD
-                                            and suitable configuration for
-                                            development work.
-
-                                        </p>
-
-                                    </div>
-
-                                </div>
-
-                                <div>
-
-                                    <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-
-                                        Required Date
-
-                                    </p>
-
-                                    <div className="mt-1 flex items-center gap-2">
-
-                                        <CalendarDays
-                                            size={14}
-                                            className="text-gray-400"
+                                    <div>
+                                        <Package
+                                            size={28}
+                                            className="mx-auto text-gray-300 dark:text-gray-600"
                                         />
 
-                                        <p className="text-sm text-gray-700 dark:text-gray-300">
-
-                                            20 September 2026
-
+                                        <p className="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                                            Select a task
                                         </p>
 
+                                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                            Select a task to complete its workflow action.
+                                        </p>
                                     </div>
 
                                 </div>
-
-                                <div>
-
-                                    <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-
-                                        Purchase Reason
-
-                                    </p>
-
-                                    <div className="mt-1 rounded-lg bg-gray-50 p-3 dark:bg-gray-800/60">
-
-                                        <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-
-                                            Required for the development team
-                                            to work on the new project.
-
-                                        </p>
-
-                                    </div>
-
-                                </div>
-
-
-                            </div>
+                            )}
 
                         </div>
 
                     </section>
-
                 </div>
 
             </div>

@@ -82,7 +82,12 @@ function Sidebar({
        {
         label: "Asset Requests",
         icon: FileBox,
-        to: "/asset-requests",
+        to: "/asset-request",
+      },
+      {
+        label: "Asset Quotes",
+        icon: FileBox,
+        to: "/asset-quote",
       },
     ];
 
