@@ -23,7 +23,7 @@ import AssetPurchaseQuoteForm from "../../components/asset-purchase/AssetPurchas
 import { getUserLogs } from "../../api/userLogs";
 import type { UserLog } from "../../api/userLogs";
 
-
+import QuoteDetailsAccordion from "../../components/asset-purchase/QuoteDetailsAccordion";
 function TasksPage() {
 
     const navigate = useNavigate();
@@ -67,8 +67,12 @@ function TasksPage() {
     // =========================================================
 
     const [activePanel, setActivePanel] =
-        useState<"logs" | "quote" | null>(null);
+        useState<
+            "logs" | "quote" | "quotes" | null
+        >(null);
 
+    const [showQuotes, setShowQuotes] =
+        useState(false);
 
     // =========================================================
     // LOAD TASKS
@@ -267,16 +271,12 @@ function TasksPage() {
                 )
         );
 
-        setSelectedTask(
-            null
-        );
+        setSelectedTask(null);
 
-        setActivePanel(
-            null
-        );
+        setActivePanel(null);
 
+        setShowQuotes(false);
     };
-
 
     // =========================================================
     // SELECT TASK
@@ -291,26 +291,34 @@ function TasksPage() {
         task: Task | null
     ) => {
 
-        setSelectedTask(
-            task
-        );
+        setSelectedTask(task);
 
-        // Reset manual accordion selection.
-        // The next render will use the correct
-        // role-based default panel.
-        setActivePanel(
-            null
-        );
+        // Reset accordion selection.
+        setActivePanel(null);
 
+        // IMPORTANT:
+        // Quotes belong to the previously selected task.
+        // Hide them whenever another task is selected.
+        setShowQuotes(false);
     };
 
+    const handleViewQuotes = () => {
+
+        if (!selectedTask) {
+            return;
+        }
+
+        setShowQuotes(true);
+
+        setActivePanel("quotes");
+    };
 
     // =========================================================
     // ACCORDION TOGGLE
     // =========================================================
 
     const togglePanel = (
-        panel: "logs" | "quote"
+        panel: "logs" | "quote" | "quotes"
     ) => {
 
         setActivePanel(
@@ -319,9 +327,7 @@ function TasksPage() {
                     ? null
                     : panel
         );
-
     };
-
 
     // =========================================================
     // LOADING
@@ -464,6 +470,10 @@ function TasksPage() {
                                 onDeleted={
                                     handleDeleted
                                 }
+
+                                onViewQuotes={
+                                    handleViewQuotes
+                                }
                             />
 
                         </div>
@@ -524,11 +534,10 @@ function TasksPage() {
 
                                     <ChevronDown
                                         size={18}
-                                        className={`shrink-0 text-gray-400 transition-transform duration-200 ${
-                                            currentPanel === "logs"
-                                                ? "rotate-180"
-                                                : ""
-                                        }`}
+                                        className={`shrink-0 text-gray-400 transition-transform duration-200 ${currentPanel === "logs"
+                                            ? "rotate-180"
+                                            : ""
+                                            }`}
                                     />
 
                                 </button>
@@ -692,19 +701,19 @@ function TasksPage() {
 
                                                                     {index <
                                                                         logs.length -
-                                                                            1 && (
+                                                                        1 && (
 
-                                                                        <div className="flex h-7 items-center justify-center">
+                                                                            <div className="flex h-7 items-center justify-center">
 
-                                                                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500">
+                                                                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500">
 
-                                                                                ↓
+                                                                                    ↓
+
+                                                                                </div>
 
                                                                             </div>
 
-                                                                        </div>
-
-                                                                    )}
+                                                                        )}
 
                                                                 </div>
 
@@ -772,11 +781,10 @@ function TasksPage() {
 
                                         <ChevronDown
                                             size={18}
-                                            className={`shrink-0 text-gray-400 transition-transform duration-200 ${
-                                                currentPanel === "quote"
-                                                    ? "rotate-180"
-                                                    : ""
-                                            }`}
+                                            className={`shrink-0 text-gray-400 transition-transform duration-200 ${currentPanel === "quote"
+                                                ? "rotate-180"
+                                                : ""
+                                                }`}
                                         />
 
                                     </button>
@@ -844,6 +852,19 @@ function TasksPage() {
 
                             )}
 
+                            {/* =================================================
+    SENIOR MANAGER - QUOTE DETAILS
+    READ ONLY
+================================================= */}
+
+                            {showQuotes &&
+                                selectedTask?.document_no && (
+                                    <QuoteDetailsAccordion
+                                        documentNo={
+                                            selectedTask.document_no
+                                        }
+                                    />
+                                )}
                         </div>
 
                     </section>

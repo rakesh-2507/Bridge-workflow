@@ -12,6 +12,7 @@ export interface CreateAssetPurchaseQuotePayload {
     quote_date: string;
     quoted_amount: number;
     currency: string;
+    executive_rating: number;
     quote_data: AssetPurchaseQuoteData;
 }
 

@@ -30,6 +30,7 @@ interface AssetPurchaseQuoteFormData {
     quote_date: string;
     quoted_amount: string;
     currency: string;
+    executive_rating: string;
     quote_details: string;
 }
 
@@ -47,6 +48,7 @@ const initialForm: AssetPurchaseQuoteFormData = {
     quote_date: "",
     quoted_amount: "",
     currency: "INR",
+    executive_rating: "",
     quote_details: "",
 };
 
@@ -95,7 +97,7 @@ function AssetPurchaseQuoteForm({
                 }
 
                 setDocumentNo(
-                    response.data.document_no
+                    response.data.document_no ?? ""
                 );
             } catch (err: unknown) {
                 if (!cancelled) {
@@ -217,6 +219,9 @@ function AssetPurchaseQuoteForm({
             const quoteNumber =
                 index + 1;
 
+            /*
+             * Vendor name
+             */
             if (!quote.vendor_name.trim()) {
                 setError(
                     `Please enter vendor name for Quote ${quoteNumber}.`
@@ -225,6 +230,9 @@ function AssetPurchaseQuoteForm({
                 return false;
             }
 
+            /*
+             * Quote number
+             */
             if (!quote.quote_no.trim()) {
                 setError(
                     `Please enter quote number for Quote ${quoteNumber}.`
@@ -233,6 +241,9 @@ function AssetPurchaseQuoteForm({
                 return false;
             }
 
+            /*
+             * Quote date
+             */
             if (!quote.quote_date) {
                 setError(
                     `Please select quote date for Quote ${quoteNumber}.`
@@ -241,6 +252,9 @@ function AssetPurchaseQuoteForm({
                 return false;
             }
 
+            /*
+             * Quoted amount
+             */
             if (!quote.quoted_amount) {
                 setError(
                     `Please enter quoted amount for Quote ${quoteNumber}.`
@@ -262,6 +276,36 @@ function AssetPurchaseQuoteForm({
             ) {
                 setError(
                     `Please enter a valid quoted amount for Quote ${quoteNumber}.`
+                );
+
+                return false;
+            }
+
+            /*
+             * Executive rating
+             */
+            if (!quote.executive_rating) {
+                setError(
+                    `Please select executive rating for Quote ${quoteNumber}.`
+                );
+
+                return false;
+            }
+
+            const executiveRating =
+                Number(
+                    quote.executive_rating
+                );
+
+            if (
+                Number.isNaN(
+                    executiveRating
+                ) ||
+                executiveRating < 1 ||
+                executiveRating > 5
+            ) {
+                setError(
+                    `Executive rating for Quote ${quoteNumber} must be between 1 and 5.`
                 );
 
                 return false;
@@ -297,14 +341,15 @@ function AssetPurchaseQuoteForm({
         setIsSubmitting(true);
 
         try {
-            const quoteResponses: CreateAssetPurchaseQuoteResponse[] =
+            const quoteResponses:
+                CreateAssetPurchaseQuoteResponse[] =
                 [];
 
             /*
              * Create each quote separately.
              *
-             * The current backend API accepts
-             * one quote per POST request.
+             * Backend accepts one quote
+             * per POST request.
              */
             for (
                 let index = 0;
@@ -317,6 +362,11 @@ function AssetPurchaseQuoteForm({
                 const quotedAmount =
                     Number(
                         quote.quoted_amount
+                    );
+
+                const executiveRating =
+                    Number(
+                        quote.executive_rating
                     );
 
                 const quoteResponse =
@@ -339,6 +389,9 @@ function AssetPurchaseQuoteForm({
                         currency:
                             quote.currency,
 
+                        executive_rating:
+                            executiveRating,
+
                         quote_data: {
                             additionalProp1:
                                 quote.quote_details.trim()
@@ -356,8 +409,8 @@ function AssetPurchaseQuoteForm({
             }
 
             /*
-             * Forward the workflow task ONLY ONCE
-             * after every quote has been created.
+             * Forward workflow task ONLY ONCE
+             * after all quotes are created.
              */
             await forwardAssetPurchaseTask(
                 taskId
@@ -495,27 +548,27 @@ function AssetPurchaseQuoteForm({
 
                                         {quotes.length >
                                             1 && (
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    handleRemoveQuote(
-                                                        index
-                                                    )
-                                                }
-                                                disabled={
-                                                    isSubmitting
-                                                }
-                                                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                                            >
-                                                <Trash2
-                                                    size={
-                                                        15
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleRemoveQuote(
+                                                            index
+                                                        )
                                                     }
-                                                />
+                                                    disabled={
+                                                        isSubmitting
+                                                    }
+                                                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                                >
+                                                    <Trash2
+                                                        size={
+                                                            15
+                                                        }
+                                                    />
 
-                                                Remove
-                                            </button>
-                                        )}
+                                                    Remove
+                                                </button>
+                                            )}
                                     </div>
 
                                     <div className="space-y-5 p-5">
@@ -524,12 +577,15 @@ function AssetPurchaseQuoteForm({
 
                                         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
+                                            {/* Vendor Name */}
+
                                             <div>
                                                 <label
                                                     htmlFor={`vendor_name_${index}`}
                                                     className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                                                 >
                                                     Vendor Name
+
                                                     <span className="ml-1 text-red-500">
                                                         *
                                                     </span>
@@ -558,12 +614,15 @@ function AssetPurchaseQuoteForm({
                                                 />
                                             </div>
 
+                                            {/* Quote Number */}
+
                                             <div>
                                                 <label
                                                     htmlFor={`quote_no_${index}`}
                                                     className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                                                 >
                                                     Quote Number
+
                                                     <span className="ml-1 text-red-500">
                                                         *
                                                     </span>
@@ -598,12 +657,15 @@ function AssetPurchaseQuoteForm({
 
                                         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
+                                            {/* Quote Date */}
+
                                             <div>
                                                 <label
                                                     htmlFor={`quote_date_${index}`}
                                                     className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                                                 >
                                                     Quote Date
+
                                                     <span className="ml-1 text-red-500">
                                                         *
                                                     </span>
@@ -640,12 +702,15 @@ function AssetPurchaseQuoteForm({
                                                 </div>
                                             </div>
 
+                                            {/* Currency */}
+
                                             <div>
                                                 <label
                                                     htmlFor={`currency_${index}`}
                                                     className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                                                 >
                                                     Currency
+
                                                     <span className="ml-1 text-red-500">
                                                         *
                                                     </span>
@@ -690,35 +755,77 @@ function AssetPurchaseQuoteForm({
 
                                         </div>
 
-                                        {/* Amount */}
+                                        {/* Amount + Executive Rating */}
 
-                                        <div>
-                                            <label
-                                                htmlFor={`quoted_amount_${index}`}
-                                                className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                                            >
-                                                Quoted Amount
-                                                <span className="ml-1 text-red-500">
-                                                    *
-                                                </span>
-                                            </label>
+                                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
-                                            <div className="relative">
-                                                <IndianRupee
-                                                    size={
-                                                        17
-                                                    }
-                                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                                                />
+                                            {/* Quoted Amount */}
 
-                                                <input
-                                                    id={`quoted_amount_${index}`}
-                                                    name="quoted_amount"
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.01"
+                                            <div>
+                                                <label
+                                                    htmlFor={`quoted_amount_${index}`}
+                                                    className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                                                >
+                                                    Quoted Amount
+
+                                                    <span className="ml-1 text-red-500">
+                                                        *
+                                                    </span>
+                                                </label>
+
+                                                <div className="relative">
+                                                    <IndianRupee
+                                                        size={
+                                                            17
+                                                        }
+                                                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                                                    />
+
+                                                    <input
+                                                        id={`quoted_amount_${index}`}
+                                                        name="quoted_amount"
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={
+                                                            quote.quoted_amount
+                                                        }
+                                                        onChange={(
+                                                            e
+                                                        ) =>
+                                                            handleQuoteChange(
+                                                                index,
+                                                                e
+                                                            )
+                                                        }
+                                                        placeholder="Enter quoted amount"
+                                                        disabled={
+                                                            isSubmitting
+                                                        }
+                                                        className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Executive Rating */}
+
+                                            <div>
+                                                <label
+                                                    htmlFor={`executive_rating_${index}`}
+                                                    className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                                                >
+                                                    Executive Rating
+
+                                                    <span className="ml-1 text-red-500">
+                                                        *
+                                                    </span>
+                                                </label>
+
+                                                <select
+                                                    id={`executive_rating_${index}`}
+                                                    name="executive_rating"
                                                     value={
-                                                        quote.quoted_amount
+                                                        quote.executive_rating
                                                     }
                                                     onChange={(
                                                         e
@@ -728,13 +835,37 @@ function AssetPurchaseQuoteForm({
                                                             e
                                                         )
                                                     }
-                                                    placeholder="Enter quoted amount"
                                                     disabled={
                                                         isSubmitting
                                                     }
-                                                    className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                                />
+                                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                >
+                                                    <option value="">
+                                                        Select rating
+                                                    </option>
+
+                                                    <option value="1">
+                                                        1 - Poor
+                                                    </option>
+
+                                                    <option value="2">
+                                                        2 - Below Average
+                                                    </option>
+
+                                                    <option value="3">
+                                                        3 - Average
+                                                    </option>
+
+                                                    <option value="4">
+                                                        4 - Good
+                                                    </option>
+
+                                                    <option value="5">
+                                                        5 - Excellent
+                                                    </option>
+                                                </select>
                                             </div>
+
                                         </div>
 
                                         {/* Quote Details */}
@@ -811,11 +942,14 @@ function AssetPurchaseQuoteForm({
                             {successMessage}
                         </div>
                     )}
+
                 </div>
 
                 {/* Actions */}
 
                 <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+
+                    {/* Reset */}
 
                     <button
                         type="button"
@@ -829,6 +963,8 @@ function AssetPurchaseQuoteForm({
                     >
                         Reset
                     </button>
+
+                    {/* Submit */}
 
                     <button
                         type="submit"

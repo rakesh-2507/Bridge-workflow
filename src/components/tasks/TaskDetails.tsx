@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import {
     CalendarDays,
     Eye,
-    FileText,
     Loader2,
     Pencil,
     Trash2,
@@ -22,18 +21,10 @@ import {
     getAssetPurchaseTask,
 } from "../../api/assetPurchase";
 
-import {
-    getAssetPurchaseQuotes,
-} from "../../api/assetPurchaseQuote";
-
 import type {
     Task,
     AssetPurchaseTaskDetails,
 } from "../../types/task";
-
-import type {
-    AssetPurchaseQuote,
-} from "../../types/assetPurchaseQuote";
 
 import TaskStatus from "./TaskStatus";
 
@@ -41,12 +32,22 @@ interface TaskDetailsProps {
     task: Task | null;
     onEdit: (task: Task) => void;
     onDeleted: (taskId: number) => void;
+
+    /*
+     * Called when Assets Manager-Senior
+     * wants to view quotations.
+     *
+     * Quote data itself is handled by the
+     * parent TasksPage/right panel.
+     */
+    onViewQuotes?: () => void;
 }
 
 function TaskDetails({
     task,
     onEdit,
     onDeleted,
+    onViewQuotes,
 }: TaskDetailsProps) {
     // ==================================================
     // Delete State
@@ -213,85 +214,6 @@ function TaskDetails({
     }, [task]);
 
     // ==================================================
-    // Asset Purchase Quotations
-    // ==================================================
-
-    const [quotes, setQuotes] = useState<
-        AssetPurchaseQuote[]
-    >([]);
-
-    const [quotesLoading, setQuotesLoading] =
-        useState(false);
-
-    const [quotesError, setQuotesError] =
-        useState("");
-
-    /*
-     * Quotations are only required for
-     * Assets Manager-Senior.
-     *
-     * The document number is captured before entering
-     * the async function so TypeScript knows it is
-     * definitely a string.
-     */
-    useEffect(() => {
-        if (!task || !isSeniorAssetManager) {
-            return;
-        }
-
-        const documentNo = task.document_no;
-
-        if (!documentNo) {
-            return;
-        }
-
-        let cancelled = false;
-
-        const loadQuotes = async () => {
-            setQuotesLoading(true);
-            setQuotesError("");
-            setQuotes([]);
-
-            try {
-                const response =
-                    await getAssetPurchaseQuotes(documentNo);
-
-                if (cancelled) {
-                    return;
-                }
-
-                setQuotes(response.data ?? []);
-            } catch (err) {
-                if (cancelled) {
-                    return;
-                }
-
-                console.error(
-                    "Failed to load asset purchase quotes:",
-                    err
-                );
-
-                setQuotes([]);
-
-                setQuotesError(
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to load quotations."
-                );
-            } finally {
-                if (!cancelled) {
-                    setQuotesLoading(false);
-                }
-            }
-        };
-
-        loadQuotes();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [task, isSeniorAssetManager]);
-    // ==================================================
     // No Task Selected
     // ==================================================
 
@@ -331,20 +253,6 @@ function TaskDetails({
     const assetDocumentNo =
         assetTask?.document?.document_no ||
         task.document_no;
-
-    /*
-     * Quotations should only be displayed for:
-     *
-     * Assets Manager-Senior
-     * +
-     * Asset Purchase task
-     * +
-     * document number
-     */
-    const shouldLoadQuotes =
-        isAssetPurchaseTask &&
-        isSeniorAssetManager &&
-        !!assetDocumentNo;
 
     // ==================================================
     // Task Status
@@ -745,18 +653,24 @@ function TaskDetails({
                     ================================================== */}
 
                     {!isAssetPurchaseTask && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+
                             <DateInfo
-                                icon={<CalendarDays size={16} />}
+                                icon={
+                                    <CalendarDays size={16} />
+                                }
                                 label="Start Date"
                                 value={task.start_date}
                             />
 
                             <DateInfo
-                                icon={<CalendarDays size={16} />}
+                                icon={
+                                    <CalendarDays size={16} />
+                                }
                                 label="End Date"
                                 value={task.end_date}
                             />
+
                         </div>
                     )}
 
@@ -785,22 +699,50 @@ function TaskDetails({
 
                     {isAssetPurchaseTask && (
                         <section>
+
                             <div className="flex items-center justify-between gap-4">
 
                                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                                     Asset Purchase Request:
                                 </h3>
 
-                                {assetTask?.document
-                                    ?.document_no && (
-                                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                                            {
-                                                assetTask
-                                                    .document
-                                                    .document_no
-                                            }
-                                        </span>
-                                    )}
+                                <div className="flex items-center gap-2">
+
+                                    {assetTask?.document
+                                        ?.document_no && (
+                                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                                {
+                                                    assetTask
+                                                        .document
+                                                        .document_no
+                                                }
+                                            </span>
+                                        )}
+
+                                    {/* ==================================================
+                                        Senior Manager - View Quotes
+                                    ================================================== */}
+
+                                    {isSeniorAssetManager &&
+                                        onViewQuotes && (
+                                            <button
+                                                type="button"
+                                                onClick={
+                                                    onViewQuotes
+                                                }
+                                                disabled={
+                                                    !assetDocumentNo
+                                                }
+                                                className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"
+                                            >
+                                                <Eye
+                                                    size={14}
+                                                />
+                                                View Quotes
+                                            </button>
+                                        )}
+
+                                </div>
 
                             </div>
 
@@ -810,6 +752,7 @@ function TaskDetails({
 
                                 {assetTaskLoading && (
                                     <div className="flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-5 py-8 dark:border-gray-800 dark:bg-gray-950">
+
                                         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
 
                                             <Loader2
@@ -820,6 +763,7 @@ function TaskDetails({
                                             Loading asset request...
 
                                         </div>
+
                                     </div>
                                 )}
 
@@ -923,27 +867,6 @@ function TaskDetails({
                             </div>
                         </section>
                     )}
-                    {/* ==================================================
-                        Vendor Quotations
-
-                        Only Assets Manager-Senior can see this.
-
-                        READ ONLY
-                    ================================================== */}
-
-                    {isSeniorAssetManager &&
-                        shouldLoadQuotes && (
-                            <QuotationView
-                                quotes={quotes}
-                                loading={
-                                    quotesLoading
-                                }
-                                error={quotesError}
-                                documentNo={
-                                    assetDocumentNo
-                                }
-                            />
-                        )}
 
                     {/* ==================================================
                         Task Actions
@@ -1263,270 +1186,6 @@ function AssetRequestField({
 }
 
 /* ======================================================
-   Quotation View
-====================================================== */
-
-interface QuotationViewProps {
-    quotes: AssetPurchaseQuote[];
-    loading: boolean;
-    error: string;
-    documentNo?: string;
-}
-
-function QuotationView({
-    quotes,
-    loading,
-    error,
-    documentNo,
-}: QuotationViewProps) {
-    return (
-        <section>
-            <div className="flex items-center justify-between gap-4">
-
-                <div>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                        Vendor Quotations:
-                    </h3>
-
-                    {documentNo && (
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            Document #{documentNo}
-                        </p>
-                    )}
-                </div>
-
-                {!loading &&
-                    !error &&
-                    quotes.length > 0 && (
-                        <div className="flex shrink-0 items-center gap-2">
-
-                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                                {quotes.length}{" "}
-                                {quotes.length === 1
-                                    ? "Quote"
-                                    : "Quotes"}
-                            </span>
-
-                            <span className="flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                                <Eye size={13} />
-                                View Only
-                            </span>
-
-                        </div>
-                    )}
-
-            </div>
-
-            <div className="mt-4">
-
-                {/* Loading */}
-
-                {loading && (
-                    <div className="flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-5 py-8 dark:border-gray-800 dark:bg-gray-950">
-
-                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-
-                            <Loader2
-                                size={16}
-                                className="animate-spin"
-                            />
-
-                            Loading quotations...
-
-                        </div>
-
-                    </div>
-                )}
-
-                {/* Error */}
-
-                {!loading && error && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-                        {error}
-                    </div>
-                )}
-
-                {/* Empty */}
-
-                {!loading &&
-                    !error &&
-                    quotes.length === 0 && (
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-8 text-center dark:border-gray-800 dark:bg-gray-950">
-
-                            <FileText
-                                size={22}
-                                className="mx-auto text-gray-400"
-                            />
-
-                            <p className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                                No quotations found
-                            </p>
-
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                No vendor quotations are
-                                available for this request.
-                            </p>
-
-                        </div>
-                    )}
-
-                {/* Quotes */}
-
-                {!loading &&
-                    !error &&
-                    quotes.length > 0 && (
-                        <div className="space-y-4">
-
-                            {quotes.map(
-                                (quote, index) => (
-                                    <QuotationCard
-                                        key={
-                                            quote.quote_id
-                                        }
-                                        quote={quote}
-                                        index={index}
-                                    />
-                                )
-                            )}
-
-                        </div>
-                    )}
-
-            </div>
-        </section>
-    );
-}
-
-/* ======================================================
-   Quotation Card
-====================================================== */
-
-interface QuotationCardProps {
-    quote: AssetPurchaseQuote;
-    index: number;
-}
-
-function QuotationCard({
-    quote,
-    index,
-}: QuotationCardProps) {
-    const details =
-        quote.quote_data?.additionalProp1?.details;
-
-    return (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
-
-            {/* Quote Header */}
-
-            <div className="flex items-start justify-between gap-4">
-
-                <div className="flex items-center gap-3">
-
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-gray-900">
-
-                        <FileText
-                            size={17}
-                            className="text-gray-500 dark:text-gray-400"
-                        />
-
-                    </div>
-
-                    <div>
-                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                            Quotation {index + 1}
-                        </h4>
-
-                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                            Quote ID #{quote.quote_id}
-                        </p>
-                    </div>
-
-                </div>
-
-                <span className="rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
-                    View Only
-                </span>
-
-            </div>
-
-            {/* Quote Information */}
-
-            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
-                <QuotationField
-                    label="Vendor Name"
-                    value={
-                        quote.vendor_name || "-"
-                    }
-                />
-
-                <QuotationField
-                    label="Quote Number"
-                    value={
-                        quote.quote_no || "-"
-                    }
-                />
-
-                <QuotationField
-                    label="Quote Date"
-                    value={formatQuoteDate(
-                        quote.quote_date
-                    )}
-                />
-
-                <QuotationField
-                    label="Quoted Amount"
-                    value={`${quote.currency || "INR"} ${formatQuoteAmount(
-                        quote.quoted_amount
-                    )}`}
-                />
-
-            </div>
-
-            {/* Quote Details */}
-
-            {details && (
-                <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
-
-                    <QuotationField
-                        label="Quote Details"
-                        value={details}
-                    />
-
-                </div>
-            )}
-
-        </div>
-    );
-}
-
-/* ======================================================
-   Quotation Field
-====================================================== */
-
-interface QuotationFieldProps {
-    label: string;
-    value: string;
-}
-
-function QuotationField({
-    label,
-    value,
-}: QuotationFieldProps) {
-    return (
-        <div>
-            <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-                {label}
-            </p>
-
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                {value}
-            </p>
-        </div>
-    );
-}
-
-/* ======================================================
    Date Info
 ====================================================== */
 
@@ -1564,7 +1223,6 @@ function DateInfo({
     );
 }
 
-
 /* ======================================================
    Quote Date Formatter
 ====================================================== */
@@ -1595,21 +1253,6 @@ function formatQuoteDate(
             year: "numeric",
         }
     );
-}
-
-/* ======================================================
-   Quote Amount Formatter
-====================================================== */
-
-function formatQuoteAmount(
-    amount: number
-) {
-    return new Intl.NumberFormat(
-        "en-IN",
-        {
-            maximumFractionDigits: 2,
-        }
-    ).format(amount);
 }
 
 export default TaskDetails;
