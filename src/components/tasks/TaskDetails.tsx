@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 import {
     CalendarDays,
-    Eye,
     Loader2,
     Pencil,
     Trash2,
@@ -27,27 +26,18 @@ import type {
 } from "../../types/task";
 
 import TaskStatus from "./TaskStatus";
+import QuoteDetailsAccordion from "../asset-purchase/QuoteDetailsAccordion";
 
 interface TaskDetailsProps {
     task: Task | null;
     onEdit: (task: Task) => void;
     onDeleted: (taskId: number) => void;
-
-    /*
-     * Called when Assets Manager-Senior
-     * wants to view quotations.
-     *
-     * Quote data itself is handled by the
-     * parent TasksPage/right panel.
-     */
-    onViewQuotes?: () => void;
 }
 
 function TaskDetails({
     task,
     onEdit,
     onDeleted,
-    onViewQuotes,
 }: TaskDetailsProps) {
     // ==================================================
     // Delete State
@@ -723,24 +713,6 @@ function TaskDetails({
                                         Senior Manager - View Quotes
                                     ================================================== */}
 
-                                    {isSeniorAssetManager &&
-                                        onViewQuotes && (
-                                            <button
-                                                type="button"
-                                                onClick={
-                                                    onViewQuotes
-                                                }
-                                                disabled={
-                                                    !assetDocumentNo
-                                                }
-                                                className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"
-                                            >
-                                                <Eye
-                                                    size={14}
-                                                />
-                                                View Quotes
-                                            </button>
-                                        )}
 
                                 </div>
 
@@ -867,6 +839,19 @@ function TaskDetails({
                             </div>
                         </section>
                     )}
+
+                    {isSeniorAssetManager &&
+                        isAssetPurchaseTask &&
+                        assetDocumentNo && (
+                            <section>
+                                <QuoteDetailsAccordion
+                                    documentNo={assetDocumentNo}
+                                    taskId={task.task_id}
+                                    canEditRating={true}
+                                />
+                            </section>
+                        )}
+
 
                     {/* ==================================================
                         Task Actions

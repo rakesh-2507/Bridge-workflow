@@ -5,6 +5,9 @@ export interface AssetPurchaseQuoteData {
     };
 }
 
+/*
+ * POST /api/asset-purchase/quotes
+ */
 export interface CreateAssetPurchaseQuotePayload {
     document_no: string;
     vendor_name: string;
@@ -30,8 +33,9 @@ export interface CreateAssetPurchaseQuoteResponse {
     };
 }
 
-/* GET /api/asset-purchase/quotes/{document_no} */
-
+/*
+ * GET /api/asset-purchase/quotes/{document_no}
+ */
 export interface AssetPurchaseQuote {
     quote_id: number;
     document_id: number;
@@ -41,6 +45,7 @@ export interface AssetPurchaseQuote {
     quote_date: string;
     quoted_amount: number;
     currency: string;
+    executive_rating: number;
     quote_data: AssetPurchaseQuoteData;
     created_by: number;
     created_date: string;
@@ -52,4 +57,27 @@ export interface GetAssetPurchaseQuotesResponse {
     code: string;
     message: string;
     data: AssetPurchaseQuote[];
+}
+
+/*
+ * POST /api/asset-purchase/tasks/{task_id}/quotes/{quote_id}/rating
+ */
+export interface UpdateAssetQuoteRatingResponse {
+    success: boolean;
+    code: string;
+    message: string;
+
+    task_id: number;
+    document_no: string;
+
+    quote: {
+        quote_id: number;
+        vendor_name: string;
+        quote_no: string;
+        quoted_amount: number;
+        old_rating: number;
+        rating: number;
+    };
+
+    updated_by: number;
 }

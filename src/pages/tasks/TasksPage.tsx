@@ -259,6 +259,13 @@ function TasksPage() {
     // DELETE TASK
     // =========================================================
 
+    const loggedInUser = JSON.parse(
+        localStorage.getItem("login_user") || "null"
+    );
+
+    const canEditQuoteRating =
+        loggedInUser?.mtype === "Assets Manager-Senior";
+
     const handleDeleted = (
         taskId: number
     ) => {
@@ -302,16 +309,6 @@ function TasksPage() {
         setShowQuotes(false);
     };
 
-    const handleViewQuotes = () => {
-
-        if (!selectedTask) {
-            return;
-        }
-
-        setShowQuotes(true);
-
-        setActivePanel("quotes");
-    };
 
     // =========================================================
     // ACCORDION TOGGLE
@@ -471,9 +468,6 @@ function TasksPage() {
                                     handleDeleted
                                 }
 
-                                onViewQuotes={
-                                    handleViewQuotes
-                                }
                             />
 
                         </div>
@@ -771,7 +765,7 @@ function TasksPage() {
                                                 </h2>
 
                                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                    Prepare and forward vendor quote
+                                                    Min. Quotes=4 ; Max. Quotes=5
                                                 </p>
 
                                             </div>
@@ -860,9 +854,9 @@ function TasksPage() {
                             {showQuotes &&
                                 selectedTask?.document_no && (
                                     <QuoteDetailsAccordion
-                                        documentNo={
-                                            selectedTask.document_no
-                                        }
+                                        documentNo={selectedTask.document_no}
+                                        taskId={selectedTask.task_id}
+                                        canEditRating={canEditQuoteRating}
                                     />
                                 )}
                         </div>

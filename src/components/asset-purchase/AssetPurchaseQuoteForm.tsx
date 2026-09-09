@@ -966,30 +966,34 @@ function AssetPurchaseQuoteForm({
 
                     {/* Submit */}
 
-                    <button
-                        type="submit"
-                        disabled={
-                            isSubmitting ||
-                            isLoadingTask ||
-                            !documentNo
-                        }
-                        className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        {isSubmitting ? (
-                            <Loader2
-                                size={16}
-                                className="animate-spin"
-                            />
-                        ) : (
-                            <Send
-                                size={16}
-                            />
-                        )}
+                    {/* Submit */}
 
-                        {isSubmitting
-                            ? "Submitting..."
-                            : "Submit & Forward All"}
-                    </button>
+                    {quotes.length >= 4 && (
+                        <button
+                            type="submit"
+                            disabled={
+                                isSubmitting ||
+                                isLoadingTask ||
+                                !documentNo
+                            }
+                            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {isSubmitting ? (
+                                <Loader2
+                                    size={16}
+                                    className="animate-spin"
+                                />
+                            ) : (
+                                <Send
+                                    size={16}
+                                />
+                            )}
+
+                            {isSubmitting
+                                ? "Submitting..."
+                                : "Submit & Forward All"}
+                        </button>
+                    )}
 
                 </div>
             </form>

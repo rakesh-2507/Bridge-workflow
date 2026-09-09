@@ -7,7 +7,10 @@ import {
     Loader2,
 } from "lucide-react";
 
-import { getAssetPurchaseQuotes } from "../../api/assetPurchaseQuote";
+import {
+    getAssetPurchaseQuotes,
+    updateAssetQuoteRating,
+} from "../../api/assetPurchaseQuote";
 
 import type {
     AssetPurchaseQuote,
@@ -15,10 +18,14 @@ import type {
 
 interface QuoteDetailsAccordionProps {
     documentNo: string;
+    taskId: number;
+    canEditRating?: boolean;
 }
 
 function QuoteDetailsAccordion({
     documentNo,
+    taskId,
+    canEditRating = false,
 }: QuoteDetailsAccordionProps) {
     const [isOpen, setIsOpen] = useState(true);
 
@@ -29,6 +36,12 @@ function QuoteDetailsAccordion({
         useState(false);
 
     const [quotesError, setQuotesError] =
+        useState("");
+
+    const [updatingRatingId, setUpdatingRatingId] =
+        useState<number | null>(null);
+
+    const [ratingError, setRatingError] =
         useState("");
 
     // ==================================================
@@ -78,6 +91,52 @@ function QuoteDetailsAccordion({
             cancelled = true;
         };
     }, [documentNo]);
+
+    // ==================================================
+    // UPDATE RATING
+    // ==================================================
+
+    const handleRatingChange = async (
+        quoteId: number,
+        rating: number
+    ) => {
+        if (!canEditRating) {
+            return;
+        }
+
+        setUpdatingRatingId(quoteId);
+        setRatingError("");
+
+        try {
+            const response =
+                await updateAssetQuoteRating(
+                    taskId,
+                    quoteId,
+                    rating
+                );
+
+            setQuotes((previous) =>
+                previous.map((quote) =>
+                    quote.quote_id === quoteId
+                        ? {
+                            ...quote,
+                            executive_rating:
+                                response.quote.rating,
+                        }
+                        : quote
+                )
+            );
+        } catch (err) {
+            setRatingError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to update quote rating."
+            );
+        } finally {
+            setUpdatingRatingId(null);
+        }
+    };
+
     // ==================================================
     // RENDER
     // ==================================================
@@ -120,7 +179,9 @@ function QuoteDetailsAccordion({
 
                             <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                                 <Eye size={11} />
-                                View Only
+                                {canEditRating
+                                    ? "Rating Editable"
+                                    : "View Only"}
                             </span>
 
                         </div>
@@ -148,10 +209,11 @@ function QuoteDetailsAccordion({
 
                     <ChevronDown
                         size={18}
-                        className={`shrink-0 text-gray-400 transition-transform duration-200 ${isOpen
+                        className={`shrink-0 text-gray-400 transition-transform duration-200 ${
+                            isOpen
                                 ? "rotate-180"
                                 : ""
-                            }`}
+                        }`}
                     />
 
                 </div>
@@ -180,6 +242,14 @@ function QuoteDetailsAccordion({
                             </p>
 
                         </div>
+
+                        {/* RATING ERROR */}
+
+                        {ratingError && (
+                            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                                {ratingError}
+                            </div>
+                        )}
 
                         {/* LOADING */}
 
@@ -254,6 +324,15 @@ function QuoteDetailsAccordion({
                                                 index={
                                                     index
                                                 }
+                                                canEditRating={
+                                                    canEditRating
+                                                }
+                                                updatingRatingId={
+                                                    updatingRatingId
+                                                }
+                                                onRatingChange={
+                                                    handleRatingChange
+                                                }
                                             />
                                         )
                                     )}
@@ -277,16 +356,27 @@ function QuoteDetailsAccordion({
 interface QuotationCardProps {
     quote: AssetPurchaseQuote;
     index: number;
+    canEditRating: boolean;
+    updatingRatingId: number | null;
+    onRatingChange: (
+        quoteId: number,
+        rating: number
+    ) => void;
 }
 
 function QuotationCard({
     quote,
-    index,
+    canEditRating,
+    updatingRatingId,
+    onRatingChange,
 }: QuotationCardProps) {
     const details =
         quote.quote_data
             ?.additionalProp1
             ?.details;
+
+    const isUpdating =
+        updatingRatingId === quote.quote_id;
 
     return (
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
@@ -309,7 +399,7 @@ function QuotationCard({
                     <div>
 
                         <h3 className="text-xs font-semibold text-gray-900 dark:text-white">
-                            Quotation {index + 1}
+                             {details ? details : "Quote Details"} 
                         </h3>
 
                         <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
@@ -320,8 +410,16 @@ function QuotationCard({
 
                 </div>
 
-                <span className="rounded-md bg-white px-2 py-1 text-[10px] font-medium text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
-                    View Only
+                <span
+                    className={`rounded-md px-2 py-1 text-[10px] font-medium ring-1 ${
+                        canEditRating
+                            ? "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-900"
+                            : "bg-white text-gray-500 ring-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700"
+                    }`}
+                >
+                    {canEditRating
+                        ? "Rating Editable"
+                        : "View Only"}
                 </span>
 
             </div>
@@ -360,20 +458,103 @@ function QuotationCard({
                     )}`}
                 />
 
-            </div>
+                {/* EXECUTIVE RATING */}
 
-            {/* DETAILS */}
+                <div>
 
-            {details && (
-                <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
+                    <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                        Executive Rating
+                    </p>
 
-                    <QuotationField
-                        label="Quote Details"
-                        value={details}
-                    />
+                    {canEditRating ? (
+                        <div className="flex items-center gap-2">
+
+                            <select
+                                value={
+                                    quote.executive_rating ??
+                                    ""
+                                }
+                                disabled={isUpdating}
+                                onChange={(event) =>
+                                    onRatingChange(
+                                        quote.quote_id,
+                                        Number(
+                                            event.target
+                                                .value
+                                        )
+                                    )
+                                }
+                                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-950"
+                            >
+                                <option value="">
+                                    Select rating
+                                </option>
+
+                                <option value="1">
+                                    1 - Poor
+                                </option>
+
+                                <option value="2">
+                                    2 - Below Average
+                                </option>
+
+                                <option value="3">
+                                    3 - Average
+                                </option>
+
+                                <option value="4">
+                                    4 - Good
+                                </option>
+
+                                <option value="5">
+                                    5 - Excellent
+                                </option>
+
+                            </select>
+
+                            {isUpdating && (
+                                <Loader2
+                                    size={16}
+                                    className="shrink-0 animate-spin text-gray-500"
+                                />
+                            )}
+
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+
+                            <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                {quote.executive_rating ??
+                                    "-"}
+                            </span>
+
+                            <span className="text-xs text-gray-400">
+                                / 5
+                            </span>
+
+                            {quote.executive_rating && (
+                                <span className="text-sm tracking-wide text-yellow-500">
+                                    {"★".repeat(
+                                        Math.min(
+                                            5,
+                                            Math.max(
+                                                0,
+                                                Number(
+                                                    quote.executive_rating
+                                                ) || 0
+                                            )
+                                        )
+                                    )}
+                                </span>
+                            )}
+
+                        </div>
+                    )}
 
                 </div>
-            )}
+
+            </div>
+
 
         </div>
     );
