@@ -7,7 +7,6 @@ import {
     Loader2,
     Pencil,
     Trash2,
-    User,
 } from "lucide-react";
 
 import {
@@ -19,9 +18,18 @@ import {
     deleteTask,
 } from "../../api/tasks";
 
-import { getAssetPurchaseQuotes } from "../../api/assetPurchaseQuote";
+import {
+    getAssetPurchaseTask,
+} from "../../api/assetPurchase";
 
-import type { Task } from "../../types/task";
+import {
+    getAssetPurchaseQuotes,
+} from "../../api/assetPurchaseQuote";
+
+import type {
+    Task,
+    AssetPurchaseTaskDetails,
+} from "../../types/task";
 
 import type {
     AssetPurchaseQuote,
@@ -93,7 +101,116 @@ function TaskDetails({
         "Assets Manager-Senior";
 
     const isAssetExecutive =
-        loggedInUser?.mtype === "Assets-Executive";
+        loggedInUser?.mtype ===
+        "Assets-Executive";
+
+    // ==================================================
+    // Asset Purchase Task Details
+    // ==================================================
+
+    const [assetTask, setAssetTask] =
+        useState<AssetPurchaseTaskDetails | null>(
+            null
+        );
+
+    const [assetTaskLoading, setAssetTaskLoading] =
+        useState(false);
+
+    const [assetTaskError, setAssetTaskError] =
+        useState("");
+
+    const isAssetPurchaseTask =
+        task?.document_type ===
+        "AssetPurchaseRequest" ||
+        task?.task_type ===
+        "Asset Purchase Request";
+
+    /*
+     * Load the complete asset purchase task.
+     *
+     * Important:
+     * AssetPurchaseTaskDetails represents the COMPLETE
+     * task object. The actual request fields are inside:
+     *
+     * assetTask.document.request_data
+     *
+     * We therefore do NOT cast request_data itself to
+     * AssetPurchaseTaskDetails.
+     */
+    useEffect(() => {
+        if (
+            !task ||
+            (
+                task.document_type !==
+                "AssetPurchaseRequest" &&
+                task.task_type !==
+                "Asset Purchase Request"
+            )
+        ) {
+            return;
+        }
+
+        const currentTask = task;
+
+        let cancelled = false;
+
+        const loadAssetTask = async () => {
+            setAssetTaskLoading(true);
+            setAssetTaskError("");
+            setAssetTask(null);
+
+            try {
+                const response =
+                    await getAssetPurchaseTask(
+                        currentTask.task_id
+                    );
+
+                if (cancelled) {
+                    return;
+                }
+
+                const details =
+                    extractAssetPurchaseTaskDetails(
+                        response
+                    );
+
+                if (!details) {
+                    throw new Error(
+                        "Asset purchase task data was not returned in the expected format."
+                    );
+                }
+
+                setAssetTask(details);
+            } catch (err) {
+                if (cancelled) {
+                    return;
+                }
+
+                console.error(
+                    "Failed to load asset purchase task:",
+                    err
+                );
+
+                setAssetTask(null);
+
+                setAssetTaskError(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to load asset purchase request."
+                );
+            } finally {
+                if (!cancelled) {
+                    setAssetTaskLoading(false);
+                }
+            }
+        };
+
+        loadAssetTask();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [task]);
 
     // ==================================================
     // Asset Purchase Quotations
@@ -109,38 +226,41 @@ function TaskDetails({
     const [quotesError, setQuotesError] =
         useState("");
 
+    /*
+     * Quotations are only required for
+     * Assets Manager-Senior.
+     *
+     * The document number is captured before entering
+     * the async function so TypeScript knows it is
+     * definitely a string.
+     */
     useEffect(() => {
-        /*
-         * Quotations are only required for
-         * Assets Manager-Senior.
-         *
-         * Do not call setState() in the early return.
-         * This avoids the React cascading-render warning.
-         */
-        if (
-            !task ||
-            !isSeniorAssetManager ||
-            !task.document_no
-        ) {
+        if (!task || !isSeniorAssetManager) {
+            return;
+        }
+
+        const documentNo = task.document_no;
+
+        if (!documentNo) {
             return;
         }
 
         let cancelled = false;
 
         const loadQuotes = async () => {
+            setQuotesLoading(true);
+            setQuotesError("");
+            setQuotes([]);
+
             try {
                 const response =
-                    await getAssetPurchaseQuotes(
-                        task.document_no!
-                    );
+                    await getAssetPurchaseQuotes(documentNo);
 
                 if (cancelled) {
                     return;
                 }
 
                 setQuotes(response.data ?? []);
-                setQuotesError("");
-                setQuotesLoading(false);
             } catch (err) {
                 if (cancelled) {
                     return;
@@ -152,12 +272,16 @@ function TaskDetails({
                 );
 
                 setQuotes([]);
+
                 setQuotesError(
                     err instanceof Error
                         ? err.message
                         : "Failed to load quotations."
                 );
-                setQuotesLoading(false);
+            } finally {
+                if (!cancelled) {
+                    setQuotesLoading(false);
+                }
             }
         };
 
@@ -166,24 +290,7 @@ function TaskDetails({
         return () => {
             cancelled = true;
         };
-    }, [
-        task?.task_id,
-        task?.document_no,
-        isSeniorAssetManager,
-    ]);
-
-    /*
-     * Loading is derived from whether a senior manager
-     * has a task with a document number but quotes have
-     * not yet been received.
-     *
-     * The actual fetch state is handled by the effect.
-     */
-    const shouldLoadQuotes =
-        !!task &&
-        isSeniorAssetManager &&
-        !!task.document_no;
-
+    }, [task, isSeniorAssetManager]);
     // ==================================================
     // No Task Selected
     // ==================================================
@@ -213,6 +320,33 @@ function TaskDetails({
     }
 
     // ==================================================
+    // Values below this point are safe because task
+    // has already been checked for null.
+    // ==================================================
+
+    /*
+     * Prefer the document number returned by the
+     * asset-specific API when available.
+     */
+    const assetDocumentNo =
+        assetTask?.document?.document_no ||
+        task.document_no;
+
+    /*
+     * Quotations should only be displayed for:
+     *
+     * Assets Manager-Senior
+     * +
+     * Asset Purchase task
+     * +
+     * document number
+     */
+    const shouldLoadQuotes =
+        isAssetPurchaseTask &&
+        isSeniorAssetManager &&
+        !!assetDocumentNo;
+
+    // ==================================================
     // Task Status
     //
     // 0 = In Progress
@@ -220,7 +354,8 @@ function TaskDetails({
     // 2 = Rejected
     // ==================================================
 
-    const canTakeAction = task.status === 0;
+    const canTakeAction =
+        task.status === 0;
 
     // ==================================================
     // Delete Task
@@ -268,13 +403,14 @@ function TaskDetails({
         setActionError("");
 
         try {
-            const response = await approveTask(
-                task.task_id
-            );
+            const response =
+                await approveTask(
+                    task.task_id
+                );
 
             setActionMessage(
                 response ||
-                    "Task approved successfully."
+                "Task approved successfully."
             );
         } catch (err) {
             setActionError(
@@ -304,13 +440,14 @@ function TaskDetails({
         setActionError("");
 
         try {
-            const response = await rejectTask(
-                task.task_id
-            );
+            const response =
+                await rejectTask(
+                    task.task_id
+                );
 
             setActionMessage(
                 response ||
-                    "Task rejected successfully."
+                "Task rejected successfully."
             );
         } catch (err) {
             setActionError(
@@ -327,75 +464,77 @@ function TaskDetails({
     // Asset Purchase - Approve
     // ==================================================
 
-    const handleAssetPurchaseApprove = async () => {
-        if (
-            actionLoading !== null ||
-            !canTakeAction
-        ) {
-            return;
-        }
+    const handleAssetPurchaseApprove =
+        async () => {
+            if (
+                actionLoading !== null ||
+                !canTakeAction
+            ) {
+                return;
+            }
 
-        setActionLoading("approve");
-        setActionMessage("");
-        setActionError("");
+            setActionLoading("approve");
+            setActionMessage("");
+            setActionError("");
 
-        try {
-            const response =
-                await approveAssetPurchaseTask(
-                    task.task_id
-                );
+            try {
+                const response =
+                    await approveAssetPurchaseTask(
+                        task.task_id
+                    );
 
-            setActionMessage(
-                response ||
+                setActionMessage(
+                    response ||
                     "Task approved successfully."
-            );
-        } catch (err) {
-            setActionError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to approve task."
-            );
-        } finally {
-            setActionLoading(null);
-        }
-    };
+                );
+            } catch (err) {
+                setActionError(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to approve task."
+                );
+            } finally {
+                setActionLoading(null);
+            }
+        };
 
     // ==================================================
     // Asset Purchase - Reject
     // ==================================================
 
-    const handleAssetPurchaseReject = async () => {
-        if (
-            actionLoading !== null ||
-            !canTakeAction
-        ) {
-            return;
-        }
+    const handleAssetPurchaseReject =
+        async () => {
+            if (
+                actionLoading !== null ||
+                !canTakeAction
+            ) {
+                return;
+            }
 
-        setActionLoading("reject");
-        setActionMessage("");
-        setActionError("");
+            setActionLoading("reject");
+            setActionMessage("");
+            setActionError("");
 
-        try {
-            const response =
-                await rejectAssetPurchaseTask(
-                    task.task_id
-                );
+            try {
+                const response =
+                    await rejectAssetPurchaseTask(
+                        task.task_id
+                    );
 
-            setActionMessage(
-                response ||
+                setActionMessage(
+                    response ||
                     "Task rejected successfully."
-            );
-        } catch (err) {
-            setActionError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to reject task."
-            );
-        } finally {
-            setActionLoading(null);
-        }
-    };
+                );
+            } catch (err) {
+                setActionError(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to reject task."
+                );
+            } finally {
+                setActionLoading(null);
+            }
+        };
 
     // ==================================================
     // Asset Purchase - Backward
@@ -421,7 +560,7 @@ function TaskDetails({
 
             setActionMessage(
                 response ||
-                    "Task moved backward successfully."
+                "Task moved backward successfully."
             );
         } catch (err) {
             setActionError(
@@ -463,12 +602,12 @@ function TaskDetails({
                         </div>
 
                         <p className="mt-1.5 text-xs font-medium text-gray-400">
-                            Task #{task.task_id}
+                            Task : {task.task_id} ... Assined By #{task.assigned_by ?? "N/A"}
                         </p>
 
-                        {task.document_no && (
+                        {assetDocumentNo && (
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Document #{task.document_no}
+                                Document : #{assetDocumentNo}
                             </p>
                         )}
                     </div>
@@ -605,25 +744,21 @@ function TaskDetails({
                         Dates
                     ================================================== */}
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {!isAssetPurchaseTask && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <DateInfo
+                                icon={<CalendarDays size={16} />}
+                                label="Start Date"
+                                value={task.start_date}
+                            />
 
-                        <DateInfo
-                            label="Start Date"
-                            value={
-                                task.start_date ||
-                                "N/A"
-                            }
-                        />
-
-                        <DateInfo
-                            label="End Date"
-                            value={
-                                task.end_date ||
-                                "N/A"
-                            }
-                        />
-
-                    </div>
+                            <DateInfo
+                                icon={<CalendarDays size={16} />}
+                                label="End Date"
+                                value={task.end_date}
+                            />
+                        </div>
+                    )}
 
                     {/* ==================================================
                         Description
@@ -645,35 +780,149 @@ function TaskDetails({
                     </section>
 
                     {/* ==================================================
-                        Task Users
+                        Asset Purchase Request Details
                     ================================================== */}
 
-                    <section>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                            Task Users:
-                        </h3>
+                    {isAssetPurchaseTask && (
+                        <section>
+                            <div className="flex items-center justify-between gap-4">
 
-                        <div className="mt-4 space-y-3">
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                    Asset Purchase Request:
+                                </h3>
 
-                            <TaskUser
-                                label="Assigned By"
-                                value={String(
-                                    task.assigned_by ??
-                                        "N/A"
+                                {assetTask?.document
+                                    ?.document_no && (
+                                        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                            {
+                                                assetTask
+                                                    .document
+                                                    .document_no
+                                            }
+                                        </span>
+                                    )}
+
+                            </div>
+
+                            <div className="mt-4">
+
+                                {/* Loading */}
+
+                                {assetTaskLoading && (
+                                    <div className="flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-5 py-8 dark:border-gray-800 dark:bg-gray-950">
+                                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+
+                                            <Loader2
+                                                size={16}
+                                                className="animate-spin"
+                                            />
+
+                                            Loading asset request...
+
+                                        </div>
+                                    </div>
                                 )}
-                            />
 
-                            <TaskUser
-                                label="Assigned To"
-                                value={String(
-                                    task.assigned_to ??
-                                        "N/A"
-                                )}
-                            />
+                                {/* Error */}
 
-                        </div>
-                    </section>
+                                {!assetTaskLoading &&
+                                    assetTaskError && (
+                                        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                                            {assetTaskError}
+                                        </div>
+                                    )}
 
+                                {/* Data */}
+
+                                {!assetTaskLoading &&
+                                    !assetTaskError &&
+                                    assetTask && (
+                                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+
+                                            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+
+                                                <AssetRequestField
+                                                    label="Asset"
+                                                    value={
+                                                        assetTask
+                                                            .document
+                                                            ?.request_data
+                                                            ?.asset ||
+                                                        "-"
+                                                    }
+                                                />
+
+                                                <AssetRequestField
+                                                    label="Asset Type"
+                                                    value={
+                                                        assetTask
+                                                            .document
+                                                            ?.request_data
+                                                            ?.asset_type ||
+                                                        "-"
+                                                    }
+                                                />
+
+                                                <AssetRequestField
+                                                    label="Required Date"
+                                                    value={formatQuoteDate(
+                                                        assetTask
+                                                            .document
+                                                            ?.request_data
+                                                            ?.required_date
+                                                    )}
+                                                />
+
+                                                <AssetRequestField
+                                                    label="Document No"
+                                                    value={
+                                                        assetTask
+                                                            .document
+                                                            ?.document_no ||
+                                                        "-"
+                                                    }
+                                                />
+
+                                            </div>
+
+                                            <div className="mt-5 border-t border-gray-200 pt-5 dark:border-gray-800">
+
+                                                <AssetRequestField
+                                                    label="Asset Description"
+                                                    value={
+                                                        assetTask
+                                                            .document
+                                                            ?.request_data
+                                                            ?.asset_description ||
+                                                        "-"
+                                                    }
+                                                    fullWidth
+                                                />
+
+                                            </div>
+
+                                            <div className="mt-5">
+
+                                                <AssetRequestField
+                                                    label="Purchase Reason"
+                                                    value={
+                                                        assetTask
+                                                            .document
+                                                            ?.request_data
+                                                            ?.purchase_reason ||
+                                                        "-"
+                                                    }
+                                                    fullWidth
+                                                />
+
+                                            </div>
+
+                                        </div>
+                                    )}
+
+                            </div>
+                        </section>
+                    )}
                     {/* ==================================================
                         Vendor Quotations
 
@@ -691,7 +940,7 @@ function TaskDetails({
                                 }
                                 error={quotesError}
                                 documentNo={
-                                    task.document_no
+                                    assetDocumentNo
                                 }
                             />
                         )}
@@ -734,14 +983,14 @@ function TaskDetails({
                                         >
                                             {actionLoading ===
                                                 "backward" && (
-                                                <Loader2
-                                                    size={14}
-                                                    className="animate-spin"
-                                                />
-                                            )}
+                                                    <Loader2
+                                                        size={14}
+                                                        className="animate-spin"
+                                                    />
+                                                )}
 
                                             {actionLoading ===
-                                            "backward"
+                                                "backward"
                                                 ? "Moving Back..."
                                                 : "Backward"}
                                         </button>
@@ -761,14 +1010,14 @@ function TaskDetails({
                                         >
                                             {actionLoading ===
                                                 "reject" && (
-                                                <Loader2
-                                                    size={14}
-                                                    className="animate-spin"
-                                                />
-                                            )}
+                                                    <Loader2
+                                                        size={14}
+                                                        className="animate-spin"
+                                                    />
+                                                )}
 
                                             {actionLoading ===
-                                            "reject"
+                                                "reject"
                                                 ? "Rejecting..."
                                                 : "Reject"}
                                         </button>
@@ -788,14 +1037,14 @@ function TaskDetails({
                                         >
                                             {actionLoading ===
                                                 "approve" && (
-                                                <Loader2
-                                                    size={14}
-                                                    className="animate-spin"
-                                                />
-                                            )}
+                                                    <Loader2
+                                                        size={14}
+                                                        className="animate-spin"
+                                                    />
+                                                )}
 
                                             {actionLoading ===
-                                            "approve"
+                                                "approve"
                                                 ? "Approving..."
                                                 : "Approve"}
                                         </button>
@@ -819,14 +1068,14 @@ function TaskDetails({
                                         >
                                             {actionLoading ===
                                                 "reject" && (
-                                                <Loader2
-                                                    size={14}
-                                                    className="animate-spin"
-                                                />
-                                            )}
+                                                    <Loader2
+                                                        size={14}
+                                                        className="animate-spin"
+                                                    />
+                                                )}
 
                                             {actionLoading ===
-                                            "reject"
+                                                "reject"
                                                 ? "Rejecting..."
                                                 : "Reject"}
                                         </button>
@@ -846,25 +1095,169 @@ function TaskDetails({
                                         >
                                             {actionLoading ===
                                                 "approve" && (
-                                                <Loader2
-                                                    size={14}
-                                                    className="animate-spin"
-                                                />
-                                            )}
+                                                    <Loader2
+                                                        size={14}
+                                                        className="animate-spin"
+                                                    />
+                                                )}
 
                                             {actionLoading ===
-                                            "approve"
+                                                "approve"
                                                 ? "Approving..."
                                                 : "Accept"}
                                         </button>
 
                                     </div>
                                 )}
+
                             </section>
                         )}
 
                 </div>
             </div>
+        </div>
+    );
+}
+
+/* ======================================================
+   Extract Asset Purchase Task Details
+====================================================== */
+
+/**
+ * Safely extracts the COMPLETE AssetPurchaseTaskDetails
+ * from the API response.
+ *
+ * Supported response structures:
+ *
+ * 1. {
+ *      data: {
+ *          task_id: ...,
+ *          document: {
+ *              document_no: ...,
+ *              request_data: {...}
+ *          }
+ *      }
+ *    }
+ *
+ * 2. {
+ *      task_id: ...,
+ *      document: {...}
+ *    }
+ *
+ * The request_data object itself is NEVER treated as
+ * AssetPurchaseTaskDetails.
+ */
+function extractAssetPurchaseTaskDetails(
+    response: unknown
+): AssetPurchaseTaskDetails | null {
+    if (
+        !response ||
+        typeof response !== "object"
+    ) {
+        return null;
+    }
+
+    const root =
+        response as Record<string, unknown>;
+
+    let candidate: unknown = root;
+
+    /*
+     * Normal API response:
+     * { success: true, data: {...} }
+     */
+    if (
+        root.data &&
+        typeof root.data === "object"
+    ) {
+        candidate = root.data;
+    }
+
+    if (
+        !candidate ||
+        typeof candidate !== "object"
+    ) {
+        return null;
+    }
+
+    const candidateObject =
+        candidate as Record<string, unknown>;
+
+    /*
+     * Some API wrappers may return:
+     * { data: { data: {...} } }
+     */
+    if (
+        candidateObject.data &&
+        typeof candidateObject.data === "object" &&
+        !candidateObject.document
+    ) {
+        candidate =
+            candidateObject.data;
+    }
+
+    if (
+        !candidate ||
+        typeof candidate !== "object"
+    ) {
+        return null;
+    }
+
+    const details =
+        candidate as Record<string, unknown>;
+
+    /*
+     * Verify that this is actually the complete
+     * asset purchase task before converting it.
+     */
+    const hasTaskId =
+        typeof details.task_id === "number";
+
+    const hasTaskType =
+        typeof details.task_type === "string";
+
+    const hasDocument =
+        details.document !== null &&
+        typeof details.document === "object";
+
+    /*
+     * If the API returned the expected complete object,
+     * use it.
+     */
+    if (
+        hasTaskId &&
+        hasTaskType &&
+        hasDocument
+    ) {
+        return details as unknown as AssetPurchaseTaskDetails;
+    }
+
+    return null;
+}
+
+/* ======================================================
+   Asset Request Field
+====================================================== */
+
+interface AssetRequestFieldProps {
+    label: string;
+    value: string;
+    fullWidth?: boolean;
+}
+
+function AssetRequestField({
+    label,
+    value,
+}: AssetRequestFieldProps) {
+    return (
+        <div>
+            <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                {label}
+            </p>
+
+            <p className="whitespace-pre-wrap text-sm font-semibold leading-6 text-gray-900 dark:text-white">
+                {value}
+            </p>
         </div>
     );
 }
@@ -889,6 +1282,7 @@ function QuotationView({
     return (
         <section>
             <div className="flex items-center justify-between gap-4">
+
                 <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                         Vendor Quotations:
@@ -920,6 +1314,7 @@ function QuotationView({
 
                         </div>
                     )}
+
             </div>
 
             <div className="mt-4">
@@ -928,14 +1323,18 @@ function QuotationView({
 
                 {loading && (
                     <div className="flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-5 py-8 dark:border-gray-800 dark:bg-gray-950">
+
                         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+
                             <Loader2
                                 size={16}
                                 className="animate-spin"
                             />
 
                             Loading quotations...
+
                         </div>
+
                     </div>
                 )}
 
@@ -977,6 +1376,7 @@ function QuotationView({
                     !error &&
                     quotes.length > 0 && (
                         <div className="space-y-4">
+
                             {quotes.map(
                                 (quote, index) => (
                                     <QuotationCard
@@ -988,6 +1388,7 @@ function QuotationView({
                                     />
                                 )
                             )}
+
                         </div>
                     )}
 
@@ -1022,10 +1423,12 @@ function QuotationCard({
                 <div className="flex items-center gap-3">
 
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-gray-900">
+
                         <FileText
                             size={17}
                             className="text-gray-500 dark:text-gray-400"
                         />
+
                     </div>
 
                     <div>
@@ -1084,10 +1487,12 @@ function QuotationCard({
 
             {details && (
                 <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
+
                     <QuotationField
                         label="Quote Details"
                         value={details}
                     />
+
                 </div>
             )}
 
@@ -1126,8 +1531,9 @@ function QuotationField({
 ====================================================== */
 
 interface DateInfoProps {
+    icon?: React.ReactNode;
     label: string;
-    value: string;
+    value: string | null;
 }
 
 function DateInfo({
@@ -1158,75 +1564,52 @@ function DateInfo({
     );
 }
 
-/* ======================================================
-   Task User
-====================================================== */
-
-interface TaskUserProps {
-    label: string;
-    value: string;
-}
-
-function TaskUser({
-    label,
-    value,
-}: TaskUserProps) {
-    return (
-        <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-950">
-
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white dark:bg-gray-900">
-
-                <User
-                    size={17}
-                    className="text-gray-500 dark:text-gray-400"
-                />
-
-            </div>
-
-            <div className="flex items-center gap-2">
-
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    {label}:
-                </span>
-
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                    #{value}
-                </span>
-
-            </div>
-
-        </div>
-    );
-}
 
 /* ======================================================
    Quote Date Formatter
 ====================================================== */
 
-function formatQuoteDate(date: string) {
+function formatQuoteDate(
+    date: string | undefined | null
+) {
     if (!date) {
         return "-";
     }
 
-    const parsedDate = new Date(date);
+    const parsedDate =
+        new Date(date);
 
-    if (Number.isNaN(parsedDate.getTime())) {
+    if (
+        Number.isNaN(
+            parsedDate.getTime()
+        )
+    ) {
         return date;
     }
 
-    return parsedDate.toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-    });
+    return parsedDate.toLocaleDateString(
+        "en-IN",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        }
+    );
 }
+
+/* ======================================================
+   Quote Amount Formatter
+====================================================== */
 
 function formatQuoteAmount(
     amount: number
 ) {
-    return new Intl.NumberFormat("en-IN", {
-        maximumFractionDigits: 2,
-    }).format(amount);
+    return new Intl.NumberFormat(
+        "en-IN",
+        {
+            maximumFractionDigits: 2,
+        }
+    ).format(amount);
 }
 
 export default TaskDetails;
