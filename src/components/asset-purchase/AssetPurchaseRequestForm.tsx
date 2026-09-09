@@ -8,7 +8,6 @@ import {
 import { createAssetPurchaseRequest } from "../../api/assetPurchase";
 
 interface FormData {
-    document_no: string;
     asset: string;
     asset_type: string;
     asset_description: string;
@@ -25,7 +24,6 @@ interface Props {
 }
 
 const initialForm: FormData = {
-    document_no: "",
     asset: "",
     asset_type: "",
     asset_description: "",
@@ -64,11 +62,6 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
         setError("");
         setSuccessMessage("");
 
-        if (!formData.document_no.trim()) {
-            setError("Please enter document number.");
-            return;
-        }
-
         if (!formData.asset.trim()) {
             setError("Please enter asset name.");
             return;
@@ -98,8 +91,6 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
         try {
             const response = await createAssetPurchaseRequest({
-                document_no: formData.document_no.trim(),
-
                 request_data: {
                     asset: formData.asset.trim(),
                     asset_type: formData.asset_type.trim(),
@@ -113,19 +104,24 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
             setSuccessMessage(
                 response.message ||
-                "Asset Purchase Request created successfully."
+                    "Asset Purchase Request created successfully."
             );
 
             onSuccess?.(response);
 
             setFormData(initialForm);
         } catch (err: unknown) {
-            console.error("Asset purchase request error:", err);
+            console.error(
+                "Asset purchase request error:",
+                err
+            );
 
             if (err instanceof Error) {
                 setError(err.message);
             } else {
-                setError("Failed to create asset purchase request.");
+                setError(
+                    "Failed to create asset purchase request."
+                );
             }
         } finally {
             setIsSubmitting(false);
@@ -159,32 +155,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                 onSubmit={handleSubmit}
                 className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
             >
-
                 <div className="space-y-6 p-6">
-
-                    {/* Document Number */}
-
-                    <div>
-                        <label
-                            htmlFor="document_no"
-                            className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                        >
-                            Document Number
-                            <span className="ml-1 text-red-500">
-                                *
-                            </span>
-                        </label>
-
-                        <input
-                            id="document_no"
-                            name="document_no"
-                            type="text"
-                            value={formData.document_no}
-                            onChange={handleChange}
-                            placeholder="e.g. Bridge-001"
-                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                        />
-                    </div>
 
                     {/* Asset + Asset Type */}
 
@@ -207,7 +178,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                 type="text"
                                 value={formData.asset}
                                 onChange={handleChange}
-                                placeholder="e.g. Dell Desktop 1500 Inspirion"
+                                placeholder="e.g. Dell Laptop 1500"
                                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                             />
                         </div>
@@ -229,7 +200,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                 type="text"
                                 value={formData.asset_type}
                                 onChange={handleChange}
-                                placeholder="e.g. Computer"
+                                placeholder="e.g. IT Equipment"
                                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                             />
                         </div>

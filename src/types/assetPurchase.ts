@@ -7,7 +7,6 @@ export interface AssetPurchaseRequestData {
 }
 
 export interface CreateAssetPurchaseRequestPayload {
-    document_no: string;
     request_data: AssetPurchaseRequestData;
 }
 
@@ -19,6 +18,7 @@ export interface CreateAssetPurchaseRequestResponse {
         document_id: number;
         document_type: string;
         document_no: string;
+        request_data: AssetPurchaseRequestData;
         task_id: number;
         wf_task_id: string;
         assigned_to: number;

@@ -3,6 +3,7 @@ import { apiRequest } from "./client";
 import type {
     CreateAssetPurchaseQuotePayload,
     CreateAssetPurchaseQuoteResponse,
+    GetAssetPurchaseQuotesResponse,
 } from "../types/assetPurchaseQuote";
 
 export const createAssetPurchaseQuote = async (
@@ -14,6 +15,14 @@ export const createAssetPurchaseQuote = async (
             method: "POST",
             body: JSON.stringify(payload),
         }
+    );
+};
+
+export const getAssetPurchaseQuotes = async (
+    documentNo: string
+): Promise<GetAssetPurchaseQuotesResponse> => {
+    return apiRequest<GetAssetPurchaseQuotesResponse>(
+        `/api/asset-purchase/quotes/${encodeURIComponent(documentNo)}`
     );
 };
 

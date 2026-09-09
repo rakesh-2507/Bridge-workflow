@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
     CalendarDays,
+    Eye,
+    FileText,
     Loader2,
     Pencil,
     Trash2,
@@ -17,7 +19,13 @@ import {
     deleteTask,
 } from "../../api/tasks";
 
+import { getAssetPurchaseQuotes } from "../../api/assetPurchaseQuote";
+
 import type { Task } from "../../types/task";
+
+import type {
+    AssetPurchaseQuote,
+} from "../../types/assetPurchaseQuote";
 
 import TaskStatus from "./TaskStatus";
 
@@ -32,6 +40,10 @@ function TaskDetails({
     onEdit,
     onDeleted,
 }: TaskDetailsProps) {
+    // ==================================================
+    // Delete State
+    // ==================================================
+
     const [deleteLoading, setDeleteLoading] =
         useState(false);
 
@@ -40,6 +52,10 @@ function TaskDetails({
 
     const [deleteError, setDeleteError] =
         useState("");
+
+    // ==================================================
+    // Action State
+    // ==================================================
 
     const [actionLoading, setActionLoading] =
         useState<
@@ -52,9 +68,125 @@ function TaskDetails({
     const [actionError, setActionError] =
         useState("");
 
-    // --------------------------------------------------
+    // ==================================================
+    // Logged In User
+    // ==================================================
+
+    const storedUser =
+        localStorage.getItem("login_user");
+
+    let loggedInUser: {
+        uid?: number;
+        mtype?: string;
+    } | null = null;
+
+    if (storedUser) {
+        try {
+            loggedInUser = JSON.parse(storedUser);
+        } catch {
+            loggedInUser = null;
+        }
+    }
+
+    const isSeniorAssetManager =
+        loggedInUser?.mtype ===
+        "Assets Manager-Senior";
+
+    const isAssetExecutive =
+        loggedInUser?.mtype === "Assets-Executive";
+
+    // ==================================================
+    // Asset Purchase Quotations
+    // ==================================================
+
+    const [quotes, setQuotes] = useState<
+        AssetPurchaseQuote[]
+    >([]);
+
+    const [quotesLoading, setQuotesLoading] =
+        useState(false);
+
+    const [quotesError, setQuotesError] =
+        useState("");
+
+    useEffect(() => {
+        /*
+         * Quotations are only required for
+         * Assets Manager-Senior.
+         *
+         * Do not call setState() in the early return.
+         * This avoids the React cascading-render warning.
+         */
+        if (
+            !task ||
+            !isSeniorAssetManager ||
+            !task.document_no
+        ) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const loadQuotes = async () => {
+            try {
+                const response =
+                    await getAssetPurchaseQuotes(
+                        task.document_no!
+                    );
+
+                if (cancelled) {
+                    return;
+                }
+
+                setQuotes(response.data ?? []);
+                setQuotesError("");
+                setQuotesLoading(false);
+            } catch (err) {
+                if (cancelled) {
+                    return;
+                }
+
+                console.error(
+                    "Failed to load asset purchase quotes:",
+                    err
+                );
+
+                setQuotes([]);
+                setQuotesError(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to load quotations."
+                );
+                setQuotesLoading(false);
+            }
+        };
+
+        loadQuotes();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        task?.task_id,
+        task?.document_no,
+        isSeniorAssetManager,
+    ]);
+
+    /*
+     * Loading is derived from whether a senior manager
+     * has a task with a document number but quotes have
+     * not yet been received.
+     *
+     * The actual fetch state is handled by the effect.
+     */
+    const shouldLoadQuotes =
+        !!task &&
+        isSeniorAssetManager &&
+        !!task.document_no;
+
+    // ==================================================
     // No Task Selected
-    // --------------------------------------------------
+    // ==================================================
 
     if (!task) {
         return (
@@ -80,46 +212,19 @@ function TaskDetails({
         );
     }
 
-    // --------------------------------------------------
-    // Logged In User
-    // --------------------------------------------------
-
-    const storedUser =
-        localStorage.getItem("login_user");
-
-    let loggedInUser: {
-        uid?: number;
-        mtype?: string;
-    } | null = null;
-
-    if (storedUser) {
-        try {
-            loggedInUser = JSON.parse(storedUser);
-        } catch {
-            loggedInUser = null;
-        }
-    }
-
-    const isSeniorAssetManager =
-        loggedInUser?.mtype ===
-        "Assets Manager-Senior";
-
-    const isAssetExecutive =
-        loggedInUser?.mtype === "Assets-Executive";
-
-    // --------------------------------------------------
+    // ==================================================
     // Task Status
     //
     // 0 = In Progress
     // 1 = Accepted
     // 2 = Rejected
-    // --------------------------------------------------
+    // ==================================================
 
     const canTakeAction = task.status === 0;
 
-    // --------------------------------------------------
+    // ==================================================
     // Delete Task
-    // --------------------------------------------------
+    // ==================================================
 
     const handleDelete = async () => {
         if (deleteLoading) {
@@ -146,9 +251,9 @@ function TaskDetails({
         }
     };
 
-    // --------------------------------------------------
+    // ==================================================
     // Generic Task - Approve
-    // --------------------------------------------------
+    // ==================================================
 
     const handleApprove = async () => {
         if (
@@ -169,7 +274,7 @@ function TaskDetails({
 
             setActionMessage(
                 response ||
-                "Task approved successfully."
+                    "Task approved successfully."
             );
         } catch (err) {
             setActionError(
@@ -182,9 +287,9 @@ function TaskDetails({
         }
     };
 
-    // --------------------------------------------------
+    // ==================================================
     // Generic Task - Reject
-    // --------------------------------------------------
+    // ==================================================
 
     const handleReject = async () => {
         if (
@@ -205,7 +310,7 @@ function TaskDetails({
 
             setActionMessage(
                 response ||
-                "Task rejected successfully."
+                    "Task rejected successfully."
             );
         } catch (err) {
             setActionError(
@@ -218,9 +323,9 @@ function TaskDetails({
         }
     };
 
-    // --------------------------------------------------
+    // ==================================================
     // Asset Purchase - Approve
-    // --------------------------------------------------
+    // ==================================================
 
     const handleAssetPurchaseApprove = async () => {
         if (
@@ -242,7 +347,7 @@ function TaskDetails({
 
             setActionMessage(
                 response ||
-                "Task approved successfully."
+                    "Task approved successfully."
             );
         } catch (err) {
             setActionError(
@@ -255,9 +360,9 @@ function TaskDetails({
         }
     };
 
-    // --------------------------------------------------
+    // ==================================================
     // Asset Purchase - Reject
-    // --------------------------------------------------
+    // ==================================================
 
     const handleAssetPurchaseReject = async () => {
         if (
@@ -279,7 +384,7 @@ function TaskDetails({
 
             setActionMessage(
                 response ||
-                "Task rejected successfully."
+                    "Task rejected successfully."
             );
         } catch (err) {
             setActionError(
@@ -292,9 +397,9 @@ function TaskDetails({
         }
     };
 
-    // --------------------------------------------------
+    // ==================================================
     // Asset Purchase - Backward
-    // --------------------------------------------------
+    // ==================================================
 
     const handleBackward = async () => {
         if (
@@ -316,7 +421,7 @@ function TaskDetails({
 
             setActionMessage(
                 response ||
-                "Task moved backward successfully."
+                    "Task moved backward successfully."
             );
         } catch (err) {
             setActionError(
@@ -328,6 +433,10 @@ function TaskDetails({
             setActionLoading(null);
         }
     };
+
+    // ==================================================
+    // Render
+    // ==================================================
 
     return (
         <div className="flex min-h-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
@@ -356,6 +465,12 @@ function TaskDetails({
                         <p className="mt-1.5 text-xs font-medium text-gray-400">
                             Task #{task.task_id}
                         </p>
+
+                        {task.document_no && (
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Document #{task.document_no}
+                            </p>
+                        )}
                     </div>
 
                     {/* ==================================================
@@ -365,8 +480,6 @@ function TaskDetails({
                     {canTakeAction && (
                         <div className="flex shrink-0 items-center gap-2">
 
-                            {/* Edit */}
-
                             <button
                                 type="button"
                                 onClick={() =>
@@ -375,11 +488,8 @@ function TaskDetails({
                                 className="flex items-center gap-2 rounded-lg bg-gray-900 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
                             >
                                 <Pencil size={14} />
-
                                 Edit
                             </button>
-
-                            {/* Delete */}
 
                             <button
                                 type="button"
@@ -395,7 +505,6 @@ function TaskDetails({
                                 className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
                             >
                                 <Trash2 size={14} />
-
                                 Delete
                             </button>
 
@@ -550,7 +659,7 @@ function TaskDetails({
                                 label="Assigned By"
                                 value={String(
                                     task.assigned_by ??
-                                    "N/A"
+                                        "N/A"
                                 )}
                             />
 
@@ -558,7 +667,7 @@ function TaskDetails({
                                 label="Assigned To"
                                 value={String(
                                     task.assigned_to ??
-                                    "N/A"
+                                        "N/A"
                                 )}
                             />
 
@@ -566,28 +675,40 @@ function TaskDetails({
                     </section>
 
                     {/* ==================================================
+                        Vendor Quotations
+
+                        Only Assets Manager-Senior can see this.
+
+                        READ ONLY
+                    ================================================== */}
+
+                    {isSeniorAssetManager &&
+                        shouldLoadQuotes && (
+                            <QuotationView
+                                quotes={quotes}
+                                loading={
+                                    quotesLoading
+                                }
+                                error={quotesError}
+                                documentNo={
+                                    task.document_no
+                                }
+                            />
+                        )}
+
+                    {/* ==================================================
                         Task Actions
-
-                        Assets Manager-Senior:
-                        Backward / Reject / Approve
-
-                        Other users:
-                        Reject / Accept
                     ================================================== */}
 
                     {canTakeAction &&
                         !isAssetExecutive && (
                             <section>
 
-                                {/* Success */}
-
                                 {actionMessage && (
                                     <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
                                         {actionMessage}
                                     </div>
                                 )}
-
-                                {/* Error */}
 
                                 {actionError && (
                                     <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
@@ -603,19 +724,24 @@ function TaskDetails({
                                         <button
                                             type="button"
                                             disabled={
-                                                actionLoading !== null
+                                                actionLoading !==
+                                                null
                                             }
-                                            onClick={handleBackward}
+                                            onClick={
+                                                handleBackward
+                                            }
                                             className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
                                         >
-                                            {actionLoading === "backward" && (
+                                            {actionLoading ===
+                                                "backward" && (
                                                 <Loader2
                                                     size={14}
                                                     className="animate-spin"
                                                 />
                                             )}
 
-                                            {actionLoading === "backward"
+                                            {actionLoading ===
+                                            "backward"
                                                 ? "Moving Back..."
                                                 : "Backward"}
                                         </button>
@@ -625,21 +751,24 @@ function TaskDetails({
                                         <button
                                             type="button"
                                             disabled={
-                                                actionLoading !== null
+                                                actionLoading !==
+                                                null
                                             }
                                             onClick={
                                                 handleAssetPurchaseReject
                                             }
                                             className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
                                         >
-                                            {actionLoading === "reject" && (
+                                            {actionLoading ===
+                                                "reject" && (
                                                 <Loader2
                                                     size={14}
                                                     className="animate-spin"
                                                 />
                                             )}
 
-                                            {actionLoading === "reject"
+                                            {actionLoading ===
+                                            "reject"
                                                 ? "Rejecting..."
                                                 : "Reject"}
                                         </button>
@@ -649,21 +778,24 @@ function TaskDetails({
                                         <button
                                             type="button"
                                             disabled={
-                                                actionLoading !== null
+                                                actionLoading !==
+                                                null
                                             }
                                             onClick={
                                                 handleAssetPurchaseApprove
                                             }
                                             className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
-                                            {actionLoading === "approve" && (
+                                            {actionLoading ===
+                                                "approve" && (
                                                 <Loader2
                                                     size={14}
                                                     className="animate-spin"
                                                 />
                                             )}
 
-                                            {actionLoading === "approve"
+                                            {actionLoading ===
+                                            "approve"
                                                 ? "Approving..."
                                                 : "Approve"}
                                         </button>
@@ -677,19 +809,24 @@ function TaskDetails({
                                         <button
                                             type="button"
                                             disabled={
-                                                actionLoading !== null
+                                                actionLoading !==
+                                                null
                                             }
-                                            onClick={handleReject}
+                                            onClick={
+                                                handleReject
+                                            }
                                             className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
                                         >
-                                            {actionLoading === "reject" && (
+                                            {actionLoading ===
+                                                "reject" && (
                                                 <Loader2
                                                     size={14}
                                                     className="animate-spin"
                                                 />
                                             )}
 
-                                            {actionLoading === "reject"
+                                            {actionLoading ===
+                                            "reject"
                                                 ? "Rejecting..."
                                                 : "Reject"}
                                         </button>
@@ -699,19 +836,24 @@ function TaskDetails({
                                         <button
                                             type="button"
                                             disabled={
-                                                actionLoading !== null
+                                                actionLoading !==
+                                                null
                                             }
-                                            onClick={handleApprove}
+                                            onClick={
+                                                handleApprove
+                                            }
                                             className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
-                                            {actionLoading === "approve" && (
+                                            {actionLoading ===
+                                                "approve" && (
                                                 <Loader2
                                                     size={14}
                                                     className="animate-spin"
                                                 />
                                             )}
 
-                                            {actionLoading === "approve"
+                                            {actionLoading ===
+                                            "approve"
                                                 ? "Approving..."
                                                 : "Accept"}
                                         </button>
@@ -723,6 +865,258 @@ function TaskDetails({
 
                 </div>
             </div>
+        </div>
+    );
+}
+
+/* ======================================================
+   Quotation View
+====================================================== */
+
+interface QuotationViewProps {
+    quotes: AssetPurchaseQuote[];
+    loading: boolean;
+    error: string;
+    documentNo?: string;
+}
+
+function QuotationView({
+    quotes,
+    loading,
+    error,
+    documentNo,
+}: QuotationViewProps) {
+    return (
+        <section>
+            <div className="flex items-center justify-between gap-4">
+                <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        Vendor Quotations:
+                    </h3>
+
+                    {documentNo && (
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Document #{documentNo}
+                        </p>
+                    )}
+                </div>
+
+                {!loading &&
+                    !error &&
+                    quotes.length > 0 && (
+                        <div className="flex shrink-0 items-center gap-2">
+
+                            <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                {quotes.length}{" "}
+                                {quotes.length === 1
+                                    ? "Quote"
+                                    : "Quotes"}
+                            </span>
+
+                            <span className="flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                <Eye size={13} />
+                                View Only
+                            </span>
+
+                        </div>
+                    )}
+            </div>
+
+            <div className="mt-4">
+
+                {/* Loading */}
+
+                {loading && (
+                    <div className="flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-5 py-8 dark:border-gray-800 dark:bg-gray-950">
+                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                            <Loader2
+                                size={16}
+                                className="animate-spin"
+                            />
+
+                            Loading quotations...
+                        </div>
+                    </div>
+                )}
+
+                {/* Error */}
+
+                {!loading && error && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                        {error}
+                    </div>
+                )}
+
+                {/* Empty */}
+
+                {!loading &&
+                    !error &&
+                    quotes.length === 0 && (
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-8 text-center dark:border-gray-800 dark:bg-gray-950">
+
+                            <FileText
+                                size={22}
+                                className="mx-auto text-gray-400"
+                            />
+
+                            <p className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                No quotations found
+                            </p>
+
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                No vendor quotations are
+                                available for this request.
+                            </p>
+
+                        </div>
+                    )}
+
+                {/* Quotes */}
+
+                {!loading &&
+                    !error &&
+                    quotes.length > 0 && (
+                        <div className="space-y-4">
+                            {quotes.map(
+                                (quote, index) => (
+                                    <QuotationCard
+                                        key={
+                                            quote.quote_id
+                                        }
+                                        quote={quote}
+                                        index={index}
+                                    />
+                                )
+                            )}
+                        </div>
+                    )}
+
+            </div>
+        </section>
+    );
+}
+
+/* ======================================================
+   Quotation Card
+====================================================== */
+
+interface QuotationCardProps {
+    quote: AssetPurchaseQuote;
+    index: number;
+}
+
+function QuotationCard({
+    quote,
+    index,
+}: QuotationCardProps) {
+    const details =
+        quote.quote_data?.additionalProp1?.details;
+
+    return (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+
+            {/* Quote Header */}
+
+            <div className="flex items-start justify-between gap-4">
+
+                <div className="flex items-center gap-3">
+
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-gray-900">
+                        <FileText
+                            size={17}
+                            className="text-gray-500 dark:text-gray-400"
+                        />
+                    </div>
+
+                    <div>
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                            Quotation {index + 1}
+                        </h4>
+
+                        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                            Quote ID #{quote.quote_id}
+                        </p>
+                    </div>
+
+                </div>
+
+                <span className="rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
+                    View Only
+                </span>
+
+            </div>
+
+            {/* Quote Information */}
+
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+                <QuotationField
+                    label="Vendor Name"
+                    value={
+                        quote.vendor_name || "-"
+                    }
+                />
+
+                <QuotationField
+                    label="Quote Number"
+                    value={
+                        quote.quote_no || "-"
+                    }
+                />
+
+                <QuotationField
+                    label="Quote Date"
+                    value={formatQuoteDate(
+                        quote.quote_date
+                    )}
+                />
+
+                <QuotationField
+                    label="Quoted Amount"
+                    value={`${quote.currency || "INR"} ${formatQuoteAmount(
+                        quote.quoted_amount
+                    )}`}
+                />
+
+            </div>
+
+            {/* Quote Details */}
+
+            {details && (
+                <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
+                    <QuotationField
+                        label="Quote Details"
+                        value={details}
+                    />
+                </div>
+            )}
+
+        </div>
+    );
+}
+
+/* ======================================================
+   Quotation Field
+====================================================== */
+
+interface QuotationFieldProps {
+    label: string;
+    value: string;
+}
+
+function QuotationField({
+    label,
+    value,
+}: QuotationFieldProps) {
+    return (
+        <div>
+            <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                {label}
+            </p>
+
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                {value}
+            </p>
         </div>
     );
 }
@@ -803,6 +1197,36 @@ function TaskUser({
 
         </div>
     );
+}
+
+/* ======================================================
+   Quote Date Formatter
+====================================================== */
+
+function formatQuoteDate(date: string) {
+    if (!date) {
+        return "-";
+    }
+
+    const parsedDate = new Date(date);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+        return date;
+    }
+
+    return parsedDate.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    });
+}
+
+function formatQuoteAmount(
+    amount: number
+) {
+    return new Intl.NumberFormat("en-IN", {
+        maximumFractionDigits: 2,
+    }).format(amount);
 }
 
 export default TaskDetails;

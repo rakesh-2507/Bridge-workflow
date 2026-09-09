@@ -1,9 +1,9 @@
 export interface Task {
     task_id: number;
 
-    project_id: number;
-    template_id: number;
-    folder_id: number;
+    project_id: number | null;
+    template_id: number | null;
+    folder_id: number | null;
 
     task_type: string;
     task_description: string;
@@ -13,7 +13,7 @@ export interface Task {
     levels: string[];
 
     start_date: string;
-    end_date: string;
+    end_date: string | null;
 
     assigned_by: number;
     assigned_to: number;
@@ -24,6 +24,21 @@ export interface Task {
      * 3 = Completed
      */
     status?: number;
+
+    /**
+     * Asset Purchase / document related fields
+     */
+    document_no?: string;
+    document_type?: string;
+    wf_task_id?: string;
+
+    /**
+     * Selected quotation, if applicable
+     */
+    selected_quote_id?: number | null;
+
+    created_date?: string;
+    updated_date?: string;
 }
 
 export interface TaskDetails {
