@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import {
+    Check,
     ChevronDown,
     Eye,
     FileText,
@@ -10,6 +11,9 @@ import {
 import {
     getAssetPurchaseQuotes,
     updateAssetQuoteRating,
+    submitAssetPurchaseRatings,
+    forwardAssetPurchaseTaskToSelection,
+    selectAssetPurchaseQuote,
 } from "../../api/assetPurchaseQuote";
 
 import type {
@@ -38,10 +42,27 @@ function QuoteDetailsAccordion({
     const [quotesError, setQuotesError] =
         useState("");
 
+    // ==================================================
+    // RATING STATE
+    // ==================================================
+
     const [updatingRatingId, setUpdatingRatingId] =
         useState<number | null>(null);
 
     const [ratingError, setRatingError] =
+        useState("");
+
+    // ==================================================
+    // SELECTION STATE
+    // ==================================================
+
+    const [selectingQuoteId, setSelectingQuoteId] =
+        useState<number | null>(null);
+
+    const [selectedQuoteId, setSelectedQuoteId] =
+        useState<number | null>(null);
+
+    const [selectionError, setSelectionError] =
         useState("");
 
     // ==================================================
@@ -61,13 +82,17 @@ function QuoteDetailsAccordion({
 
             try {
                 const response =
-                    await getAssetPurchaseQuotes(documentNo);
+                    await getAssetPurchaseQuotes(
+                        documentNo
+                    );
 
                 if (cancelled) {
                     return;
                 }
 
-                setQuotes(response.data ?? []);
+                setQuotes(
+                    response.data ?? []
+                );
             } catch (err) {
                 if (cancelled) {
                     return;
@@ -108,12 +133,22 @@ function QuoteDetailsAccordion({
         setRatingError("");
 
         try {
+            // ==================================================
+            // STEP 1
+            // Update quote-level rating
+            // ==================================================
+
             const response =
                 await updateAssetQuoteRating(
                     taskId,
                     quoteId,
                     rating
                 );
+
+            // ==================================================
+            // STEP 2
+            // Update local quote UI
+            // ==================================================
 
             setQuotes((previous) =>
                 previous.map((quote) =>
@@ -126,6 +161,15 @@ function QuoteDetailsAccordion({
                         : quote
                 )
             );
+
+            // ==================================================
+            // STEP 3
+            // Submit/update task-level rating
+            // ==================================================
+
+            await submitAssetPurchaseRatings(
+                taskId
+            );
         } catch (err) {
             setRatingError(
                 err instanceof Error
@@ -134,6 +178,61 @@ function QuoteDetailsAccordion({
             );
         } finally {
             setUpdatingRatingId(null);
+        }
+    };
+    // ==================================================
+    // SELECT QUOTE
+    // ==================================================
+
+    const handleQuoteSelection = async (
+        quoteId: number
+    ) => {
+        if (selectingQuoteId !== null) {
+            return;
+        }
+
+        // Already selected
+        if (selectedQuoteId === quoteId) {
+            return;
+        }
+
+        setSelectingQuoteId(quoteId);
+        setSelectionError("");
+
+        try {
+            // ==================================================
+            // STEP 1
+            // Forward task to selection stage
+            // ==================================================
+
+            await forwardAssetPurchaseTaskToSelection(
+                taskId
+            );
+
+            // ==================================================
+            // STEP 2
+            // Select quotation
+            // ==================================================
+
+            await selectAssetPurchaseQuote(
+                taskId,
+                quoteId
+            );
+
+            // ==================================================
+            // STEP 3
+            // Update UI
+            // ==================================================
+
+            setSelectedQuoteId(quoteId);
+        } catch (err) {
+            setSelectionError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to select quotation."
+            );
+        } finally {
+            setSelectingQuoteId(null);
         }
     };
 
@@ -157,7 +256,6 @@ function QuoteDetailsAccordion({
                 }
                 className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
             >
-
                 <div className="flex items-center gap-3">
 
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
@@ -178,10 +276,13 @@ function QuoteDetailsAccordion({
                             </h2>
 
                             <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+
                                 <Eye size={11} />
+
                                 {canEditRating
                                     ? "Rating Editable"
                                     : "View Only"}
+
                             </span>
 
                         </div>
@@ -200,24 +301,25 @@ function QuoteDetailsAccordion({
                         !quotesError &&
                         quotes.length > 0 && (
                             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+
                                 {quotes.length}{" "}
+
                                 {quotes.length === 1
                                     ? "Quote"
                                     : "Quotes"}
+
                             </span>
                         )}
 
                     <ChevronDown
                         size={18}
-                        className={`shrink-0 text-gray-400 transition-transform duration-200 ${
-                            isOpen
+                        className={`shrink-0 text-gray-400 transition-transform duration-200 ${isOpen
                                 ? "rotate-180"
                                 : ""
-                        }`}
+                            }`}
                     />
 
                 </div>
-
             </button>
 
             {/* ==================================================
@@ -229,7 +331,9 @@ function QuoteDetailsAccordion({
 
                     <div className="max-h-[calc(100vh-220px)] overflow-y-auto p-4 scrollbar-hide">
 
-                        {/* DOCUMENT */}
+                        {/* ==================================================
+                            DOCUMENT
+                        ================================================== */}
 
                         <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
 
@@ -243,7 +347,9 @@ function QuoteDetailsAccordion({
 
                         </div>
 
-                        {/* RATING ERROR */}
+                        {/* ==================================================
+                            RATING ERROR
+                        ================================================== */}
 
                         {ratingError && (
                             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
@@ -251,7 +357,19 @@ function QuoteDetailsAccordion({
                             </div>
                         )}
 
-                        {/* LOADING */}
+                        {/* ==================================================
+                            SELECTION ERROR
+                        ================================================== */}
+
+                        {selectionError && (
+                            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                                {selectionError}
+                            </div>
+                        )}
+
+                        {/* ==================================================
+                            LOADING
+                        ================================================== */}
 
                         {quotesLoading && (
                             <div className="flex items-center justify-center py-10">
@@ -270,7 +388,9 @@ function QuoteDetailsAccordion({
                             </div>
                         )}
 
-                        {/* ERROR */}
+                        {/* ==================================================
+                            ERROR
+                        ================================================== */}
 
                         {!quotesLoading &&
                             quotesError && (
@@ -279,7 +399,9 @@ function QuoteDetailsAccordion({
                                 </div>
                             )}
 
-                        {/* EMPTY */}
+                        {/* ==================================================
+                            EMPTY
+                        ================================================== */}
 
                         {!quotesLoading &&
                             !quotesError &&
@@ -302,7 +424,9 @@ function QuoteDetailsAccordion({
                                 </div>
                             )}
 
-                        {/* QUOTES */}
+                        {/* ==================================================
+                            QUOTES
+                        ================================================== */}
 
                         {!quotesLoading &&
                             !quotesError &&
@@ -330,8 +454,17 @@ function QuoteDetailsAccordion({
                                                 updatingRatingId={
                                                     updatingRatingId
                                                 }
+                                                selectingQuoteId={
+                                                    selectingQuoteId
+                                                }
+                                                selectedQuoteId={
+                                                    selectedQuoteId
+                                                }
                                                 onRatingChange={
                                                     handleRatingChange
+                                                }
+                                                onSelectQuote={
+                                                    handleQuoteSelection
                                                 }
                                             />
                                         )
@@ -356,11 +489,22 @@ function QuoteDetailsAccordion({
 interface QuotationCardProps {
     quote: AssetPurchaseQuote;
     index: number;
+
     canEditRating: boolean;
+
     updatingRatingId: number | null;
+
+    selectingQuoteId: number | null;
+
+    selectedQuoteId: number | null;
+
     onRatingChange: (
         quoteId: number,
         rating: number
+    ) => void;
+
+    onSelectQuote: (
+        quoteId: number
     ) => void;
 }
 
@@ -368,7 +512,10 @@ function QuotationCard({
     quote,
     canEditRating,
     updatingRatingId,
+    selectingQuoteId,
+    selectedQuoteId,
     onRatingChange,
+    onSelectQuote,
 }: QuotationCardProps) {
     const details =
         quote.quote_data
@@ -378,28 +525,105 @@ function QuotationCard({
     const isUpdating =
         updatingRatingId === quote.quote_id;
 
+    const isSelecting =
+        selectingQuoteId === quote.quote_id;
+
+    const isSelected =
+        selectedQuoteId === quote.quote_id;
+
+    const isSelectionInProgress =
+        selectingQuoteId !== null;
+
+    // ==================================================
+    // CARD CLICK
+    // ==================================================
+
+    const handleCardClick = () => {
+        if (isSelectionInProgress) {
+            return;
+        }
+
+        if (isSelected) {
+            return;
+        }
+
+        onSelectQuote(
+            quote.quote_id
+        );
+    };
+
     return (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+        <div
+            onClick={handleCardClick}
+            className={`relative rounded-xl border p-4 shadow-sm transition-all ${isSelectionInProgress
+                    ? "cursor-not-allowed opacity-70"
+                    : "cursor-pointer"
+                } ${isSelected
+                    ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100 dark:border-blue-500 dark:bg-blue-950/30 dark:ring-blue-950"
+                    : "border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/50 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-blue-700"
+                }`}
+        >
 
-            {/* HEADER */}
+            {/* ==================================================
+                CHECKBOX
+            ================================================== */}
 
-            <div className="flex items-start justify-between gap-3">
+            <div
+                className={`absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-md border-2 transition-all ${isSelected
+                        ? "border-blue-600 bg-blue-600"
+                        : "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-900"
+                    }`}
+            >
+
+                {isSelecting ? (
+                    <Loader2
+                        size={14}
+                        className="animate-spin text-blue-600"
+                    />
+                ) : isSelected ? (
+                    <Check
+                        size={15}
+                        strokeWidth={3}
+                        className="text-white"
+                    />
+                ) : null}
+
+            </div>
+
+            {/* ==================================================
+                HEADER
+            ================================================== */}
+
+            <div className="flex items-start justify-between gap-3 pr-10">
 
                 <div className="flex items-center gap-3">
 
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-gray-900">
+                    <div
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isSelected
+                                ? "bg-blue-600 text-white"
+                                : "bg-white dark:bg-gray-900"
+                            }`}
+                    >
 
-                        <FileText
-                            size={15}
-                            className="text-gray-500 dark:text-gray-400"
-                        />
+                        {isSelected ? (
+                            <Check
+                                size={15}
+                            />
+                        ) : (
+                            <FileText
+                                size={15}
+                                className="text-gray-500 dark:text-gray-400"
+                            />
+                        )}
 
                     </div>
 
                     <div>
 
                         <h3 className="text-xs font-semibold text-gray-900 dark:text-white">
-                             {details ? details : "Quote Details"} 
+                            {details
+                                ? details
+                                : "Quote Details"}
                         </h3>
 
                         <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
@@ -410,21 +634,31 @@ function QuotationCard({
 
                 </div>
 
-                <span
-                    className={`rounded-md px-2 py-1 text-[10px] font-medium ring-1 ${
-                        canEditRating
-                            ? "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-900"
-                            : "bg-white text-gray-500 ring-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700"
-                    }`}
-                >
-                    {canEditRating
-                        ? "Rating Editable"
-                        : "View Only"}
-                </span>
+                {/* ==================================================
+                    SELECTED STATUS
+                ================================================== */}
+
+                {isSelected ? (
+                    <span className="flex items-center gap-1 rounded-md bg-green-50 px-2 py-1 text-[10px] font-semibold text-green-700 ring-1 ring-green-200 dark:bg-green-950 dark:text-green-300 dark:ring-green-900">
+
+                        <Check
+                            size={11}
+                        />
+
+                        Selected
+
+                    </span>
+                ) : (
+                    <span className="rounded-md bg-white px-2 py-1 text-[10px] font-medium text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
+                        Quote
+                    </span>
+                )}
 
             </div>
 
-            {/* INFORMATION */}
+            {/* ==================================================
+                INFORMATION
+            ================================================== */}
 
             <div className="mt-4 space-y-3">
 
@@ -458,9 +692,15 @@ function QuotationCard({
                     )}`}
                 />
 
-                {/* EXECUTIVE RATING */}
+                {/* ==================================================
+                    EXECUTIVE RATING
+                ================================================== */}
 
-                <div>
+                <div
+                    onClick={(event) =>
+                        event.stopPropagation()
+                    }
+                >
 
                     <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-gray-400">
                         Executive Rating
@@ -474,18 +714,22 @@ function QuotationCard({
                                     quote.executive_rating ??
                                     ""
                                 }
-                                disabled={isUpdating}
+                                disabled={
+                                    isUpdating
+                                }
                                 onChange={(event) =>
                                     onRatingChange(
                                         quote.quote_id,
                                         Number(
-                                            event.target
+                                            event
+                                                .target
                                                 .value
                                         )
                                     )
                                 }
                                 className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-950"
                             >
+
                                 <option value="">
                                     Select rating
                                 </option>
@@ -555,6 +799,55 @@ function QuotationCard({
 
             </div>
 
+            {/* ==================================================
+                SELECTION FOOTER
+            ================================================== */}
+
+            <div className="mt-5 flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-800">
+
+                <div>
+
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                        Vendor Selection
+                    </p>
+
+                    <p className="mt-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+
+                        {isSelected
+                            ? "This quotation has been selected"
+                            : "Click anywhere on this card to select"}
+
+                    </p>
+
+                </div>
+
+                {isSelecting && (
+                    <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 dark:text-blue-400">
+
+                        <Loader2
+                            size={15}
+                            className="animate-spin"
+                        />
+
+                        Selecting...
+
+                    </div>
+                )}
+
+                {isSelected &&
+                    !isSelecting && (
+                        <span className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+
+                            <Check
+                                size={12}
+                            />
+
+                            Selected
+
+                        </span>
+                    )}
+
+            </div>
 
         </div>
     );
@@ -575,7 +868,6 @@ function QuotationField({
 }: QuotationFieldProps) {
     return (
         <div>
-
             <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-gray-400">
                 {label}
             </p>
@@ -583,7 +875,6 @@ function QuotationField({
             <p className="whitespace-pre-wrap text-xs font-semibold leading-5 text-gray-900 dark:text-white">
                 {value}
             </p>
-
         </div>
     );
 }

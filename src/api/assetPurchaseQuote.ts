@@ -35,8 +35,6 @@ export const getAssetPurchaseQuotes = async (
 
 /*
  * Update Asset Quote Rating
- *
- * Used by Manager / Assets Manager-Senior
  */
 export const updateAssetQuoteRating = async (
     taskId: number,
@@ -49,6 +47,56 @@ export const updateAssetQuoteRating = async (
             method: "POST",
             body: JSON.stringify({
                 rating,
+            }),
+        }
+    );
+};
+
+/*
+ * Submit Asset Purchase Ratings
+ */
+export const submitAssetPurchaseRatings = async (
+    taskId: number
+): Promise<string> => {
+    return apiRequest<string>(
+        `/api/asset-purchase/tasks/${taskId}/submit-ratings`,
+        {
+            method: "POST",
+        }
+    );
+};
+
+/*
+ * Forward Asset Purchase To Selection
+ *
+ * Step 1 before selecting a quote.
+ */
+export const forwardAssetPurchaseTaskToSelection = async (
+    taskId: number
+): Promise<string> => {
+    return apiRequest<string>(
+        `/api/asset-purchase/tasks/${taskId}/forward-to-selection`,
+        {
+            method: "POST",
+        }
+    );
+};
+
+/*
+ * Select Asset Purchase Quote
+ *
+ * Step 2 after forwarding the task to selection.
+ */
+export const selectAssetPurchaseQuote = async (
+    taskId: number,
+    quoteId: number
+): Promise<string> => {
+    return apiRequest<string>(
+        `/api/asset-purchase/tasks/${taskId}/select`,
+        {
+            method: "POST",
+            body: JSON.stringify({
+                quote_id: quoteId,
             }),
         }
     );
