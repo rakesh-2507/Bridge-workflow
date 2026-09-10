@@ -24,7 +24,7 @@ type LoggedInUser = {
 };
 
 function Navbar({ darkMode, setDarkMode }: NavbarProps) {
-const storedUser = localStorage.getItem("login_user");
+  const storedUser = localStorage.getItem("login_user");
   let user: LoggedInUser | null = null;
 
   if (storedUser) {
@@ -36,15 +36,15 @@ const storedUser = localStorage.getItem("login_user");
   }
 
   return (
-    <header className="h-16 border-b border-gray-200 bg-white transition-colors dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+    <header className="h-16 border-b border-[#7c3996] bg-white transition-colors dark:border-gray-700 dark:bg-gray-950 dark:text-white shadow-sm">
       <div className="flex h-full items-center justify-between px-6">
 
-        <Link
-          to="/"
-          className="text-3xl text-gray-900 dark:text-white"
-          style={{ fontFamily: "'Norican', cursive" }}
-        >
-          Bridge
+        <Link to="/" className="flex items-center">
+          <img
+            src="/public/rblogo.png"
+            alt="Bridge"
+            className="h-14 w-auto"
+          />
         </Link>
 
         <div className="flex items-center gap-2">

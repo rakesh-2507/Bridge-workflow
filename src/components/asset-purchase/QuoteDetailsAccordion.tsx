@@ -271,7 +271,7 @@ function QuoteDetailsAccordion({
 
                         <div className="flex items-center gap-2">
 
-                            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                            <h2 className="text-sm font-semibold text-s">
                                 Quote Details
                             </h2>
 
@@ -341,7 +341,7 @@ function QuoteDetailsAccordion({
                                 Document
                             </p>
 
-                            <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
+                            <p className="mt-1 text-sm font-semibold text-s">
                                 #{documentNo}
                             </p>
 
@@ -620,7 +620,7 @@ function QuotationCard({
 
                     <div>
 
-                        <h3 className="text-xs font-semibold text-gray-900 dark:text-white">
+                        <h3 className="text-xs font-semibold text-s ">
                             {details
                                 ? details
                                 : "Quote Details"}
@@ -767,7 +767,7 @@ function QuotationCard({
                     ) : (
                         <div className="flex items-center gap-2">
 
-                            <span className="text-sm font-bold text-gray-900 dark:text-white">
+                            <span className="text-sm font-bold text-s ">
                                 {quote.executive_rating ??
                                     "-"}
                             </span>
@@ -872,7 +872,7 @@ function QuotationField({
                 {label}
             </p>
 
-            <p className="whitespace-pre-wrap text-xs font-semibold leading-5 text-gray-900 dark:text-white">
+            <p className="whitespace-pre-wrap text-xs font-semibold leading-5 text-s ">
                 {value}
             </p>
         </div>

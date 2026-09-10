@@ -399,7 +399,7 @@ function TasksPage() {
 
                         <div className="shrink-0 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
 
-                            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                            <h1 className="text-xl font-semibold text-s ">
                                 Tasks ({pendingTasks.length})
                             </h1>
 
@@ -435,7 +435,7 @@ function TasksPage() {
 
                         <div className="shrink-0 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
 
-                            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                            <h2 className="text-sm font-semibold text-s ">
                                 Task Details
                             </h2>
 
@@ -513,7 +513,7 @@ function TasksPage() {
 
                                         <div>
 
-                                            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                            <h2 className="text-sm font-semibold text-s ">
                                                 Task Logs
                                             </h2>
 
@@ -645,7 +645,7 @@ function TasksPage() {
 
                                                                                 <div className="flex items-start justify-between gap-2">
 
-                                                                                    <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                                                                                    <p className="text-xs font-semibold text-s ">
 
                                                                                         User{" "}
                                                                                         {
@@ -760,7 +760,7 @@ function TasksPage() {
 
                                             <div>
 
-                                                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                                <h2 className="text-sm font-semibold text-s ">
                                                     Vendor Quote
                                                 </h2>
 

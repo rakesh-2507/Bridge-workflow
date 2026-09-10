@@ -4,10 +4,60 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  display: none;
+}
+
+:root {
+  --primary: #00b7d9;
+  --secondary: #7c3996;
+  --tertiary: #a997af;
+}
+
+.text-p {
+  color: var(--primary);
+}
+
+.text-s {
+  color: var(--secondary);
+}
+
+.dark .text-s {
+  color: white;
+}
+
+.text-t {
+  color: var(--tertiary);
+}
+
+.dark .text-t{
+    color: #9ca3af;
+}
+
+.bg-p {
+  background-color: var(--primary);
+}
+
+.bg-s {
+  background-color: var(--secondary);
+}
+
+.bg-t {
+  background-color: var(--tertiary);
+}
+
+.border-p {
+  border-color: var(--primary);
+}
+
+.border-s {
+  border-color: var(--secondary);
+}
+
+.border-th {
+  border-color: var(--tertiary);
 }

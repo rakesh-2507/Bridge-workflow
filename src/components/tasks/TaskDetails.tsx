@@ -218,7 +218,7 @@ function TaskDetails({
                         />
                     </div>
 
-                    <h3 className="mt-4 text-sm font-semibold text-gray-900 dark:text-white">
+                    <h3 className="mt-4 text-sm font-semibold text-s  dark:text-white">
                         Select a task
                     </h3>
 
@@ -488,7 +488,7 @@ function TaskDetails({
                     <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-3">
 
-                            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                            <h2 className="text-xl font-semibold text-s dark:text-white">
                                 {task.task_type ||
                                     "Untitled Task"}
                             </h2>
@@ -499,13 +499,13 @@ function TaskDetails({
 
                         </div>
 
-                        <p className="mt-1.5 text-xs font-medium text-gray-400">
+                        <p className="mt-1.5 text-xs font-medium text-t">
                             Task : {task.task_id} ... Assined By #{task.assigned_by ?? "N/A"}
                         </p>
 
                         {assetDocumentNo && (
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Document : #{assetDocumentNo}
+                                Document : <span className="text-s"> #{assetDocumentNo}</span>
                             </p>
                         )}
                     </div>
@@ -522,7 +522,7 @@ function TaskDetails({
                                 onClick={() =>
                                     onEdit(task)
                                 }
-                                className="flex items-center gap-2 rounded-lg bg-gray-900 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                                className="flex items-center gap-2 rounded-lg bg-gray-900 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900  dark:hover:bg-gray-200"
                             >
                                 <Pencil size={14} />
                                 Edit
@@ -669,7 +669,7 @@ function TaskDetails({
                     ================================================== */}
 
                     <section>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        <h3 className="text-sm font-semibold text-s  dark:text-white">
                             Description:
                         </h3>
 
@@ -692,7 +692,7 @@ function TaskDetails({
 
                             <div className="flex items-center justify-between gap-4">
 
-                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                <h3 className="text-sm font-semibold text-s  dark:text-white">
                                     Asset Purchase Request:
                                 </h3>
 
@@ -1163,7 +1163,7 @@ function AssetRequestField({
                 {label}
             </p>
 
-            <p className="whitespace-pre-wrap text-sm font-semibold leading-6 text-gray-900 dark:text-white">
+            <p className="whitespace-pre-wrap text-sm font-semibold leading-6 text-s  dark:text-white">
                 {value}
             </p>
         </div>
@@ -1200,7 +1200,7 @@ function DateInfo({
 
             </div>
 
-            <p className="mt-1.5 text-sm font-semibold text-gray-900 dark:text-white">
+            <p className="mt-1.5 text-sm font-semibold text-s  dark:text-white">
                 {value}
             </p>
 

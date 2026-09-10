@@ -480,7 +480,7 @@ function AssetPurchaseQuoteForm({
                     {/* Document Number */}
 
                     <div>
-                        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        <label className="mb-2 block text-sm font-medium text-t">
                             Asset Purchase Request
                         </label>
 
@@ -508,7 +508,7 @@ function AssetPurchaseQuoteForm({
                                             Document Number
                                         </p>
 
-                                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                        <p className="text-sm font-semibold text-s">
                                             {documentNo ||
                                                 "Not available"}
                                         </p>

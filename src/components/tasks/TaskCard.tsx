@@ -47,11 +47,11 @@ function TaskCard({
 
                 <div className="min-w-0">
 
-                    <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                    <h3 className="truncate text-sm font-semibold text-s">
                         {task.task_type || "Untitled Task"}
                     </h3>
 
-                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                    <p className="mt-1 text-xs text-t">
                         Task #{task.task_id}
                     </p>
 

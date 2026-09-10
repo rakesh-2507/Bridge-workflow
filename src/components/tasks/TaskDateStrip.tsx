@@ -222,8 +222,8 @@ function TaskDateStrip({
                         justify-center
                         rounded-xl
                         border
-                        border-sky-900
-                        bg-sky-900
+                        border-p 
+                        bg-s 
                         text-white
                         shadow-sm
                         transition-all
@@ -307,8 +307,8 @@ function TaskDateStrip({
 
                                     isSelected
                                         ? [
-                                              "border-sky-900",
-                                              "bg-sky-900",
+                                              "border-p ",
+                                              "bg-s ",
                                               "text-white",
                                               "shadow-lg",
                                               "shadow-sky-900/20",
@@ -438,7 +438,7 @@ function TaskDateStrip({
                                                   ? [
                                                         "bg-sky-100",
                                                         "text-sky-800",
-                                                        "dark:bg-sky-900",
+                                                        "dark:bg-s ",
                                                         "dark:text-sky-200",
                                                     ].join(
                                                         " "
@@ -477,8 +477,8 @@ function TaskDateStrip({
                         justify-center
                         rounded-xl
                         border
-                        border-sky-900
-                        bg-sky-900
+                        border-p 
+                        bg-s 
                         text-white
                         shadow-sm
                         transition-all

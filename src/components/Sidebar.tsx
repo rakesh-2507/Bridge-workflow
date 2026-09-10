@@ -140,7 +140,7 @@ function Sidebar({
       ];
 
   return (
-    <aside className="hidden w-20 shrink-0 border-r border-gray-200 bg-white transition-colors dark:border-gray-700 dark:bg-gray-950 md:block">
+    <aside className="hidden w-20 shrink-0 border-r border-gray-200 bg-[#00b7d9] transition-colors dark:border-gray-700 dark:bg-gray-950 md:block">
       <div className="flex h-full flex-col p-3">
 
         {/* Navigation */}
@@ -159,8 +159,8 @@ function Sidebar({
                 className={({ isActive }) =>
                   `group relative flex items-center justify-center rounded-lg p-3 transition ${
                     isActive
-                      ? "bg-sky-900 text-white dark:bg-white dark:text-gray-900"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                      ? "bg-[#22869e] text-white dark:bg-white dark:text-gray-900"
+                      : "text-white hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                   }`
                 }
               >
@@ -188,7 +188,7 @@ function Sidebar({
             onClick={() =>
               setDarkMode(!darkMode)
             }
-            className="group relative flex items-center justify-center rounded-lg p-3 text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+            className="group relative flex items-center justify-center rounded-lg p-3 text-white transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
           >
             {darkMode ? (
               <Sun
@@ -214,7 +214,7 @@ function Sidebar({
           <button
             type="button"
             onClick={handleLogout}
-            className="group relative flex items-center justify-center rounded-lg p-3 text-gray-600 transition hover:bg-red-50 hover:text-red-600 dark:text-gray-300 dark:hover:bg-red-950 dark:hover:text-red-400"
+            className="group relative flex items-center justify-center rounded-lg p-3 text-white transition hover:bg-red-50 hover:text-red-600 dark:text-gray-300 dark:hover:bg-red-950 dark:hover:text-red-400"
           >
             <LogOut
               size={22}
