@@ -12,7 +12,10 @@ import {
 
 import { useNavigate } from "react-router-dom";
 
-import { getTasks } from "../../api/tasks";
+import {
+    getTasks,
+    getAssetPurchaseTasks,
+} from "../../api/tasks";
 import type { Task } from "../../types/task";
 
 import TaskList from "../../components/tasks/TaskList";
@@ -79,75 +82,64 @@ function TasksPage() {
     // =========================================================
 
     useEffect(() => {
-
         let cancelled = false;
 
         const loadTasks = async () => {
-
             try {
-
                 setLoading(true);
                 setError("");
 
-                const response =
-                    await getTasks();
+                const loginUser = JSON.parse(
+                    localStorage.getItem("login_user") || "null"
+                );
+
+                const mtype = loginUser?.mtype;
+
+                const isAssetPurchaseUser =
+                    mtype === "Assets-Executive" ||
+                    mtype === "Assets Manager-Senior" ||
+                    mtype === "Employee";
+
+                const response = isAssetPurchaseUser
+                    ? await getAssetPurchaseTasks()
+                    : await getTasks();
 
                 if (cancelled) {
                     return;
                 }
 
-                const loadedTasks =
-                    response ?? [];
+                const loadedTasks = response ?? [];
 
-                setTasks(
-                    loadedTasks
+                setTasks(loadedTasks);
+
+                const firstPendingTask = loadedTasks.find(
+                    (task) => task.status !== 3
                 );
-
-                const firstPendingTask =
-                    loadedTasks.find(
-                        (task) =>
-                            task.status !== 3
-                    );
 
                 setSelectedTask(
                     firstPendingTask ?? null
                 );
-
             } catch (err) {
-
                 if (!cancelled) {
-
                     setError(
                         err instanceof Error
                             ? err.message
                             : "Failed to load tasks."
                     );
-
                 }
-
             } finally {
-
                 if (!cancelled) {
-
                     setLoading(false);
-
                 }
-
             }
-
         };
 
         void loadTasks();
 
         return () => {
-
             cancelled = true;
-
         };
-
     }, []);
-
-
     // =========================================================
     // LOAD USER LOGS
     // =========================================================

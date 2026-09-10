@@ -178,3 +178,14 @@ export async function backwardAssetPurchaseTask(
     }
   );
 }
+
+export async function getAssetPurchaseTasks(): Promise<Task[]> {
+    const response = await apiRequest<unknown>(
+        "/api/asset-purchase/tasks",
+        {
+            method: "GET",
+        }
+    );
+
+    return normalizeTasksResponse(response);
+}

@@ -166,3 +166,10 @@ export interface CreateTaskPayload {
 export interface UpdateTaskPayload extends CreateTaskPayload {
     status: number;
 }
+
+export interface GetAssetPurchaseTasksResponse {
+    success: boolean;
+    code: string;
+    message: string;
+    data: AssetPurchaseTaskDetails[];
+}

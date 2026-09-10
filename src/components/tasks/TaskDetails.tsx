@@ -116,6 +116,8 @@ function TaskDetails({
         task?.task_type ===
         "Asset Purchase Request";
 
+    const isEmployee =
+        loggedInUser?.mtype === "Employee";
     /*
      * Load the complete asset purchase task.
      *
@@ -858,7 +860,8 @@ function TaskDetails({
                     ================================================== */}
 
                     {canTakeAction &&
-                        !isAssetExecutive && (
+                        !isAssetExecutive &&
+                        !(isEmployee && isAssetPurchaseTask) && (
                             <section>
 
                                 {actionMessage && (
