@@ -1,5 +1,3 @@
-// src/pages/tasks/TodayTasksPage.tsx
-
 import {
     useEffect,
     useMemo,
@@ -14,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 
 import {
     getTasks,
+    getAssetPurchaseTasks,
 } from "../../api/tasks";
 
 import type { Task } from "../../types/task";
@@ -50,22 +49,18 @@ function TodayTasksPage() {
         date: string
     ): number => {
         return tasks.filter((task) => {
-            if (
-                !task.start_date ||
-                !task.end_date
-            ) {
+            if (!task.start_date) {
                 return false;
             }
 
             const start =
-                normalizeDate(
-                    task.start_date
-                );
+                normalizeDate(task.start_date);
 
-            const end =
-                normalizeDate(
-                    task.end_date
-                );
+            // Normal task: use start → end
+            // Purchase task: no end date, so start is the only date
+            const end = task.end_date
+                ? normalizeDate(task.end_date)
+                : start;
 
             return (
                 date >= start &&
@@ -73,7 +68,6 @@ function TodayTasksPage() {
             );
         }).length;
     };
-
     /*
      * Load tasks.
      */
@@ -85,13 +79,19 @@ function TodayTasksPage() {
                 setLoading(true);
                 setError("");
 
-                const response =
-                    await getTasks();
+                const [
+                    normalTasks,
+                    assetPurchaseTasks,
+                ] = await Promise.all([
+                    getTasks(),
+                    getAssetPurchaseTasks(),
+                ]);
 
                 if (!cancelled) {
-                    setTasks(
-                        response ?? []
-                    );
+                    setTasks([
+                        ...(normalTasks ?? []),
+                        ...(assetPurchaseTasks ?? []),
+                    ]);
                 }
             } catch (err) {
                 if (!cancelled) {
@@ -113,7 +113,9 @@ function TodayTasksPage() {
         return () => {
             cancelled = true;
         };
+
     }, []);
+
 
     /*
      * Tasks that belong to the currently
@@ -121,37 +123,32 @@ function TodayTasksPage() {
      */
     const dateTasks =
         useMemo(() => {
-            return tasks.filter(
-                (task) => {
-                    if (
-                        !task.start_date ||
-                        !task.end_date
-                    ) {
-                        return false;
-                    }
-
-                    const start =
-                        normalizeDate(
-                            task.start_date
-                        );
-
-                    const end =
-                        normalizeDate(
-                            task.end_date
-                        );
-
-                    return (
-                        selectedDate >= start &&
-                        selectedDate <= end
-                    );
+            return tasks.filter((task) => {
+                if (!task.start_date) {
+                    return false;
                 }
-            );
+
+                const start =
+                    normalizeDate(task.start_date);
+
+                // Normal task:
+                //   start_date → end_date
+                //
+                // Purchase task:
+                //   start_date only
+                const end = task.end_date
+                    ? normalizeDate(task.end_date)
+                    : start;
+
+                return (
+                    selectedDate >= start &&
+                    selectedDate <= end
+                );
+            });
         }, [
             tasks,
             selectedDate,
-        ]);
-
-    /*
+        ]);    /*
      * The task displayed as active.
      *
      * If the user has selected a task and
@@ -266,43 +263,42 @@ function TodayTasksPage() {
 
             {/* Main Content */}
             <div className="min-h-0 flex-1">
-                <div className="grid h-full grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)]">
+                <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)]">
 
-                    {/* Task List */}
-                    <TaskList
-                        tasks={
-                            dateTasks
-                        }
-                        selectedTask={
-                            activeTask
-                        }
-                        onSelect={
-                            setSelectedTask
-                        }
-                        title={`Tasks for ${formatShortDate(
-                            selectedDate
-                        )}`}
-                    />
+                    {/* =================================================
+            TASK LIST
+            Parent owns scrolling
+        ================================================= */}
+                    <div className="min-h-0 overflow-y-auto scrollbar-hide">
+                        <TaskList
+                            tasks={dateTasks}
+                            selectedTask={activeTask}
+                            onSelect={setSelectedTask}
+                            title={`Tasks for ${formatShortDate(
+                                selectedDate
+                            )}`}
+                        />
+                    </div>
 
-                    {/* Task Details */}
-                    <TaskDetails
-                        task={
-                            activeTask
-                        }
-                        onEdit={(task) =>
-                            navigate(
-                                `/tasks/${task.task_id}/edit`,
-                                {
-                                    state: {
-                                        task,
-                                    },
-                                }
-                            )
-                        }
-                        onDeleted={
-                            handleDeleted
-                        }
-                    />
+                    {/* =================================================
+            TASK DETAILS
+        ================================================= */}
+                    <div className="min-h-0 overflow-y-auto scrollbar-hide">
+                        <TaskDetails
+                            task={activeTask}
+                            onEdit={(task) =>
+                                navigate(
+                                    `/tasks/${task.task_id}/edit`,
+                                    {
+                                        state: {
+                                            task,
+                                        },
+                                    }
+                                )
+                            }
+                            onDeleted={handleDeleted}
+                        />
+                    </div>
 
                 </div>
             </div>

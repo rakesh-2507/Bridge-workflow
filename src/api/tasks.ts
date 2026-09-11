@@ -1,10 +1,10 @@
 import { apiRequest } from "./client";
 
 import type {
-    Task,
-    GetTaskResponse,
-    CreateTaskPayload,
-    UpdateTaskPayload,
+  Task,
+  GetTaskResponse,
+  CreateTaskPayload,
+  UpdateTaskPayload,
 } from "../types/task";
 /**
 
@@ -17,31 +17,33 @@ import type {
 * * { items: Task[] }
     */
 function normalizeTasksResponse(response: unknown): Task[] {
-  if (Array.isArray(response)) {
-    return response as Task[];
-  }
+  let tasks: Task[] = [];
 
-  if (response !== null && typeof response === "object") {
+  if (Array.isArray(response)) {
+    tasks = response as Task[];
+  } else if (response !== null && typeof response === "object") {
     const data = response as Record<string, unknown>;
 
     if (Array.isArray(data.tasks)) {
-      return data.tasks as Task[];
-    }
-
-    if (Array.isArray(data.data)) {
-      return data.data as Task[];
-    }
-
-    if (Array.isArray(data.items)) {
-      return data.items as Task[];
+      tasks = data.tasks as Task[];
+    } else if (Array.isArray(data.data)) {
+      tasks = data.data as Task[];
+    } else if (Array.isArray(data.items)) {
+      tasks = data.items as Task[];
     }
   }
 
-  console.error("Unexpected tasks API response:", response);
+  if (tasks.length === 0) {
+    console.error("Unexpected tasks API response:", response);
 
-  return [];
+    return [];
+  }
+
+  // Remove duplicate task IDs
+  return Array.from(
+    new Map(tasks.map((task) => [task.task_id, task])).values(),
+  );
 }
-
 /**
 
 * Create a new task
@@ -69,15 +71,10 @@ export async function getTasks(): Promise<Task[]> {
 
 * Get a single task
   */
-export async function getTask(
-    taskId: number
-): Promise<GetTaskResponse> {
-    return apiRequest<GetTaskResponse>(
-        `/api/gettask/${taskId}`,
-        {
-            method: "GET",
-        }
-    );
+export async function getTask(taskId: number): Promise<GetTaskResponse> {
+  return apiRequest<GetTaskResponse>(`/api/gettask/${taskId}`, {
+    method: "GET",
+  });
 }
 /**
 
@@ -145,47 +142,32 @@ export async function rejectTask(taskId: number): Promise<string> {
   });
 }
 
-
 export async function approveAssetPurchaseTask(
-  taskId: number
+  taskId: number,
 ): Promise<string> {
-  return apiRequest<string>(
-    `/api/asset-purchase/tasks/${taskId}/approve`,
-    {
-      method: "POST",
-    }
-  );
+  return apiRequest<string>(`/api/asset-purchase/tasks/${taskId}/approve`, {
+    method: "POST",
+  });
 }
 
-export async function rejectAssetPurchaseTask(
-  taskId: number
-): Promise<string> {
-  return apiRequest<string>(
-    `/api/asset-purchase/tasks/${taskId}/reject`,
-    {
-      method: "POST",
-    }
-  );
+export async function rejectAssetPurchaseTask(taskId: number): Promise<string> {
+  return apiRequest<string>(`/api/asset-purchase/tasks/${taskId}/reject`, {
+    method: "POST",
+  });
 }
 
 export async function backwardAssetPurchaseTask(
-  taskId: number
+  taskId: number,
 ): Promise<string> {
-  return apiRequest<string>(
-    `/api/asset-purchase/tasks/${taskId}/backward`,
-    {
-      method: "POST",
-    }
-  );
+  return apiRequest<string>(`/api/asset-purchase/tasks/${taskId}/backward`, {
+    method: "POST",
+  });
 }
 
 export async function getAssetPurchaseTasks(): Promise<Task[]> {
-    const response = await apiRequest<unknown>(
-        "/api/asset-purchase/tasks",
-        {
-            method: "GET",
-        }
-    );
+  const response = await apiRequest<unknown>("/api/asset-purchase/tasks", {
+    method: "GET",
+  });
 
-    return normalizeTasksResponse(response);
+  return normalizeTasksResponse(response);
 }

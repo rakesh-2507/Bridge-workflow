@@ -1,109 +1,109 @@
 export interface Task {
-    task_id: number;
+  task_id: number;
 
-    project_id: number | null;
-    template_id: number | null;
-    folder_id: number | null;
+  project_id: number | null;
+  template_id: number | null;
+  folder_id: number | null;
 
-    task_type: string;
-    task_description: string;
+  task_type: string;
+  task_description: string;
 
-    key_params: Record<string, unknown>;
+  key_params: Record<string, unknown>;
 
-    levels: string[];
+  levels: string[];
 
-    start_date: string;
-    end_date: string | null;
+  start_date: string;
+  end_date: string | null;
 
-    assigned_by: number;
-    assigned_to: number;
+  assigned_by: number;
+  assigned_to: number;
 
-    /**
-     * Task status
-     */
-    status?: number;
+  /**
+   * Task status
+   */
+  status?: number;
 
-    /**
-     * Asset Purchase / document related fields
-     */
-    document_no?: string;
-    document_type?: string;
-    wf_task_id?: string;
+  /**
+   * Asset Purchase / document related fields
+   */
+  document_no?: string;
+  document_type?: string;
+  wf_task_id?: string;
 
-    /**
-     * Selected quotation, if applicable
-     */
-    selected_quote_id?: number | null;
+  /**
+   * Selected quotation, if applicable
+   */
+  selected_quote_id?: number | null;
 
-    created_date?: string;
-    updated_date?: string;
+  created_date?: string;
+  updated_date?: string;
 }
 
 export interface TaskDetails {
-    wf_task_id: string | null;
+  wf_task_id: string | null;
 
-    folder_id: number | null;
-    project_id: number | null;
+  folder_id: number | null;
+  project_id: number | null;
 
-    task_description: string;
-    document_no: string | null;
+  task_description: string;
+  document_no: string | null;
 
-    status: number;
+  status: number;
 
-    start_date: string;
+  start_date: string;
 
-    assigned_by: number;
-    created_date: string;
+  assigned_by: number;
+  created_date: string;
 
-    task_id: number;
+  task_id: number;
 
-    template_id: number | null;
+  template_id: number | null;
 
-    task_type: string;
-    document_type: string | null;
+  task_type: string;
+  document_type: string | null;
 
-    key_params: Record<string, unknown>;
+  key_params: Record<string, unknown>;
 
-    levels: string[];
+  levels: string[];
 
-    end_date: string | null;
+  end_date: string | null;
 
-    assigned_to: number;
+  assigned_to: number;
 
-    selected_quote_id: number | null;
+  selected_quote_id: number | null;
 
-    updated_date: string;
+  updated_date: string;
 }
 
 export interface GetTaskResponse {
-    success: boolean;
-    data: TaskDetails;
+  success: boolean;
+  data: TaskDetails;
 }
 
 /**
  * Asset Purchase Request data
  */
 export interface AssetPurchaseRequestData {
-    asset: string;
-    asset_type: string;
-    asset_description: string;
-    required_date: string;
-    purchase_reason: string;
+  asset: string;
+  asset_type: string;
+  asset_description: string;
+  required_date: string;
+  purchase_reason: string;
 }
 
 /**
  * Document attached to an Asset Purchase Task
  */
 export interface AssetPurchaseTaskDocument {
-    document_id: number;
-    document_type: string;
-    document_no: string;
+  document_id: number;
+  document_type: string;
+  document_no: string;
 
-    request_data: AssetPurchaseRequestData;
+  request_data: AssetPurchaseRequestData;
 
-    created_by: number;
-    created_date: string;
-    updated_date: string;
+  created_by: number;
+  created_date: string;
+  updated_date: string;
 }
 
 /**
@@ -111,65 +111,93 @@ export interface AssetPurchaseTaskDocument {
  * GET /api/asset-purchase/tasks/{task_id}
  */
 export interface AssetPurchaseTaskDetails {
-    task_id: number;
-    wf_task_id: string;
+  task_id: number;
+  wf_task_id: string;
 
-    task_type: string;
-    task_description: string;
+  task_type: string;
+  task_description: string;
 
-    document: AssetPurchaseTaskDocument;
+  document: AssetPurchaseTaskDocument;
 
-    status: number;
+  status: number;
 
-    assigned_by: number;
-    assigned_to: number;
+  assigned_by: number;
+  assigned_to: number;
 
-    levels: string[];
+  levels: string[];
 
-    selected_quote_id: number | null;
+  selected_quote_id: number | null;
 
-    start_date: string;
-    end_date: string | null;
+  start_date: string;
+  end_date: string | null;
 
-    key_params: Record<string, unknown>;
-
-    created_date: string;
-    updated_date: string;
+key_params: AssetPurchaseKeyParams;
+  created_date: string;
+  updated_date: string;
 }
 
 export interface GetAssetPurchaseTaskResponse {
-    success: boolean;
-    code: string;
-    message: string;
-    data: AssetPurchaseTaskDetails;
+  success: boolean;
+  code: string;
+  message: string;
+  data: AssetPurchaseTaskDetails;
 }
 
 export interface CreateTaskPayload {
-    project_id: number;
-    template_id: number;
-    folder_id: number;
+  project_id: number;
+  template_id: number;
+  folder_id: number;
 
-    task_type: string;
-    task_description: string;
+  task_type: string;
+  task_description: string;
 
-    key_params: Record<string, unknown>;
+  key_params: Record<string, unknown>;
 
-    levels: string[];
+  levels: string[];
 
-    start_date: string;
-    end_date: string;
+  start_date: string;
+  end_date: string;
 
-    assigned_by: number;
-    assigned_to: number;
+  assigned_by: number;
+  assigned_to: number;
 }
 
 export interface UpdateTaskPayload extends CreateTaskPayload {
-    status: number;
+  status: number;
 }
 
 export interface GetAssetPurchaseTasksResponse {
-    success: boolean;
-    code: string;
-    message: string;
-    data: AssetPurchaseTaskDetails[];
+  success: boolean;
+  code: string;
+  message: string;
+  data: AssetPurchaseTaskDetails[];
+}
+
+export interface AssetPurchaseKeyParams {
+  role?: string;
+  ratings?: Record<string, number>;
+  workflow?: string;
+  created_by?: number;
+  config_type?: string;
+  document_no?: string;
+  last_rating?: number;
+  document_type?: string;
+  rating_status?: string;
+  workflow_stage?: string;
+  quotation_count?: number;
+  vijay_config_id?: string;
+
+  selection_status?: string;
+
+  selected_quote_id?: number | null;
+  selected_quote_no?: string;
+  selected_quote_date?: string;
+  selected_vendor_name?: string;
+  selected_quote_amount?: string;
+
+  rating_updated_by?: number;
+  rating_wf_task_id?: string;
+  last_rated_quote_id?: number;
+  rating_updated_date?: string;
+  selection_wf_task_id?: string;
 }

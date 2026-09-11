@@ -380,42 +380,27 @@ function TasksPage() {
 
                 <div className="grid h-full min-h-0 grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)_340px]">
 
-
-                    {/* =================================================
-                        LEFT - TASK LIST
-                    ================================================= */}
-
                     <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
 
-                        {/* HEADER */}
-
                         <div className="shrink-0 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
-
-                            <h1 className="text-xl font-semibold text-s ">
+                            <h1 className="text-xl font-semibold text-s">
                                 Tasks ({pendingTasks.length})
                             </h1>
 
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                 Manage task details and track progress
                             </p>
-
                         </div>
 
-
-                        {/* TASK LIST */}
-
-                        <div className="min-h-0 flex-1 overflow-y-auto">
-
+                        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
                             <TaskList
                                 tasks={pendingTasks}
                                 selectedTask={selectedTask}
                                 onSelect={handleSelectTask}
                             />
-
                         </div>
 
                     </section>
-
 
                     {/* =================================================
                         MIDDLE - TASK DETAILS

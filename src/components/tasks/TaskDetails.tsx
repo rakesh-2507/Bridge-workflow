@@ -10,12 +10,14 @@ import {
 import {
     approveTask,
     rejectTask,
-    approveAssetPurchaseTask,
     rejectAssetPurchaseTask,
     backwardAssetPurchaseTask,
     deleteTask,
 } from "../../api/tasks";
-
+import {
+    forwardAssetPurchaseTaskToSelection,
+    selectAssetPurchaseQuote,
+} from "../../api/assetPurchaseQuote";
 import {
     getAssetPurchaseTask,
 } from "../../api/assetPurchase";
@@ -39,9 +41,6 @@ function TaskDetails({
     onEdit,
     onDeleted,
 }: TaskDetailsProps) {
-    // ==================================================
-    // Delete State
-    // ==================================================
 
     const [deleteLoading, setDeleteLoading] =
         useState(false);
@@ -51,10 +50,6 @@ function TaskDetails({
 
     const [deleteError, setDeleteError] =
         useState("");
-
-    // ==================================================
-    // Action State
-    // ==================================================
 
     const [actionLoading, setActionLoading] =
         useState<
@@ -66,10 +61,6 @@ function TaskDetails({
 
     const [actionError, setActionError] =
         useState("");
-
-    // ==================================================
-    // Logged In User
-    // ==================================================
 
     const storedUser =
         localStorage.getItem("login_user");
@@ -95,10 +86,6 @@ function TaskDetails({
         loggedInUser?.mtype ===
         "Assets-Executive";
 
-    // ==================================================
-    // Asset Purchase Task Details
-    // ==================================================
-
     const [assetTask, setAssetTask] =
         useState<AssetPurchaseTaskDetails | null>(
             null
@@ -110,6 +97,15 @@ function TaskDetails({
     const [assetTaskError, setAssetTaskError] =
         useState("");
 
+    const [selectedQuoteId, setSelectedQuoteId] =
+        useState<number | null>(null);
+
+    const [showSuccessModal, setShowSuccessModal] =
+        useState(false);
+
+    const [successMessage, setSuccessMessage] =
+        useState("");
+
     const isAssetPurchaseTask =
         task?.document_type ===
         "AssetPurchaseRequest" ||
@@ -118,18 +114,7 @@ function TaskDetails({
 
     const isEmployee =
         loggedInUser?.mtype === "Employee";
-    /*
-     * Load the complete asset purchase task.
-     *
-     * Important:
-     * AssetPurchaseTaskDetails represents the COMPLETE
-     * task object. The actual request fields are inside:
-     *
-     * assetTask.document.request_data
-     *
-     * We therefore do NOT cast request_data itself to
-     * AssetPurchaseTaskDetails.
-     */
+
     useEffect(() => {
         if (
             !task ||
@@ -142,7 +127,6 @@ function TaskDetails({
         ) {
             return;
         }
-
         const currentTask = task;
 
         let cancelled = false;
@@ -205,10 +189,6 @@ function TaskDetails({
         };
     }, [task]);
 
-    // ==================================================
-    // No Task Selected
-    // ==================================================
-
     if (!task) {
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center border-l border-gray-200 bg-gray-50 px-6 text-center dark:border-gray-800 dark:bg-gray-950">
@@ -233,33 +213,12 @@ function TaskDetails({
         );
     }
 
-    // ==================================================
-    // Values below this point are safe because task
-    // has already been checked for null.
-    // ==================================================
-
-    /*
-     * Prefer the document number returned by the
-     * asset-specific API when available.
-     */
     const assetDocumentNo =
         assetTask?.document?.document_no ||
         task.document_no;
 
-    // ==================================================
-    // Task Status
-    //
-    // 0 = In Progress
-    // 1 = Accepted
-    // 2 = Rejected
-    // ==================================================
-
     const canTakeAction =
         task.status === 0;
-
-    // ==================================================
-    // Delete Task
-    // ==================================================
 
     const handleDelete = async () => {
         if (deleteLoading) {
@@ -285,10 +244,6 @@ function TaskDetails({
             setDeleteLoading(false);
         }
     };
-
-    // ==================================================
-    // Generic Task - Approve
-    // ==================================================
 
     const handleApprove = async () => {
         if (
@@ -323,10 +278,6 @@ function TaskDetails({
         }
     };
 
-    // ==================================================
-    // Generic Task - Reject
-    // ==================================================
-
     const handleReject = async () => {
         if (
             actionLoading !== null ||
@@ -360,9 +311,39 @@ function TaskDetails({
         }
     };
 
-    // ==================================================
-    // Asset Purchase - Approve
-    // ==================================================
+    // const handleAssetPurchaseApprove =
+    //     async () => {
+    //         if (
+    //             actionLoading !== null ||
+    //             !canTakeAction
+    //         ) {
+    //             return;
+    //         }
+
+    //         setActionLoading("approve");
+    //         setActionMessage("");
+    //         setActionError("");
+
+    //         try {
+    //             const response =
+    //                 await approveAssetPurchaseTask(
+    //                     task.task_id
+    //                 );
+
+    //             setActionMessage(
+    //                 response ||
+    //                 "Task approved successfully."
+    //             );
+    //         } catch (err) {
+    //             setActionError(
+    //                 err instanceof Error
+    //                     ? err.message
+    //                     : "Failed to approve task."
+    //             );
+    //         } finally {
+    //             setActionLoading(null);
+    //         }
+    //     };
 
     const handleAssetPurchaseApprove =
         async () => {
@@ -373,20 +354,34 @@ function TaskDetails({
                 return;
             }
 
+            if (selectedQuoteId === null) {
+                setActionError(
+                    "Please select a quote before approving."
+                );
+                return;
+            }
+
             setActionLoading("approve");
             setActionMessage("");
             setActionError("");
 
             try {
+                await forwardAssetPurchaseTaskToSelection(
+                    task.task_id
+                );
+
                 const response =
-                    await approveAssetPurchaseTask(
-                        task.task_id
+                    await selectAssetPurchaseQuote(
+                        task.task_id,
+                        selectedQuoteId
                     );
 
-                setActionMessage(
+                setSuccessMessage(
                     response ||
                     "Task approved successfully."
                 );
+
+                setShowSuccessModal(true);
             } catch (err) {
                 setActionError(
                     err instanceof Error
@@ -397,10 +392,6 @@ function TaskDetails({
                 setActionLoading(null);
             }
         };
-
-    // ==================================================
-    // Asset Purchase - Reject
-    // ==================================================
 
     const handleAssetPurchaseReject =
         async () => {
@@ -435,10 +426,6 @@ function TaskDetails({
                 setActionLoading(null);
             }
         };
-
-    // ==================================================
-    // Asset Purchase - Backward
-    // ==================================================
 
     const handleBackward = async () => {
         if (
@@ -842,6 +829,76 @@ function TaskDetails({
                         </section>
                     )}
 
+                    {/* ==================================================
+    Selected Quote
+================================================== */}
+
+                    {/* ==================================================
+    Selected Quote
+================================================== */}
+
+                    {isAssetPurchaseTask &&
+                        assetTask?.selected_quote_id != null && (
+                            <section>
+                                <h3 className="text-sm font-semibold text-s dark:text-white">
+                                    Selected Quote:
+                                </h3>
+
+                                <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-5 shadow-sm dark:border-green-900 dark:bg-green-950/30">
+
+                                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+
+                                        <AssetRequestField
+                                            label="Quote ID"
+                                            value={String(
+                                                assetTask.selected_quote_id
+                                            )}
+                                        />
+
+                                        <AssetRequestField
+                                            label="Quote No"
+                                            value={
+                                                assetTask.key_params
+                                                    .selected_quote_no || "-"
+                                            }
+                                        />
+
+                                        <AssetRequestField
+                                            label="Vendor"
+                                            value={
+                                                assetTask.key_params
+                                                    .selected_vendor_name || "-"
+                                            }
+                                        />
+
+                                        <AssetRequestField
+                                            label="Amount"
+                                            value={
+                                                assetTask.key_params
+                                                    .selected_quote_amount
+                                                    ? `₹${Number(
+                                                        assetTask.key_params
+                                                            .selected_quote_amount
+                                                    ).toLocaleString("en-IN", {
+                                                        minimumFractionDigits: 2,
+                                                    })}`
+                                                    : "-"
+                                            }
+                                        />
+
+                                        <AssetRequestField
+                                            label="Quote Date"
+                                            value={formatQuoteDate(
+                                                assetTask.key_params
+                                                    .selected_quote_date
+                                            )}
+                                        />
+
+                                    </div>
+
+                                </div>
+                            </section>
+                        )}
                     {isSeniorAssetManager &&
                         isAssetPurchaseTask &&
                         assetDocumentNo && (
@@ -850,6 +907,7 @@ function TaskDetails({
                                     documentNo={assetDocumentNo}
                                     taskId={task.task_id}
                                     canEditRating={true}
+                                    onQuoteSelected={setSelectedQuoteId}
                                 />
                             </section>
                         )}
@@ -1026,6 +1084,50 @@ function TaskDetails({
 
                 </div>
             </div>
+            {showSuccessModal && (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm"> <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+
+                <div className="flex flex-col items-center text-center">
+
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100 dark:bg-green-950">
+                        <svg
+                            className="h-7 w-7 text-green-600 dark:text-green-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M5 13l4 4L19 7"
+                            />
+                        </svg>
+                    </div>
+
+                    <h3 className="mt-4 text-lg font-semibold text-gray-900 dark:text-white">
+                        Task Approved
+                    </h3>
+
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        {successMessage}
+                    </p>
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowSuccessModal(false);
+                        }}
+                        className="mt-6 w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
+                    >
+                        OK
+                    </button>
+
+                </div>
+            </div>
+            </div>
+
+            )}
+
         </div>
     );
 }

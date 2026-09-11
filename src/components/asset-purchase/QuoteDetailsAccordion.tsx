@@ -12,8 +12,6 @@ import {
     getAssetPurchaseQuotes,
     updateAssetQuoteRating,
     submitAssetPurchaseRatings,
-    forwardAssetPurchaseTaskToSelection,
-    selectAssetPurchaseQuote,
 } from "../../api/assetPurchaseQuote";
 
 import type {
@@ -24,12 +22,23 @@ interface QuoteDetailsAccordionProps {
     documentNo: string;
     taskId: number;
     canEditRating?: boolean;
+
+    /*
+     * Sends the selected quote ID back to TaskDetails.
+     *
+     * The actual select API is now handled by
+     * the Senior Asset Manager's Approve button.
+     */
+    onQuoteSelected?: (
+        quoteId: number
+    ) => void;
 }
 
 function QuoteDetailsAccordion({
     documentNo,
     taskId,
     canEditRating = false,
+    onQuoteSelected,
 }: QuoteDetailsAccordionProps) {
     const [isOpen, setIsOpen] = useState(true);
 
@@ -56,9 +65,11 @@ function QuoteDetailsAccordion({
     // SELECTION STATE
     // ==================================================
 
-    const [selectingQuoteId, setSelectingQuoteId] =
-        useState<number | null>(null);
-
+    /*
+     * This is now UI-only selection.
+     *
+     * No selection API is called from this component.
+     */
     const [selectedQuoteId, setSelectedQuoteId] =
         useState<number | null>(null);
 
@@ -180,60 +191,38 @@ function QuoteDetailsAccordion({
             setUpdatingRatingId(null);
         }
     };
+
     // ==================================================
     // SELECT QUOTE
     // ==================================================
 
-    const handleQuoteSelection = async (
+    const handleQuoteSelection = (
         quoteId: number
     ) => {
-        if (selectingQuoteId !== null) {
-            return;
-        }
-
         // Already selected
         if (selectedQuoteId === quoteId) {
             return;
         }
 
-        setSelectingQuoteId(quoteId);
         setSelectionError("");
 
-        try {
-            // ==================================================
-            // STEP 1
-            // Forward task to selection stage
-            // ==================================================
+        /*
+         * Only update local UI state.
+         *
+         * The actual selectAssetPurchaseQuote API
+         * will be called from TaskDetails when the
+         * Senior Asset Manager clicks Approve.
+         */
+        setSelectedQuoteId(
+            quoteId
+        );
 
-            await forwardAssetPurchaseTaskToSelection(
-                taskId
-            );
-
-            // ==================================================
-            // STEP 2
-            // Select quotation
-            // ==================================================
-
-            await selectAssetPurchaseQuote(
-                taskId,
-                quoteId
-            );
-
-            // ==================================================
-            // STEP 3
-            // Update UI
-            // ==================================================
-
-            setSelectedQuoteId(quoteId);
-        } catch (err) {
-            setSelectionError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to select quotation."
-            );
-        } finally {
-            setSelectingQuoteId(null);
-        }
+        /*
+         * Notify parent component.
+         */
+        onQuoteSelected?.(
+            quoteId
+        );
     };
 
     // ==================================================
@@ -313,10 +302,11 @@ function QuoteDetailsAccordion({
 
                     <ChevronDown
                         size={18}
-                        className={`shrink-0 text-gray-400 transition-transform duration-200 ${isOpen
+                        className={`shrink-0 text-gray-400 transition-transform duration-200 ${
+                            isOpen
                                 ? "rotate-180"
                                 : ""
-                            }`}
+                        }`}
                     />
 
                 </div>
@@ -454,9 +444,6 @@ function QuoteDetailsAccordion({
                                                 updatingRatingId={
                                                     updatingRatingId
                                                 }
-                                                selectingQuoteId={
-                                                    selectingQuoteId
-                                                }
                                                 selectedQuoteId={
                                                     selectedQuoteId
                                                 }
@@ -494,8 +481,6 @@ interface QuotationCardProps {
 
     updatingRatingId: number | null;
 
-    selectingQuoteId: number | null;
-
     selectedQuoteId: number | null;
 
     onRatingChange: (
@@ -512,7 +497,6 @@ function QuotationCard({
     quote,
     canEditRating,
     updatingRatingId,
-    selectingQuoteId,
     selectedQuoteId,
     onRatingChange,
     onSelectQuote,
@@ -525,24 +509,14 @@ function QuotationCard({
     const isUpdating =
         updatingRatingId === quote.quote_id;
 
-    const isSelecting =
-        selectingQuoteId === quote.quote_id;
-
     const isSelected =
         selectedQuoteId === quote.quote_id;
-
-    const isSelectionInProgress =
-        selectingQuoteId !== null;
 
     // ==================================================
     // CARD CLICK
     // ==================================================
 
     const handleCardClick = () => {
-        if (isSelectionInProgress) {
-            return;
-        }
-
         if (isSelected) {
             return;
         }
@@ -555,13 +529,11 @@ function QuotationCard({
     return (
         <div
             onClick={handleCardClick}
-            className={`relative rounded-xl border p-4 shadow-sm transition-all ${isSelectionInProgress
-                    ? "cursor-not-allowed opacity-70"
-                    : "cursor-pointer"
-                } ${isSelected
+            className={`relative cursor-pointer rounded-xl border p-4 shadow-sm transition-all ${
+                isSelected
                     ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100 dark:border-blue-500 dark:bg-blue-950/30 dark:ring-blue-950"
                     : "border-gray-200 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/50 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-blue-700"
-                }`}
+            }`}
         >
 
             {/* ==================================================
@@ -569,18 +541,14 @@ function QuotationCard({
             ================================================== */}
 
             <div
-                className={`absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-md border-2 transition-all ${isSelected
+                className={`absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-md border-2 transition-all ${
+                    isSelected
                         ? "border-blue-600 bg-blue-600"
                         : "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-900"
-                    }`}
+                }`}
             >
 
-                {isSelecting ? (
-                    <Loader2
-                        size={14}
-                        className="animate-spin text-blue-600"
-                    />
-                ) : isSelected ? (
+                {isSelected ? (
                     <Check
                         size={15}
                         strokeWidth={3}
@@ -599,10 +567,11 @@ function QuotationCard({
                 <div className="flex items-center gap-3">
 
                     <div
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isSelected
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                            isSelected
                                 ? "bg-blue-600 text-white"
                                 : "bg-white dark:bg-gray-900"
-                            }`}
+                        }`}
                     >
 
                         {isSelected ? (
@@ -620,7 +589,7 @@ function QuotationCard({
 
                     <div>
 
-                        <h3 className="text-xs font-semibold text-s ">
+                        <h3 className="text-xs font-semibold text-s">
                             {details
                                 ? details
                                 : "Quote Details"}
@@ -767,7 +736,7 @@ function QuotationCard({
                     ) : (
                         <div className="flex items-center gap-2">
 
-                            <span className="text-sm font-bold text-s ">
+                            <span className="text-sm font-bold text-s">
                                 {quote.executive_rating ??
                                     "-"}
                             </span>
@@ -821,31 +790,17 @@ function QuotationCard({
 
                 </div>
 
-                {isSelecting && (
-                    <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                {isSelected && (
+                    <span className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900 dark:text-blue-300">
 
-                        <Loader2
-                            size={15}
-                            className="animate-spin"
+                        <Check
+                            size={12}
                         />
 
-                        Selecting...
+                        Selected
 
-                    </div>
+                    </span>
                 )}
-
-                {isSelected &&
-                    !isSelecting && (
-                        <span className="flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-
-                            <Check
-                                size={12}
-                            />
-
-                            Selected
-
-                        </span>
-                    )}
 
             </div>
 
@@ -872,7 +827,7 @@ function QuotationField({
                 {label}
             </p>
 
-            <p className="whitespace-pre-wrap text-xs font-semibold leading-5 text-s ">
+            <p className="whitespace-pre-wrap text-xs font-semibold leading-5 text-s">
                 {value}
             </p>
         </div>
