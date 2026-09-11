@@ -74,6 +74,13 @@ function Sidebar({
       ?.trim()
       .toLowerCase() === "employee";
 
+
+
+  const isWriter =
+    loginUser?.mtype
+      ?.trim()
+      .toLowerCase() === "writer";
+
   // --------------------------------------------------
   // Logout
   // --------------------------------------------------
@@ -96,48 +103,52 @@ function Sidebar({
 
   const navigationItems = isAdmin
     ? [
-        {
-          label: "Dashboard",
-          icon: LayoutDashboard,
-          to: "/",
-        },
-      ]
+      {
+        label: "Dashboard",
+        icon: LayoutDashboard,
+        to: "/",
+      },
+    ]
     : [
-        {
-          label: "Tasks",
-          icon: CheckSquare,
-          to: "/tasks",
-        },
-        {
-          label: "Today Tasks",
-          icon: CalendarDays,
-          to: "/tasks/today",
-        },
-        {
-          label: "Files",
-          icon: File,
-          to: "/files",
-        },
-        {
-          label: "Chat",
-          icon: MessageCircle,
-          to: "/task-conversations",
-        },
+      {
+        label: "Tasks",
+        icon: CheckSquare,
+        to: "/tasks",
+      },
+      {
+        label: "Today Tasks",
+        icon: CalendarDays,
+        to: "/tasks/today",
+      },
+      ...(isWriter
+        ? [
+          {
+            label: "Files",
+            icon: File,
+            to: "/files",
+          },
+        ]
+        : []),
+      {
+        label: "Chat",
+        icon: MessageCircle,
+        to: "/task-conversations",
+      },
 
-        // ------------------------------------------
-        // Only Employee can see Asset Requests
-        // ------------------------------------------
+      // ------------------------------------------
+      // Only Employee can see Asset Requests
+      // ------------------------------------------
 
-        ...(isEmployee
-          ? [
-              {
-                label: "Asset Requests",
-                icon: FileBox,
-                to: "/asset-request",
-              },
-            ]
-          : []),
-      ];
+      ...(isEmployee
+        ? [
+          {
+            label: "Asset Requests",
+            icon: FileBox,
+            to: "/asset-request",
+          },
+        ]
+        : []),
+    ];
 
   return (
     <aside className="hidden w-20 shrink-0 border-r border-gray-200 bg-[#00b7d9] transition-colors dark:border-gray-700 dark:bg-gray-950 md:block">
@@ -157,10 +168,9 @@ function Sidebar({
                 to={to}
                 end
                 className={({ isActive }) =>
-                  `group relative flex items-center justify-center rounded-lg p-3 transition ${
-                    isActive
-                      ? "bg-[#22869e] text-white dark:bg-white dark:text-gray-900"
-                      : "text-white hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                  `group relative flex items-center justify-center rounded-lg p-3 transition ${isActive
+                    ? "bg-[#22869e] text-white dark:bg-white dark:text-gray-900"
+                    : "text-white hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                   }`
                 }
               >

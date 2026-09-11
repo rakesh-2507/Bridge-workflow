@@ -26,7 +26,7 @@ function getStatus(status?: number) {
 
         case 1:
             return {
-                label: "Completed",
+                label: "Approved",
                 className:
                     "border-green-200 bg-green-50 text-green-700 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-400",
                 icon: CheckCircle2,
@@ -104,10 +104,10 @@ function TaskChatMessage({
                         <div className="flex min-w-0 items-center gap-2">
                             <FileText
                                 size={16}
-                                className="shrink-0 text-gray-500 dark:text-gray-400"
+                                className="shrink-0 text-t"
                             />
 
-                            <span className="truncate text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            <span className="truncate text-xs font-medium uppercase tracking-wide text-t">
                                 {task.task_type || "Task"}
                             </span>
                         </div>
@@ -121,20 +121,20 @@ function TaskChatMessage({
                     </div>
 
                     {/* Description */}
-                    <p className="whitespace-pre-wrap text-sm leading-6 text-gray-800 dark:text-gray-200">
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-s">
                         {task.task_description ||
                             "No description"}
                     </p>
 
                     {/* Project / Folder */}
                     <div className="mt-3 flex flex-wrap gap-2">
-                        <div className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                        <div className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-t dark:bg-gray-800 ">
                             <FolderKanban size={13} />
 
                             Project #{task.project_id}
                         </div>
 
-                        <div className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                        <div className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-t dark:bg-gray-800 ">
                             Folder #{task.folder_id}
                         </div>
                     </div>
@@ -142,7 +142,7 @@ function TaskChatMessage({
                     {/* Dates */}
                     <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 border-t border-gray-100 pt-2 dark:border-gray-800">
                         {task.start_date && (
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center gap-1.5 text-xs text-t">
                                 <CalendarDays size={13} />
 
                                 <span>
@@ -155,7 +155,7 @@ function TaskChatMessage({
                         )}
 
                         {task.end_date && (
-                            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center gap-1.5 text-xs text-t">
                                 <CalendarDays size={13} />
 
                                 <span>
@@ -169,7 +169,7 @@ function TaskChatMessage({
                     </div>
 
                     {/* Task time */}
-                    <div className="mt-2 text-right text-[11px] text-gray-400 dark:text-gray-500">
+                    <div className="mt-2 text-right text-[11px] text-t">
                         {formatDate(task.start_date)}
                     </div>
                 </div>

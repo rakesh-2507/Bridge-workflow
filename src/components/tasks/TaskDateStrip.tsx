@@ -234,7 +234,6 @@ function TaskDateStrip({
                         active:scale-95
                         dark:border-sky-200
                         dark:bg-sky-200
-                        dark:text-sky-950
                     "
                     aria-label="Previous dates"
                 >
@@ -316,7 +315,7 @@ function TaskDateStrip({
                                               "ring-sky-900/10",
                                               "dark:border-sky-200",
                                               "dark:bg-sky-200",
-                                              "dark:text-sky-950",
+                                              
                                               "dark:ring-sky-200/10",
                                           ].join(" ")
                                         : [
@@ -375,7 +374,7 @@ function TaskDateStrip({
                                                 "uppercase",
                                                 "tracking-[0.12em]",
                                                 isSelected
-                                                    ? "text-sky-200 dark:text-sky-800"
+                                                    ? "text-t"
                                                     : "text-sky-700 dark:text-sky-400",
                                             ].join(" ")}
                                         >
@@ -438,8 +437,8 @@ function TaskDateStrip({
                                                   ? [
                                                         "bg-sky-100",
                                                         "text-sky-800",
-                                                        "dark:bg-s ",
-                                                        "dark:text-sky-200",
+                                                        "dark:bg-s",
+                                                        "dark:text-s",
                                                     ].join(
                                                         " "
                                                     )
@@ -489,7 +488,6 @@ function TaskDateStrip({
                         active:scale-95
                         dark:border-sky-200
                         dark:bg-sky-200
-                        dark:text-sky-950
                     "
                     aria-label="Next dates"
                 >

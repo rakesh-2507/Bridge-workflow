@@ -135,16 +135,16 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
                         <Package
                             size={20}
-                            className="text-blue-600 dark:text-blue-400"
+                            className="text-s"
                         />
                     </div>
 
                     <div>
-                        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                        <h1 className="text-xl font-semibold text-s">
                             Asset Purchase Request
                         </h1>
 
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-t">
                             Create a new asset purchase request
                         </p>
                     </div>
@@ -164,7 +164,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                         <div>
                             <label
                                 htmlFor="asset"
-                                className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                                className="mb-2 block text-sm font-medium text-s"
                             >
                                 Asset
                                 <span className="ml-1 text-red-500">
@@ -179,14 +179,14 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                 value={formData.asset}
                                 onChange={handleChange}
                                 placeholder="e.g. Dell Laptop 1500"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900"
                             />
                         </div>
 
                         <div>
                             <label
                                 htmlFor="asset_type"
-                                className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                                className="mb-2 block text-sm font-medium text-s  "
                             >
                                 Asset Type
                                 <span className="ml-1 text-red-500">
@@ -201,7 +201,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                 value={formData.asset_type}
                                 onChange={handleChange}
                                 placeholder="e.g. IT Equipment"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t  outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 "
                             />
                         </div>
 
@@ -212,7 +212,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                     <div>
                         <label
                             htmlFor="asset_description"
-                            className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                            className="mb-2 block text-sm font-medium text-s  "
                         >
                             Asset Description
                             <span className="ml-1 text-red-500">
@@ -227,7 +227,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                             value={formData.asset_description}
                             onChange={handleChange}
                             placeholder="Enter detailed description of the asset"
-                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t  outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 "
                         />
                     </div>
 
@@ -236,7 +236,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                     <div>
                         <label
                             htmlFor="required_date"
-                            className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                            className="mb-2 block text-sm font-medium text-s  "
                         >
                             Required Date
                             <span className="ml-1 text-red-500">
@@ -256,7 +256,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                 type="date"
                                 value={formData.required_date}
                                 onChange={handleChange}
-                                className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-t  outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 "
                             />
                         </div>
                     </div>
@@ -266,7 +266,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                     <div>
                         <label
                             htmlFor="purchase_reason"
-                            className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                            className="mb-2 block text-sm font-medium text-s  "
                         >
                             Purchase Reason
                             <span className="ml-1 text-red-500">
@@ -281,7 +281,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                             value={formData.purchase_reason}
                             onChange={handleChange}
                             placeholder="e.g. Office Requirement"
-                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t  outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 "
                         />
                     </div>
 

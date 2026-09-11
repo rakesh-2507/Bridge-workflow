@@ -829,15 +829,9 @@ function TaskDetails({
                         </section>
                     )}
 
-                    {/* ==================================================
-    Selected Quote
-================================================== */}
 
-                    {/* ==================================================
-    Selected Quote
-================================================== */}
-
-                    {isAssetPurchaseTask &&
+                    {(isAssetExecutive || isSeniorAssetManager) &&
+                        isAssetPurchaseTask &&
                         assetTask?.selected_quote_id != null && (
                             <section>
                                 <h3 className="text-sm font-semibold text-s dark:text-white">
@@ -899,6 +893,7 @@ function TaskDetails({
                                 </div>
                             </section>
                         )}
+
                     {isSeniorAssetManager &&
                         isAssetPurchaseTask &&
                         assetDocumentNo && (
@@ -911,11 +906,6 @@ function TaskDetails({
                                 />
                             </section>
                         )}
-
-
-                    {/* ==================================================
-                        Task Actions
-                    ================================================== */}
 
                     {canTakeAction &&
                         !isAssetExecutive &&

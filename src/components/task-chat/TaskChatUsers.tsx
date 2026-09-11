@@ -65,11 +65,11 @@ function TaskChatUsers({
 
             {/* Header */}
             <div className="border-b border-gray-200 px-4 py-4 dark:border-gray-800 ">
-                <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                <h1 className="text-lg font-semibold text-s">
                     Task Conversations
                 </h1>
 
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-xs text-t">
                     Tasks assigned between you and
                     other users
                 </p>
@@ -101,7 +101,7 @@ function TaskChatUsers({
                     <div className="flex h-40 flex-col items-center justify-center px-6 text-center">
                         <User
                             size={24}
-                            className="text-gray-300 dark:text-gray-600"
+                            className="text-s"
                         />
 
                         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -130,7 +130,7 @@ function TaskChatUsers({
                                 }`}
                             >
                                 {/* Avatar */}
-                                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-s dark:bg-gray-800">
                                     {user.avatar ? (
                                         <img
                                             src={
@@ -151,21 +151,12 @@ function TaskChatUsers({
                                 {/* Details */}
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between gap-2">
-                                        <h3 className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        <h3 className="truncate text-sm font-medium text-s">
                                             {user.name}
                                         </h3>
-
-                                        {user.unreadCount >
-                                            0 && (
-                                            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-gray-800 px-1.5 text-[10px] font-medium text-white dark:bg-gray-100 dark:text-gray-900">
-                                                {
-                                                    user.unreadCount
-                                                }
-                                            </span>
-                                        )}
                                     </div>
 
-                                    <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
+                                    <p className="mt-1 truncate text-xs text-t">
                                         {formatLastTask(
                                             user.lastTask
                                         )}

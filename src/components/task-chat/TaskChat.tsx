@@ -10,6 +10,7 @@ import {
 
 import {
     getTasks,
+    getAssetPurchaseTasks,
 } from "../../api/tasks";
 
 import {
@@ -28,9 +29,15 @@ import TaskChatUsers from "./TaskChatUsers";
 import TaskChatHeader from "./TaskChatHeader";
 import TaskChatMessages from "./TaskChatMessages";
 import TaskChatEmpty from "./TaskChatEmpty";
+
 import {
     getJwtPayload,
 } from "../../api/auth";
+
+
+/* -------------------------------------------------------------------------- */
+/* Current logged-in user                                                     */
+/* -------------------------------------------------------------------------- */
 
 function getCurrentUserId(): number | null {
     const token =
@@ -106,6 +113,11 @@ function getCurrentUserId(): number | null {
     }
 }
 
+
+/* -------------------------------------------------------------------------- */
+/* User helpers                                                               */
+/* -------------------------------------------------------------------------- */
+
 function getUserName(user: {
     firstname: string;
     lastname: string;
@@ -122,10 +134,26 @@ function getUserName(user: {
 }
 
 
-function getTaskTimestamp(task: Task) {
+/* -------------------------------------------------------------------------- */
+/* Task helpers                                                               */
+/* -------------------------------------------------------------------------- */
+
+function getTaskTimestamp(
+    task: Task
+): number {
+    const taskWithDates =
+        task as Task & {
+            created_date?: string;
+            createddt?: string;
+            created_at?: string;
+        };
+
     const value =
         task.start_date ||
         task.end_date ||
+        taskWithDates.created_date ||
+        taskWithDates.createddt ||
+        taskWithDates.created_at ||
         "";
 
     const timestamp =
@@ -136,6 +164,10 @@ function getTaskTimestamp(task: Task) {
         : timestamp;
 }
 
+
+/* -------------------------------------------------------------------------- */
+/* Build chat users                                                           */
+/* -------------------------------------------------------------------------- */
 
 function buildChatUsers(
     users: Awaited<
@@ -187,12 +219,14 @@ function buildChatUsers(
             return {
                 userId: user.uid,
 
-                name: getUserName(user),
+                name:
+                    getUserName(user),
 
                 loginname:
                     user.loginname,
 
-                email: user.email,
+                email:
+                    user.email,
 
                 unreadCount,
 
@@ -202,6 +236,10 @@ function buildChatUsers(
         });
 }
 
+
+/* -------------------------------------------------------------------------- */
+/* Build selected conversation                                                */
+/* -------------------------------------------------------------------------- */
 
 function buildConversation(
     user: TaskChatUser,
@@ -252,6 +290,10 @@ function buildConversation(
 }
 
 
+/* -------------------------------------------------------------------------- */
+/* Component                                                                  */
+/* -------------------------------------------------------------------------- */
+
 function TaskChat() {
     const [tasks, setTasks] =
         useState<Task[]>([]);
@@ -268,9 +310,21 @@ function TaskChat() {
     const [error, setError] =
         useState<string | null>(null);
 
-    const currentUserId =
-        getCurrentUserId();
 
+    /* ---------------------------------------------------------------------- */
+    /* Current user                                                            */
+    /* ---------------------------------------------------------------------- */
+
+    const currentUserId =
+        useMemo(
+            () => getCurrentUserId(),
+            []
+        );
+
+
+    /* ---------------------------------------------------------------------- */
+    /* Load tasks + asset purchase tasks + users                              */
+    /* ---------------------------------------------------------------------- */
 
     useEffect(() => {
         let mounted = true;
@@ -280,7 +334,9 @@ function TaskChat() {
                 setIsLoading(true);
                 setError(null);
 
-                if (!currentUserId) {
+                if (
+                    currentUserId === null
+                ) {
                     throw new Error(
                         "Unable to identify the logged-in user."
                     );
@@ -293,32 +349,72 @@ function TaskChat() {
 
                 const [
                     tasksResponse,
+                    assetPurchaseTasksResponse,
                     usersResponse,
                 ] = await Promise.all([
                     getTasks(),
+                    getAssetPurchaseTasks(),
                     getUsers(),
                 ]);
 
+
+                /* ---------------------------------------------------------- */
+                /* Debug API responses                                         */
+                /* ---------------------------------------------------------- */
+
                 console.log(
-                    "Tasks from API:",
+                    "Normal tasks:",
                     tasksResponse
                 );
 
                 console.log(
-                    "Users from API:",
+                    "Asset purchase tasks:",
+                    assetPurchaseTasksResponse
+                );
+
+                console.log(
+                    "Users:",
                     usersResponse
                 );
+
 
                 if (!mounted) {
                     return;
                 }
 
-                setTasks(tasksResponse);
+
+                /* ---------------------------------------------------------- */
+                /* Combine both task APIs                                      */
+                /* ---------------------------------------------------------- */
+
+                const allTasks: Task[] = [
+                    ...tasksResponse,
+                    ...assetPurchaseTasksResponse,
+                ];
+
+                console.log(
+                    "All conversation tasks:",
+                    allTasks
+                );
+
+
+                /* ---------------------------------------------------------- */
+                /* Store combined tasks                                        */
+                /* ---------------------------------------------------------- */
+
+                setTasks(
+                    allTasks
+                );
+
+
+                /* ---------------------------------------------------------- */
+                /* Build chat users from combined tasks                       */
+                /* ---------------------------------------------------------- */
 
                 const users =
                     buildChatUsers(
                         usersResponse.users,
-                        tasksResponse,
+                        allTasks,
                         currentUserId
                     );
 
@@ -327,13 +423,24 @@ function TaskChat() {
                     users
                 );
 
-                setChatUsers(users);
+                setChatUsers(
+                    users
+                );
+
+
+                /* ---------------------------------------------------------- */
+                /* Select first user                                           */
+                /* ---------------------------------------------------------- */
 
                 if (
                     users.length > 0
                 ) {
                     setSelectedUserId(
                         users[0].userId
+                    );
+                } else {
+                    setSelectedUserId(
+                        null
                     );
                 }
             } catch (err) {
@@ -364,6 +471,11 @@ function TaskChat() {
             mounted = false;
         };
     }, [currentUserId]);
+
+
+    /* ---------------------------------------------------------------------- */
+    /* Selected conversation                                                  */
+    /* ---------------------------------------------------------------------- */
 
     const selectedConversation =
         useMemo(() => {
@@ -397,6 +509,11 @@ function TaskChat() {
             tasks,
         ]);
 
+
+    /* ---------------------------------------------------------------------- */
+    /* Loading                                                                 */
+    /* ---------------------------------------------------------------------- */
+
     if (isLoading) {
         return (
             <div className="flex h-full min-h-[500px] items-center justify-center bg-white dark:bg-gray-950">
@@ -412,6 +529,11 @@ function TaskChat() {
         );
     }
 
+
+    /* ---------------------------------------------------------------------- */
+    /* Error                                                                   */
+    /* ---------------------------------------------------------------------- */
+
     if (error) {
         return (
             <div className="flex h-full min-h-[500px] items-center justify-center bg-white p-6 dark:bg-gray-950">
@@ -425,17 +547,26 @@ function TaskChat() {
     }
 
 
+    /* ---------------------------------------------------------------------- */
+    /* Main UI                                                                 */
+    /* ---------------------------------------------------------------------- */
+
     return (
-        <div className="flex h-full min-h-0 overflow-hidden rounded-xl border border-gray-200 shadow-sm dark:border-gray-800 dark:bg-gray-950 ">
+        <div className="flex h-full min-h-0 overflow-hidden rounded-xl border border-gray-200 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+
+            {/* -------------------------------------------------------------- */}
+            {/* Users                                                            */}
+            {/* -------------------------------------------------------------- */}
 
             <div
                 className={`
-                    ${selectedConversation
-                        ? "hidden md:flex"
-                        : "flex"
+                    ${
+                        selectedConversation
+                            ? "hidden md:flex"
+                            : "flex"
                     }
                     h-full
-                    shrink-0 
+                    shrink-0
                 `}
             >
                 <TaskChatUsers
@@ -449,11 +580,17 @@ function TaskChat() {
                 />
             </div>
 
+
+            {/* -------------------------------------------------------------- */}
+            {/* Conversation                                                    */}
+            {/* -------------------------------------------------------------- */}
+
             <div
                 className={`
-                    ${selectedConversation
-                        ? "flex"
-                        : "hidden md:flex"
+                    ${
+                        selectedConversation
+                            ? "flex"
+                            : "hidden md:flex"
                     }
                     min-w-0
                     flex-1
