@@ -128,7 +128,7 @@ function App() {
             />
 
             <Route
-              path="/asset-quote"
+              path="/asset-quote/:taskId"
               element={<AssetPurchaseQuote />}
             />
 
