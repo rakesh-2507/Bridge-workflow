@@ -149,18 +149,29 @@ function TaskFiles({
 
     const handleUpload = async () => {
         if (!selectedFile) {
-            setError(
-                "Please select a file first."
-            );
+            setError("Please select a file first.");
             return;
         }
 
-        const uploadedBy =
-            getCurrentUserId();
+        const uploadedBy = getCurrentUserId();
 
         if (!uploadedBy) {
             setError(
                 "Unable to identify the current user."
+            );
+            return;
+        }
+
+        if (!task.project_id) {
+            setError(
+                "This task does not have a project assigned."
+            );
+            return;
+        }
+
+        if (!task.folder_id) {
+            setError(
+                "This task does not have a folder assigned."
             );
             return;
         }
@@ -170,12 +181,6 @@ function TaskFiles({
             setUploadSuccess(false);
             setError("");
 
-            /*
-             * The file is associated with
-             * the currently opened task
-             * through its project_id and
-             * folder_id.
-             */
             const response =
                 await uploadFileToFolder(
                     task.project_id,
@@ -200,10 +205,6 @@ function TaskFiles({
                 );
             }
 
-            /*
-             * Add the REAL file returned
-             * by the backend.
-             */
             const newFile: TaskFile = {
                 id: uploadedFile.pffid,
                 name: uploadedFile.filename,
@@ -211,12 +212,10 @@ function TaskFiles({
                 type: uploadedFile.MIME,
             };
 
-            setFiles(
-                (currentFiles) => [
-                    ...currentFiles,
-                    newFile,
-                ]
-            );
+            setFiles((currentFiles) => [
+                ...currentFiles,
+                newFile,
+            ]);
 
             setSelectedFile(null);
             setUploadSuccess(true);
@@ -772,7 +771,7 @@ function EditTaskPage() {
                     return;
                 }
 
-                setTask(response);
+                setTask(response.data);
             } catch (err) {
                 if (cancelled) {
                     return;

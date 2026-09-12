@@ -2,10 +2,8 @@ import { useEffect, useState } from "react";
 
 import CreateTemplateForm from "../components/forms/CreateTemplateForm";
 
-import {
-  getTemplates,
-  type Template,
-} from "../api/templates";
+import { getTemplates } from "../api/templates";
+import type { ProjectTemplate } from "../types/projectTemplate";
 
 import {
   getProjectTypes,
@@ -14,8 +12,8 @@ import {
 
 function Templates() {
   const [templates, setTemplates] =
-    useState<Template[]>([]);
-
+    useState<ProjectTemplate[]>([]);
+    
   const [projectTypes, setProjectTypes] =
     useState<ProjectType[]>([]);
 
@@ -142,7 +140,7 @@ function Templates() {
     1,
     Math.ceil(
       filteredTemplates.length /
-        itemsPerPage
+      itemsPerPage
     )
   );
 

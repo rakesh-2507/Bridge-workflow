@@ -7,10 +7,8 @@ import {
   type Folder,
 } from "../../api/folders";
 
-import {
-  getTemplates,
-  type Template,
-} from "../../api/templates";
+import { getTemplates } from "../../api/templates";
+import type { ProjectTemplate } from "../../types/projectTemplate";
 
 interface CreateFolderFormProps {
   onCancel?: () => void;
@@ -37,7 +35,7 @@ function CreateFolderForm({
     });
 
   const [templates, setTemplates] =
-    useState<Template[]>([]);
+    useState<ProjectTemplate[]>([]);
 
   const [folders, setFolders] =
     useState<Folder[]>([]);

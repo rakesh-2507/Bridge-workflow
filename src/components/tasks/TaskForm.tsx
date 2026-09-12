@@ -64,9 +64,9 @@ function TaskForm({
             }
 
             return {
-                project_id: task.project_id,
-                template_id: task.template_id,
-                folder_id: task.folder_id,
+                project_id: task.project_id ?? 0,
+                template_id: task.template_id ?? 0,
+                folder_id: task.folder_id ?? 0,
 
                 task_type: task.task_type ?? "",
 
@@ -92,7 +92,6 @@ function TaskForm({
                     task.assigned_to ?? 0,
             };
         });
-
     const [projects, setProjects] =
         useState<Project[]>([]);
 

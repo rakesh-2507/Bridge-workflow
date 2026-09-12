@@ -26,9 +26,9 @@ export interface Task {
   /**
    * Asset Purchase / document related fields
    */
-  document_no?: string;
-  document_type?: string;
-  wf_task_id?: string;
+  document_no?: string | null;
+  document_type?: string | null;
+  wf_task_id?: string | null;
 
   /**
    * Selected quotation, if applicable
@@ -131,7 +131,7 @@ export interface AssetPurchaseTaskDetails {
   start_date: string;
   end_date: string | null;
 
-key_params: AssetPurchaseKeyParams;
+  key_params: AssetPurchaseKeyParams;
   created_date: string;
   updated_date: string;
 }
