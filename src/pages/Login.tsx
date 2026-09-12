@@ -223,7 +223,7 @@ function Login() {
             if (
                 !accessToken ||
                 typeof accessToken !==
-                    "string"
+                "string"
             ) {
                 throw new Error(
                     "Login successful but no valid token was returned.",
@@ -375,7 +375,7 @@ function Login() {
             if (
                 !generated ||
                 typeof generated !==
-                    "string"
+                "string"
             ) {
                 throw new Error(
                     "Token was not returned by the server.",
@@ -505,7 +505,7 @@ function Login() {
             if (
                 !accessToken ||
                 typeof accessToken !==
-                    "string"
+                "string"
             ) {
                 throw new Error(
                     "Token login failed. No authentication token returned.",
@@ -636,14 +636,16 @@ function Login() {
 
                 {/* Header */}
 
-                <div className="mb-6 text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                        Bridge
-                    </h1>
+                <div className="mb-6 text-center justify-center flex flex-col">
+                    <img
+                        src="/src/assets/rblogo.png"
+                        alt="Hive"
+                        className="h-auto w-auto"
+                    />
 
                     <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                         {loginMode ===
-                        "password"
+                            "password"
                             ? "Sign in to your account"
                             : "Sign in using a token"}
                     </p>
@@ -660,12 +662,11 @@ function Login() {
                             )
                         }
                         disabled={loading}
-                        className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                            loginMode ===
-                            "password"
+                        className={`rounded-md px-4 py-2 text-sm font-medium transition ${loginMode ===
+                                "password"
                                 ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white"
                                 : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                        }`}
+                            }`}
                     >
                         Password Login
                     </button>
@@ -678,12 +679,11 @@ function Login() {
                             )
                         }
                         disabled={loading}
-                        className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                            loginMode ===
-                            "token"
+                        className={`rounded-md px-4 py-2 text-sm font-medium transition ${loginMode ===
+                                "token"
                                 ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white"
                                 : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                        }`}
+                            }`}
                     >
                         Login with Token
                     </button>
@@ -711,97 +711,97 @@ function Login() {
 
                 {loginMode ===
                     "password" && (
-                    <form
-                        onSubmit={
-                            handlePasswordLogin
-                        }
-                        className="space-y-5"
-                    >
-                        {/* Login Name */}
-
-                        <div>
-                            <label
-                                htmlFor="loginname"
-                                className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                            >
-                                Login Name
-                            </label>
-
-                            <input
-                                id="loginname"
-                                type="text"
-                                value={
-                                    loginname
-                                }
-                                onChange={(
-                                    e,
-                                ) =>
-                                    setLoginname(
-                                        e.target
-                                            .value,
-                                    )
-                                }
-                                placeholder="Enter your login name"
-                                autoComplete="username"
-                                required
-                                disabled={
-                                    loading
-                                }
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                            />
-                        </div>
-
-                        {/* Password */}
-
-                        <div>
-                            <label
-                                htmlFor="password"
-                                className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                            >
-                                Password
-                            </label>
-
-                            <input
-                                id="password"
-                                type="password"
-                                value={
-                                    password
-                                }
-                                onChange={(
-                                    e,
-                                ) =>
-                                    setPassword(
-                                        e.target
-                                            .value,
-                                    )
-                                }
-                                placeholder="Enter your password"
-                                autoComplete="current-password"
-                                required
-                                disabled={
-                                    loading
-                                }
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                            />
-                        </div>
-
-                        {/* Submit */}
-
-                        <button
-                            type="submit"
-                            disabled={
-                                loading ||
-                                !loginname.trim() ||
-                                !password
+                        <form
+                            onSubmit={
+                                handlePasswordLogin
                             }
-                            className="w-full rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                            className="space-y-5"
                         >
-                            {loading
-                                ? "Signing in..."
-                                : "Sign In"}
-                        </button>
-                    </form>
-                )}
+                            {/* Login Name */}
+
+                            <div>
+                                <label
+                                    htmlFor="loginname"
+                                    className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                                >
+                                    Login Name
+                                </label>
+
+                                <input
+                                    id="loginname"
+                                    type="text"
+                                    value={
+                                        loginname
+                                    }
+                                    onChange={(
+                                        e,
+                                    ) =>
+                                        setLoginname(
+                                            e.target
+                                                .value,
+                                        )
+                                    }
+                                    placeholder="Enter your login name"
+                                    autoComplete="username"
+                                    required
+                                    disabled={
+                                        loading
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                />
+                            </div>
+
+                            {/* Password */}
+
+                            <div>
+                                <label
+                                    htmlFor="password"
+                                    className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                                >
+                                    Password
+                                </label>
+
+                                <input
+                                    id="password"
+                                    type="password"
+                                    value={
+                                        password
+                                    }
+                                    onChange={(
+                                        e,
+                                    ) =>
+                                        setPassword(
+                                            e.target
+                                                .value,
+                                        )
+                                    }
+                                    placeholder="Enter your password"
+                                    autoComplete="current-password"
+                                    required
+                                    disabled={
+                                        loading
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                />
+                            </div>
+
+                            {/* Submit */}
+
+                            <button
+                                type="submit"
+                                disabled={
+                                    loading ||
+                                    !loginname.trim() ||
+                                    !password
+                                }
+                                className="w-full rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                            >
+                                {loading
+                                    ? "Signing in..."
+                                    : "Sign In"}
+                            </button>
+                        </form>
+                    )}
 
                 {/* ==================================================
                     TOKEN LOGIN
@@ -809,161 +809,161 @@ function Login() {
 
                 {loginMode ===
                     "token" && (
-                    <form
-                        onSubmit={
-                            handleTokenSubmit
-                        }
-                        className="space-y-5"
-                    >
-                        {/* User ID */}
-
-                        <div>
-                            <label
-                                htmlFor="userId"
-                                className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                            >
-                                User ID
-                            </label>
-
-                            <input
-                                id="userId"
-                                type="number"
-                                value={
-                                    userId
-                                }
-                                onChange={(
-                                    e,
-                                ) =>
-                                    setUserId(
-                                        e.target
-                                            .value,
-                                    )
-                                }
-                                placeholder="Enter your user ID"
-                                required
-                                disabled={
-                                    loading
-                                }
-                                min="1"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                            />
-
-                            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                Enter the user ID
-                                for which you
-                                want to generate
-                                a token.
-                            </p>
-                        </div>
-
-                        {/* Generate Token */}
-
-                        <button
-                            type="button"
-                            onClick={
-                                handleGenerateToken
+                        <form
+                            onSubmit={
+                                handleTokenSubmit
                             }
-                            disabled={
-                                loading ||
-                                !userId.trim()
-                            }
-                            className="w-full rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-900 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
+                            className="space-y-5"
                         >
-                            {loading
-                                ? "Generating Token..."
-                                : "Generate Token"}
-                        </button>
+                            {/* User ID */}
 
-                        {/* Generated Token */}
-
-                        {generatedToken && (
-                            <div className="space-y-2">
+                            <div>
                                 <label
-                                    htmlFor="generatedToken"
-                                    className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                                    htmlFor="userId"
+                                    className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                                 >
-                                    Generated
+                                    User ID
+                                </label>
+
+                                <input
+                                    id="userId"
+                                    type="number"
+                                    value={
+                                        userId
+                                    }
+                                    onChange={(
+                                        e,
+                                    ) =>
+                                        setUserId(
+                                            e.target
+                                                .value,
+                                        )
+                                    }
+                                    placeholder="Enter your user ID"
+                                    required
+                                    disabled={
+                                        loading
+                                    }
+                                    min="1"
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                />
+
+                                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                    Enter the user ID
+                                    for which you
+                                    want to generate
+                                    a token.
+                                </p>
+                            </div>
+
+                            {/* Generate Token */}
+
+                            <button
+                                type="button"
+                                onClick={
+                                    handleGenerateToken
+                                }
+                                disabled={
+                                    loading ||
+                                    !userId.trim()
+                                }
+                                className="w-full rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-900 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
+                            >
+                                {loading
+                                    ? "Generating Token..."
+                                    : "Generate Token"}
+                            </button>
+
+                            {/* Generated Token */}
+
+                            {generatedToken && (
+                                <div className="space-y-2">
+                                    <label
+                                        htmlFor="generatedToken"
+                                        className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                                    >
+                                        Generated
+                                        Token
+                                    </label>
+
+                                    <div className="flex gap-2">
+                                        <input
+                                            id="generatedToken"
+                                            type="text"
+                                            value={
+                                                generatedToken
+                                            }
+                                            readOnly
+                                            className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-xs text-gray-700 outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300"
+                                        />
+
+                                        <button
+                                            type="button"
+                                            onClick={
+                                                handleCopyToken
+                                            }
+                                            className="shrink-0 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                                        >
+                                            {copied
+                                                ? "Copied"
+                                                : "Copy"}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Token */}
+
+                            <div>
+                                <label
+                                    htmlFor="token"
+                                    className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                                >
                                     Token
                                 </label>
 
-                                <div className="flex gap-2">
-                                    <input
-                                        id="generatedToken"
-                                        type="text"
-                                        value={
-                                            generatedToken
-                                        }
-                                        readOnly
-                                        className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-xs text-gray-700 outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300"
-                                    />
-
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            handleCopyToken
-                                        }
-                                        className="shrink-0 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-                                    >
-                                        {copied
-                                            ? "Copied"
-                                            : "Copy"}
-                                    </button>
-                                </div>
+                                <textarea
+                                    id="token"
+                                    value={
+                                        token
+                                    }
+                                    onChange={(
+                                        e,
+                                    ) =>
+                                        setToken(
+                                            e.target
+                                                .value,
+                                        )
+                                    }
+                                    placeholder="Paste or enter your token"
+                                    rows={4}
+                                    required
+                                    disabled={
+                                        loading
+                                    }
+                                    spellCheck={
+                                        false
+                                    }
+                                    className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                />
                             </div>
-                        )}
 
-                        {/* Token */}
+                            {/* Submit Token */}
 
-                        <div>
-                            <label
-                                htmlFor="token"
-                                className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                            >
-                                Token
-                            </label>
-
-                            <textarea
-                                id="token"
-                                value={
-                                    token
-                                }
-                                onChange={(
-                                    e,
-                                ) =>
-                                    setToken(
-                                        e.target
-                                            .value,
-                                    )
-                                }
-                                placeholder="Paste or enter your token"
-                                rows={4}
-                                required
+                            <button
+                                type="submit"
                                 disabled={
-                                    loading
+                                    loading ||
+                                    !token.trim()
                                 }
-                                spellCheck={
-                                    false
-                                }
-                                className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs text-gray-900 outline-none transition focus:border-gray-500 focus:ring-1 focus:ring-gray-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                            />
-                        </div>
-
-                        {/* Submit Token */}
-
-                        <button
-                            type="submit"
-                            disabled={
-                                loading ||
-                                !token.trim()
-                            }
-                            className="w-full rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-                        >
-                            {loading
-                                ? "Signing in..."
-                                : "Submit Token"}
-                        </button>
-                    </form>
-                )}
+                                className="w-full rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                            >
+                                {loading
+                                    ? "Signing in..."
+                                    : "Submit Token"}
+                            </button>
+                        </form>
+                    )}
             </div>
         </div>
     );

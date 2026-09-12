@@ -42,7 +42,7 @@ function Navbar({ darkMode, setDarkMode }: NavbarProps) {
         <Link to="/" className="flex items-center">
           <img
             src="/src/assets/rblogo.png"
-            alt="Bridge"
+            alt="Hive"
             className="h-14 w-auto"
           />
         </Link>

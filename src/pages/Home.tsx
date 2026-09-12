@@ -71,7 +71,7 @@ function Home() {
         </h1>
 
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Welcome to Bridge.
+          Welcome to Hive.
         </p>
       </div>
 
