@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { SubmitEvent } from "react";
 import { useNavigate } from "react-router-dom";
-
+// import rbLogo from "../assets/rblogo.png";
 import {
     login,
     generateToken,
@@ -638,7 +638,7 @@ function Login() {
 
                 <div className="mb-6 text-center justify-center flex flex-col">
                     <img
-                        src="/src/assets/rblogo.png"
+                        src="/rblogo.png"
                         alt="Hive"
                         className="h-auto w-auto"
                     />
