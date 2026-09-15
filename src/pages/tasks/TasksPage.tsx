@@ -213,24 +213,30 @@ function TasksPage() {
 
 
     // =========================================================
+    // CURRENT LOGGED-IN USER
+    // =========================================================
+
+    const loggedInUser = JSON.parse(
+        localStorage.getItem("login_user") || "null"
+    );
+
+    const userRole = loggedInUser?.mtype;
+
+    // =========================================================
     // CHECK WHETHER QUOTE IS ALLOWED
     //
     // ONLY Assets-Executive can see Vendor Quote.
-    //
-    // null / undefined / other roles:
-    // quote remains hidden.
+    // Employee must NEVER see it.
     // =========================================================
 
     const canPrepareQuote =
-        selectedTask?.key_params?.role ===
-        "Assets-Executive";
+        userRole === "Assets-Executive";
 
+    const canEditQuoteRating =
+        userRole === "Assets Manager-Senior";
 
     // =========================================================
     // DEFAULT PANEL
-    //
-    // Assets-Executive -> Quote
-    // Everyone else     -> Logs
     // =========================================================
 
     const defaultPanel: "logs" | "quote" =
@@ -238,26 +244,12 @@ function TasksPage() {
             ? "quote"
             : "logs";
 
-
     // =========================================================
     // CURRENT PANEL
     // =========================================================
 
     const currentPanel =
         activePanel ?? defaultPanel;
-
-
-    // =========================================================
-    // DELETE TASK
-    // =========================================================
-
-    const loggedInUser = JSON.parse(
-        localStorage.getItem("login_user") || "null"
-    );
-
-    const canEditQuoteRating =
-        loggedInUser?.mtype === "Assets Manager-Senior";
-
     const handleDeleted = (
         taskId: number
     ) => {
