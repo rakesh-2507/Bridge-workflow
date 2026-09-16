@@ -1,15 +1,8 @@
-import {
-    useEffect,
-    useState,
-} from "react";
+import { useState } from "react";
 
 import {
-    CalendarDays,
-    FileText,
-    IndianRupee,
     Loader2,
     Plus,
-    Send,
     Trash2,
 } from "lucide-react";
 
@@ -18,9 +11,8 @@ import {
     forwardAssetPurchaseTask,
 } from "../../api/assetPurchaseQuote";
 
-import { getTask } from "../../api/tasks";
-
 import type {
+    CreateAssetPurchaseQuotePayload,
     CreateAssetPurchaseQuoteResponse,
 } from "../../types/assetPurchaseQuote";
 
@@ -31,182 +23,133 @@ interface AssetPurchaseQuoteFormData {
     quoted_amount: string;
     currency: string;
     executive_rating: string;
-    quote_details: string;
+    details: string;
 }
 
 interface AssetPurchaseQuoteFormProps {
     taskId: number;
+    documentNo: string;
 
+    /**
+     * True when the task has already been forwarded.
+     *
+     * When true:
+     * - Executive can still create quotes
+     * - Forward API will NOT be called again
+     */
+    alreadyForwarded?: boolean;
+
+    /**
+     * Called after quote(s) are successfully created.
+     */
     onSuccess?: (
         responses: CreateAssetPurchaseQuoteResponse[]
     ) => void;
+
+    /**
+     * Called only after the first successful forward.
+     */
+    onForwarded?: () => void;
 }
 
-const initialForm: AssetPurchaseQuoteFormData = {
+const createEmptyQuote = (): AssetPurchaseQuoteFormData => ({
     vendor_name: "",
     quote_no: "",
     quote_date: "",
     quoted_amount: "",
     currency: "INR",
     executive_rating: "",
-    quote_details: "",
-};
+    details: "",
+});
 
 function AssetPurchaseQuoteForm({
     taskId,
+    documentNo,
+    alreadyForwarded = false,
     onSuccess,
+    onForwarded,
 }: AssetPurchaseQuoteFormProps) {
-    const [documentNo, setDocumentNo] =
-        useState("");
-
-    const [isLoadingTask, setIsLoadingTask] =
-        useState(true);
-
     const [quotes, setQuotes] = useState<
         AssetPurchaseQuoteFormData[]
-    >([
-        { ...initialForm },
-    ]);
+    >([createEmptyQuote()]);
 
     const [isSubmitting, setIsSubmitting] =
         useState(false);
 
-    const [error, setError] =
-        useState("");
+    const [message, setMessage] = useState("");
 
-    const [successMessage, setSuccessMessage] =
-        useState("");
+    const [error, setError] = useState("");
 
-    /*
-     * Load task details
+    /**
+     * This state controls whether the forward API
+     * should be called.
+     *
+     * It does NOT control whether quotes can be created.
+     *
+     * Even after forwarding:
+     *     hasForwarded === true
+     *
+     * the executive can still submit more quotes.
      */
-    useEffect(() => {
-        let cancelled = false;
+    const [hasForwarded, setHasForwarded] =
+        useState(alreadyForwarded);
 
-        const loadTaskDetails = async () => {
-            try {
-                setIsLoadingTask(true);
-                setError("");
-                setDocumentNo("");
-
-                const response =
-                    await getTask(taskId);
-
-                if (cancelled) {
-                    return;
-                }
-
-                setDocumentNo(
-                    response.data.document_no ?? ""
-                );
-            } catch (err: unknown) {
-                if (!cancelled) {
-                    setError(
-                        err instanceof Error
-                            ? err.message
-                            : "Failed to load task details."
-                    );
-                }
-            } finally {
-                if (!cancelled) {
-                    setIsLoadingTask(false);
-                }
-            }
-        };
-
-        void loadTaskDetails();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [taskId]);
-
-    /*
-     * Update one quote
-     */
-    const handleQuoteChange = (
+    const updateQuote = (
         index: number,
-        e: React.ChangeEvent<
-            HTMLInputElement |
-            HTMLTextAreaElement |
-            HTMLSelectElement
-        >
+        field: keyof AssetPurchaseQuoteFormData,
+        value: string
     ) => {
-        const {
-            name,
-            value,
-        } = e.target;
-
-        setQuotes((previous) =>
-            previous.map((quote, quoteIndex) =>
+        setQuotes((current) =>
+            current.map((quote, quoteIndex) =>
                 quoteIndex === index
                     ? {
                         ...quote,
-                        [name]: value,
+                        [field]: value,
                     }
                     : quote
             )
         );
-
-        setError("");
-        setSuccessMessage("");
     };
 
-    /*
-     * Add another quote
-     */
-    const handleAddQuote = () => {
-        setQuotes((previous) => [
-            ...previous,
-            { ...initialForm },
+    const addQuote = () => {
+        setQuotes((current) => [
+            ...current,
+            createEmptyQuote(),
         ]);
-
-        setError("");
-        setSuccessMessage("");
     };
 
-    /*
-     * Remove quote
-     */
-    const handleRemoveQuote = (
-        index: number
-    ) => {
-        /*
-         * Always keep at least one quote
-         */
-        if (quotes.length === 1) {
-            return;
-        }
+    const removeQuote = (index: number) => {
+        setQuotes((current) => {
+            /*
+             * Always keep at least one quote form.
+             */
+            if (current.length === 1) {
+                return current;
+            }
 
-        setQuotes((previous) =>
-            previous.filter(
+            return current.filter(
                 (_, quoteIndex) =>
                     quoteIndex !== index
-            )
-        );
-
-        setError("");
-        setSuccessMessage("");
+            );
+        });
     };
 
-    /*
-     * Validate all quotes
-     */
-    const validateQuotes = (): boolean => {
+    const validateQuotes = (): string | null => {
         if (!documentNo.trim()) {
-            setError(
-                "Document number is not available for this task."
-            );
-
-            return false;
+            return "Document number is required.";
         }
 
-        if (quotes.length === 0) {
-            setError(
-                "Please add at least one quote."
-            );
+        if (!taskId) {
+            return "Task ID is required.";
+        }
 
-            return false;
+        /*
+         * ONE quote is enough.
+         *
+         * There is no minimum of 4 anymore.
+         */
+        if (quotes.length < 1) {
+            return "Please add at least one quote.";
         }
 
         for (
@@ -216,785 +159,571 @@ function AssetPurchaseQuoteForm({
         ) {
             const quote = quotes[index];
 
-            const quoteNumber =
-                index + 1;
+            const quoteNumber = index + 1;
 
-            /*
-             * Vendor name
-             */
             if (!quote.vendor_name.trim()) {
-                setError(
-                    `Please enter vendor name for Quote ${quoteNumber}.`
-                );
-
-                return false;
+                return `Vendor name is required for quote ${quoteNumber}.`;
             }
 
-            /*
-             * Quote number
-             */
             if (!quote.quote_no.trim()) {
-                setError(
-                    `Please enter quote number for Quote ${quoteNumber}.`
-                );
-
-                return false;
+                return `Quote number is required for quote ${quoteNumber}.`;
             }
 
-            /*
-             * Quote date
-             */
             if (!quote.quote_date) {
-                setError(
-                    `Please select quote date for Quote ${quoteNumber}.`
-                );
-
-                return false;
+                return `Quote date is required for quote ${quoteNumber}.`;
             }
 
-            /*
-             * Quoted amount
-             */
-            if (!quote.quoted_amount) {
-                setError(
-                    `Please enter quoted amount for Quote ${quoteNumber}.`
-                );
-
-                return false;
+            if (!quote.quoted_amount.trim()) {
+                return `Quoted amount is required for quote ${quoteNumber}.`;
             }
 
-            const quotedAmount =
-                Number(
-                    quote.quoted_amount
-                );
-
-            if (
-                Number.isNaN(
-                    quotedAmount
-                ) ||
-                quotedAmount < 0
-            ) {
-                setError(
-                    `Please enter a valid quoted amount for Quote ${quoteNumber}.`
-                );
-
-                return false;
-            }
-
-            /*
-             * Executive rating
-             */
-            if (!quote.executive_rating) {
-                setError(
-                    `Please select executive rating for Quote ${quoteNumber}.`
-                );
-
-                return false;
-            }
-
-            const executiveRating =
-                Number(
-                    quote.executive_rating
-                );
-
-            if (
-                Number.isNaN(
-                    executiveRating
-                ) ||
-                executiveRating < 1 ||
-                executiveRating > 5
-            ) {
-                setError(
-                    `Executive rating for Quote ${quoteNumber} must be between 1 and 5.`
-                );
-
-                return false;
-            }
-        }
-
-        return true;
-    };
-
-    /*
-     * Submit all quotes
-     */
-    const handleSubmit = async (
-        e: React.FormEvent<HTMLFormElement>
-    ) => {
-        e.preventDefault();
-
-        setError("");
-        setSuccessMessage("");
-
-        if (isLoadingTask) {
-            setError(
-                "Please wait while the task details are loading."
+            const amount = Number(
+                quote.quoted_amount
             );
 
-            return;
+            if (
+                Number.isNaN(amount) ||
+                amount <= 0
+            ) {
+                return `Enter a valid quoted amount for quote ${quoteNumber}.`;
+            }
+
+            if (!quote.currency) {
+                return `Currency is required for quote ${quoteNumber}.`;
+            }
+
+            if (!quote.executive_rating) {
+                return `Executive rating is required for quote ${quoteNumber}.`;
+            }
+
+            const rating = Number(
+                quote.executive_rating
+            );
+
+            if (
+                Number.isNaN(rating) ||
+                rating < 1 ||
+                rating > 5
+            ) {
+                return `Executive rating must be between 1 and 5 for quote ${quoteNumber}.`;
+            }
         }
 
-        if (!validateQuotes()) {
+        return null;
+    };
+
+    const handleSubmit = async (
+        event: React.SyntheticEvent<HTMLFormElement>
+    ) => {
+        event.preventDefault();
+
+        setMessage("");
+        setError("");
+
+        const validationError =
+            validateQuotes();
+
+        if (validationError) {
+            setError(validationError);
             return;
         }
-
-        setIsSubmitting(true);
 
         try {
-            const quoteResponses:
-                CreateAssetPurchaseQuoteResponse[] =
+            setIsSubmitting(true);
+
+            const quoteResponses: CreateAssetPurchaseQuoteResponse[] =
                 [];
 
             /*
-             * Create each quote separately.
+             * STEP 1
              *
-             * Backend accepts one quote
-             * per POST request.
+             * Create all quotes.
+             *
+             * Every quote uses the same document number.
              */
-            for (
-                let index = 0;
-                index < quotes.length;
-                index++
-            ) {
-                const quote =
-                    quotes[index];
-
-                const quotedAmount =
-                    Number(
-                        quote.quoted_amount
-                    );
-
-                const executiveRating =
-                    Number(
-                        quote.executive_rating
-                    );
-
-                const quoteResponse =
-                    await createAssetPurchaseQuote({
-                        document_no:
-                            documentNo.trim(),
-
-                        vendor_name:
-                            quote.vendor_name.trim(),
-
-                        quote_no:
-                            quote.quote_no.trim(),
-
-                        quote_date:
-                            quote.quote_date,
-
-                        quoted_amount:
-                            quotedAmount,
-
-                        currency:
-                            quote.currency,
-
-                        executive_rating:
-                            executiveRating,
-
-                        quote_data: {
-                            additionalProp1:
-                                quote.quote_details.trim()
-                                    ? {
-                                        details:
-                                            quote.quote_details.trim(),
-                                    }
-                                    : {},
+            for (const quote of quotes) {
+                const payload: CreateAssetPurchaseQuotePayload =
+                {
+                    document_no: documentNo,
+                    vendor_name:
+                        quote.vendor_name.trim(),
+                    quote_no:
+                        quote.quote_no.trim(),
+                    quote_date:
+                        quote.quote_date,
+                    quoted_amount:
+                        Number(
+                            quote.quoted_amount
+                        ),
+                    currency:
+                        quote.currency,
+                    executive_rating:
+                        Number(
+                            quote.executive_rating
+                        ),
+                    quote_data: {
+                        additionalProp1: {
+                            details:
+                                quote.details.trim(),
                         },
-                    });
+                    },
+                };
 
-                quoteResponses.push(
-                    quoteResponse
+                const response =
+                    await createAssetPurchaseQuote(
+                        payload
+                    );
+
+                quoteResponses.push(response);
+            }
+
+            /*
+             * STEP 2
+             *
+             * FIRST submission:
+             *
+             *     Create quote(s)
+             *          ↓
+             *     Forward task
+             *
+             * LATER submission:
+             *
+             *     Create quote(s)
+             *          ↓
+             *     DO NOT forward
+             */
+            if (!hasForwarded) {
+                await forwardAssetPurchaseTask(
+                    taskId
+                );
+
+                /*
+                 * Prevent another forward during
+                 * this component's lifetime.
+                 */
+                setHasForwarded(true);
+
+                /*
+                 * Tell TasksPage that this task
+                 * has now been forwarded.
+                 */
+                onForwarded?.();
+
+                setMessage(
+                    `${quoteResponses.length} quote${quoteResponses.length > 1
+                        ? "s"
+                        : ""
+                    } submitted and task forwarded successfully.`
+                );
+            } else {
+                /*
+                 * Task was already forwarded.
+                 *
+                 * ONLY the quotes were created.
+                 */
+                setMessage(
+                    `${quoteResponses.length} quote${quoteResponses.length > 1
+                        ? "s"
+                        : ""
+                    } added successfully to ${documentNo}.`
                 );
             }
 
             /*
-             * Forward workflow task ONLY ONCE
-             * after all quotes are created.
-             */
-            await forwardAssetPurchaseTask(
-                taskId
-            );
-
-            /*
-             * Success
-             */
-            setSuccessMessage(
-                `${quoteResponses.length} quote${quoteResponses.length > 1 ? "s" : ""} submitted and task forwarded successfully.`
-            );
-
-            /*
-             * Notify parent
-             */
-            onSuccess?.(
-                quoteResponses
-            );
-
-            /*
-             * Reset quotes after successful
-             * submission.
+             * STEP 3
+             *
+             * Clear the submitted quote(s).
+             *
+             * Keep one blank quote form visible so
+             * the executive can immediately add
+             * another quote.
              */
             setQuotes([
-                { ...initialForm },
+                createEmptyQuote(),
             ]);
-        } catch (err: unknown) {
+
+            /*
+             * Notify parent about newly created
+             * quote(s).
+             */
+            onSuccess?.(quoteResponses);
+        } catch (err) {
             console.error(
-                "Asset purchase quote submission error:",
+                "Failed to create vendor quote:",
                 err
             );
 
-            if (err instanceof Error) {
-                setError(
-                    err.message
-                );
-            } else {
-                setError(
-                    "Failed to submit quotes and forward the task."
-                );
-            }
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to create vendor quote."
+            );
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    /*
-     * Reset form
-     */
-    const handleReset = () => {
-        setQuotes([
-            { ...initialForm },
-        ]);
-
-        setError("");
-        setSuccessMessage("");
-    };
-
     return (
-        <div className="w-full">
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            {/* Header */}
+            <div className="border-b border-gray-200 p-5 dark:border-gray-700">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            Vendor Quotes
+                        </h2>
+
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            Document No:{" "}
+                            <span className="font-medium text-gray-900 dark:text-white">
+                                {documentNo || "-"}
+                            </span>
+                        </p>
+
+                    </div>
+
+                    {hasForwarded && (
+                        <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-400">
+                            Task already forwarded
+                        </div>
+                    )}
+                </div>
+            </div>
+
             <form
                 onSubmit={handleSubmit}
-                className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                className="space-y-5 p-5"
             >
-                <div className="space-y-6 p-6">
+                {quotes.map((quote, index) => (
+                    <div
+                        key={index}
+                        className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900"
+                    >
+                        {/* Quote header */}
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">
+                                Quote {index + 1}
+                            </h3>
 
-                    {/* Document Number */}
+                            {quotes.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        removeQuote(
+                                            index
+                                        )
+                                    }
+                                    disabled={
+                                        isSubmitting
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                                >
+                                    <Trash2
+                                        size={15}
+                                    />
+                                    Remove
+                                </button>
+                            )}
+                        </div>
 
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-t">
-                            Asset Purchase Request
-                        </label>
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            {/* Vendor */}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Vendor Name
+                                </label>
 
-                        <div className="flex min-h-[44px] items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900">
-                            <FileText
-                                size={17}
-                                className="shrink-0 text-gray-400"
-                            />
+                                <input
+                                    type="text"
+                                    value={
+                                        quote.vendor_name
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        updateQuote(
+                                            index,
+                                            "vendor_name",
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        isSubmitting
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                    placeholder="Enter vendor name"
+                                />
+                            </div>
 
-                            <div className="min-w-0 flex-1">
-                                {isLoadingTask ? (
-                                    <div className="flex items-center gap-2">
-                                        <Loader2
-                                            size={15}
-                                            className="animate-spin text-gray-400"
-                                        />
+                            {/* Quote number */}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Quote Number
+                                </label>
 
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                                            Loading request...
-                                        </span>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            Document Number
-                                        </p>
+                                <input
+                                    type="text"
+                                    value={
+                                        quote.quote_no
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        updateQuote(
+                                            index,
+                                            "quote_no",
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        isSubmitting
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                    placeholder="Enter quote number"
+                                />
+                            </div>
 
-                                        <p className="text-sm font-semibold text-s">
-                                            {documentNo ||
-                                                "Not available"}
-                                        </p>
-                                    </>
-                                )}
+                            {/* Quote date */}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Quote Date
+                                </label>
+
+                                <input
+                                    type="date"
+                                    value={
+                                        quote.quote_date
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        updateQuote(
+                                            index,
+                                            "quote_date",
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        isSubmitting
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                />
+                            </div>
+
+                            {/* Currency */}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Currency
+                                </label>
+
+                                <select
+                                    value={
+                                        quote.currency
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        updateQuote(
+                                            index,
+                                            "currency",
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        isSubmitting
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                >
+                                    <option value="INR">
+                                        INR
+                                    </option>
+
+                                    <option value="USD">
+                                        USD
+                                    </option>
+
+                                    <option value="EUR">
+                                        EUR
+                                    </option>
+
+                                    <option value="AED">
+                                        AED
+                                    </option>
+                                </select>
+                            </div>
+
+
+                            {/* Amount */}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Quoted Amount
+                                </label>
+
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={
+                                        quote.quoted_amount
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        updateQuote(
+                                            index,
+                                            "quoted_amount",
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        isSubmitting
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                    placeholder="Enter amount"
+                                />
+                            </div>
+
+
+                            {/* Rating */}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Executive Rating
+                                </label>
+
+                                <select
+                                    value={
+                                        quote.executive_rating
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        updateQuote(
+                                            index,
+                                            "executive_rating",
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        isSubmitting
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                >
+                                    <option value="">
+                                        Select rating
+                                    </option>
+
+                                    <option value="1">
+                                        1 - Poor
+                                    </option>
+
+                                    <option value="2">
+                                        2 - Fair
+                                    </option>
+
+                                    <option value="3">
+                                        3 - Good
+                                    </option>
+
+                                    <option value="4">
+                                        4 - Very Good
+                                    </option>
+
+                                    <option value="5">
+                                        5 - Excellent
+                                    </option>
+                                </select>
+                            </div>
+
+                            {/* Details */}
+                            <div className="md:col-span-2">
+                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Details
+                                </label>
+
+                                <textarea
+                                    value={
+                                        quote.details
+                                    }
+                                    onChange={(
+                                        event
+                                    ) =>
+                                        updateQuote(
+                                            index,
+                                            "details",
+                                            event
+                                                .target
+                                                .value
+                                        )
+                                    }
+                                    disabled={
+                                        isSubmitting
+                                    }
+                                    rows={3}
+                                    className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                    placeholder="Enter additional quote details"
+                                />
                             </div>
                         </div>
                     </div>
+                ))}
 
-                    {/* Quotes */}
+                {/* Add another quote */}
+                <button
+                    type="button"
+                    onClick={addQuote}
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                    <Plus size={16} />
+                    Add Another Quote
+                </button>
 
-                    <div className="space-y-5">
+                {/* Error */}
+                {error && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+                        {error}
+                    </div>
+                )}
 
-                        {quotes.map(
-                            (
-                                quote,
-                                index
-                            ) => (
-                                <div
-                                    key={index}
-                                    className="rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
-                                >
+                {/* Success */}
+                {message && (
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-400">
+                        {message}
+                    </div>
+                )}
 
-                                    {/* Quote Header */}
-
-                                    <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
-                                        <div>
-                                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                                Quote{" "}
-                                                {index + 1}
-                                            </h3>
-
-                                            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                                Enter vendor quotation details
-                                            </p>
-                                        </div>
-
-                                        {quotes.length >
-                                            1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleRemoveQuote(
-                                                            index
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        isSubmitting
-                                                    }
-                                                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                                                >
-                                                    <Trash2
-                                                        size={
-                                                            15
-                                                        }
-                                                    />
-
-                                                    Remove
-                                                </button>
-                                            )}
-                                    </div>
-
-                                    <div className="space-y-5 p-5">
-
-                                        {/* Vendor + Quote Number */}
-
-                                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
-                                            {/* Vendor Name */}
-
-                                            <div>
-                                                <label
-                                                    htmlFor={`vendor_name_${index}`}
-                                                    className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                                                >
-                                                    Vendor Name
-
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
-
-                                                <input
-                                                    id={`vendor_name_${index}`}
-                                                    name="vendor_name"
-                                                    type="text"
-                                                    value={
-                                                        quote.vendor_name
-                                                    }
-                                                    onChange={(
-                                                        e
-                                                    ) =>
-                                                        handleQuoteChange(
-                                                            index,
-                                                            e
-                                                        )
-                                                    }
-                                                    placeholder="e.g. Dell Technologies"
-                                                    disabled={
-                                                        isSubmitting
-                                                    }
-                                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                                />
-                                            </div>
-
-                                            {/* Quote Number */}
-
-                                            <div>
-                                                <label
-                                                    htmlFor={`quote_no_${index}`}
-                                                    className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                                                >
-                                                    Quote Number
-
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
-
-                                                <input
-                                                    id={`quote_no_${index}`}
-                                                    name="quote_no"
-                                                    type="text"
-                                                    value={
-                                                        quote.quote_no
-                                                    }
-                                                    onChange={(
-                                                        e
-                                                    ) =>
-                                                        handleQuoteChange(
-                                                            index,
-                                                            e
-                                                        )
-                                                    }
-                                                    placeholder="e.g. QT-2026-001"
-                                                    disabled={
-                                                        isSubmitting
-                                                    }
-                                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                                />
-                                            </div>
-
-                                        </div>
-
-                                        {/* Date + Currency */}
-
-                                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
-                                            {/* Quote Date */}
-
-                                            <div>
-                                                <label
-                                                    htmlFor={`quote_date_${index}`}
-                                                    className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                                                >
-                                                    Quote Date
-
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
-
-                                                <div className="relative">
-                                                    <CalendarDays
-                                                        size={
-                                                            17
-                                                        }
-                                                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                                                    />
-
-                                                    <input
-                                                        id={`quote_date_${index}`}
-                                                        name="quote_date"
-                                                        type="date"
-                                                        value={
-                                                            quote.quote_date
-                                                        }
-                                                        onChange={(
-                                                            e
-                                                        ) =>
-                                                            handleQuoteChange(
-                                                                index,
-                                                                e
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            isSubmitting
-                                                        }
-                                                        className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Currency */}
-
-                                            <div>
-                                                <label
-                                                    htmlFor={`currency_${index}`}
-                                                    className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                                                >
-                                                    Currency
-
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
-
-                                                <select
-                                                    id={`currency_${index}`}
-                                                    name="currency"
-                                                    value={
-                                                        quote.currency
-                                                    }
-                                                    onChange={(
-                                                        e
-                                                    ) =>
-                                                        handleQuoteChange(
-                                                            index,
-                                                            e
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        isSubmitting
-                                                    }
-                                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                                >
-                                                    <option value="INR">
-                                                        INR
-                                                    </option>
-
-                                                    <option value="USD">
-                                                        USD
-                                                    </option>
-
-                                                    <option value="EUR">
-                                                        EUR
-                                                    </option>
-
-                                                    <option value="AED">
-                                                        AED
-                                                    </option>
-                                                </select>
-                                            </div>
-
-                                        </div>
-
-                                        {/* Amount + Executive Rating */}
-
-                                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
-                                            {/* Quoted Amount */}
-
-                                            <div>
-                                                <label
-                                                    htmlFor={`quoted_amount_${index}`}
-                                                    className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                                                >
-                                                    Quoted Amount
-
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
-
-                                                <div className="relative">
-                                                    <IndianRupee
-                                                        size={
-                                                            17
-                                                        }
-                                                        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                                                    />
-
-                                                    <input
-                                                        id={`quoted_amount_${index}`}
-                                                        name="quoted_amount"
-                                                        type="number"
-                                                        min="0"
-                                                        step="0.01"
-                                                        value={
-                                                            quote.quoted_amount
-                                                        }
-                                                        onChange={(
-                                                            e
-                                                        ) =>
-                                                            handleQuoteChange(
-                                                                index,
-                                                                e
-                                                            )
-                                                        }
-                                                        placeholder="Enter quoted amount"
-                                                        disabled={
-                                                            isSubmitting
-                                                        }
-                                                        className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Executive Rating */}
-
-                                            <div>
-                                                <label
-                                                    htmlFor={`executive_rating_${index}`}
-                                                    className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                                                >
-                                                    Executive Rating
-
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
-
-                                                <select
-                                                    id={`executive_rating_${index}`}
-                                                    name="executive_rating"
-                                                    value={
-                                                        quote.executive_rating
-                                                    }
-                                                    onChange={(
-                                                        e
-                                                    ) =>
-                                                        handleQuoteChange(
-                                                            index,
-                                                            e
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        isSubmitting
-                                                    }
-                                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                                >
-                                                    <option value="">
-                                                        Select rating
-                                                    </option>
-
-                                                    <option value="1">
-                                                        1 - Poor
-                                                    </option>
-
-                                                    <option value="2">
-                                                        2 - Below Average
-                                                    </option>
-
-                                                    <option value="3">
-                                                        3 - Average
-                                                    </option>
-
-                                                    <option value="4">
-                                                        4 - Good
-                                                    </option>
-
-                                                    <option value="5">
-                                                        5 - Excellent
-                                                    </option>
-                                                </select>
-                                            </div>
-
-                                        </div>
-
-                                        {/* Quote Details */}
-
-                                        <div>
-                                            <label
-                                                htmlFor={`quote_details_${index}`}
-                                                className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                                            >
-                                                Quote Details
-                                            </label>
-
-                                            <textarea
-                                                id={`quote_details_${index}`}
-                                                name="quote_details"
-                                                rows={4}
-                                                value={
-                                                    quote.quote_details
-                                                }
-                                                onChange={(
-                                                    e
-                                                ) =>
-                                                    handleQuoteChange(
-                                                        index,
-                                                        e
-                                                    )
-                                                }
-                                                placeholder="Enter additional quote details, terms, delivery information, etc."
-                                                disabled={
-                                                    isSubmitting
-                                                }
-                                                className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                            />
-                                        </div>
-
-                                    </div>
-                                </div>
-                            )
+                {/* Submit */}
+                <div className="flex justify-end">
+                    <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {isSubmitting && (
+                            <Loader2
+                                size={17}
+                                className="animate-spin"
+                            />
                         )}
 
-                    </div>
-
-                    {/* Add Quote */}
-
-                    <button
-                        type="button"
-                        onClick={
-                            handleAddQuote
-                        }
-                        disabled={
-                            isSubmitting
-                        }
-                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
-                    >
-                        <Plus
-                            size={17}
-                        />
-
-                        Add Another Quote
+                        {isSubmitting
+                            ? "Saving..."
+                            : hasForwarded
+                                ? "Save Quote(s)"
+                                : "Submit"}
                     </button>
-
-                    {/* Error */}
-
-                    {error && (
-                        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
-                            {error}
-                        </div>
-                    )}
-
-                    {/* Success */}
-
-                    {successMessage && (
-                        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-400">
-                            {successMessage}
-                        </div>
-                    )}
-
-                </div>
-
-                {/* Actions */}
-
-                <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
-
-                    {/* Reset */}
-
-                    <button
-                        type="button"
-                        onClick={
-                            handleReset
-                        }
-                        disabled={
-                            isSubmitting
-                        }
-                        className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-                    >
-                        Reset
-                    </button>
-
-                    {/* Submit */}
-
-                    {/* Submit */}
-
-                    {quotes.length >= 4 && (
-                        <button
-                            type="submit"
-                            disabled={
-                                isSubmitting ||
-                                isLoadingTask ||
-                                !documentNo
-                            }
-                            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            {isSubmitting ? (
-                                <Loader2
-                                    size={16}
-                                    className="animate-spin"
-                                />
-                            ) : (
-                                <Send
-                                    size={16}
-                                />
-                            )}
-
-                            {isSubmitting
-                                ? "Submitting..."
-                                : "Submit & Forward All"}
-                        </button>
-                    )}
-
                 </div>
             </form>
         </div>
