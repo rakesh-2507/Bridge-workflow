@@ -40,12 +40,15 @@ function QuoteDetailsAccordion({
   );
 
   const [ratingError, setRatingError] = useState("");
-
   const [submittingRatings, setSubmittingRatings] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [ratingsSubmitted, setRatingsSubmitted] = useState(false);
 
   const [selectedQuoteId, setSelectedQuoteId] = useState<number | null>(null);
+
+  /* ======================================================
+     LOAD QUOTES
+  ====================================================== */
 
   useEffect(() => {
     if (!documentNo) {
@@ -93,11 +96,13 @@ function QuoteDetailsAccordion({
     };
   }, [documentNo]);
 
-  /**
-   * Update only one quotation rating.
-   *
-   * This does NOT submit all ratings.
-   */
+  /* ======================================================
+     UPDATE SINGLE RATING
+     
+     This only updates the selected quotation rating.
+     It does NOT submit all ratings.
+  ====================================================== */
+
   const handleRatingChange = async (
     quoteId: number,
     rating: number,
@@ -142,9 +147,10 @@ function QuoteDetailsAccordion({
     }
   };
 
-  /**
-   * Submit all quotation ratings together.
-   */
+  /* ======================================================
+     SUBMIT ALL RATINGS
+  ====================================================== */
+
   const handleSubmitRatings = async () => {
     if (!canEditRating || ratingsSubmitted) {
       return;
@@ -211,16 +217,21 @@ function QuoteDetailsAccordion({
     }
   };
 
-  /**
-   * UI-only quote selection.
-   *
-   * Actual select API is handled from TaskDetails
-   * when the manager approves.
-   */
+  /* ======================================================
+     SELECT QUOTE
+     
+     This is UI-only.
+     Actual selection API is handled by TaskDetails.
+  ====================================================== */
+
   const handleQuoteSelection = (quoteId: number) => {
     setSelectedQuoteId(quoteId);
     onQuoteSelected?.(quoteId);
   };
+
+  /* ======================================================
+     RENDER
+  ====================================================== */
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
