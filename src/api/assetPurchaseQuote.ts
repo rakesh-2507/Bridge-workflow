@@ -5,6 +5,8 @@ import type {
   CreateAssetPurchaseQuoteResponse,
   GetAssetPurchaseQuotesResponse,
   UpdateAssetQuoteRatingResponse,
+  SubmitAssetPurchaseRatingsResponse,
+  SelectAssetPurchaseQuoteResponse,
 } from "../types/assetPurchaseQuote";
 
 /**
@@ -12,16 +14,8 @@ import type {
  *
  * POST /api/asset-purchase/quotes
  *
- * Important:
- * This endpoint only creates a quote.
- *
+ * This only creates a quote.
  * It does NOT forward the task.
- *
- * Therefore it can be called:
- * - before the task is forwarded
- * - after the task has already been forwarded
- *
- * The frontend decides whether forwarding is required.
  */
 export const createAssetPurchaseQuote = async (
   payload: CreateAssetPurchaseQuotePayload,
@@ -52,11 +46,12 @@ export const getAssetPurchaseQuotes = async (
 };
 
 /**
- * Update Asset Quote Rating
- *
- * Used by Assets Manager-Senior.
+ * Update individual quotation rating
  *
  * POST /api/asset-purchase/tasks/{task_id}/quotes/{quote_id}/rating
+ *
+ * This updates only one quotation rating.
+ * It does NOT submit/lock all ratings.
  */
 export const updateAssetQuoteRating = async (
   taskId: number,
@@ -75,19 +70,31 @@ export const updateAssetQuoteRating = async (
 };
 
 /**
- * Submit Asset Purchase Ratings
- *
- * Used when the manager has completed quote rating.
+ * Submit all quotation ratings
  *
  * POST /api/asset-purchase/tasks/{task_id}/submit-ratings
+ *
+ * Body:
+ *
+ * {
+ *   "ratings": {
+ *     "148": 5,
+ *     "149": 3,
+ *     "156": 1
+ *   }
+ * }
  */
 export const submitAssetPurchaseRatings = async (
   taskId: number,
-): Promise<string> => {
-  return apiRequest<string>(
+  ratings: Record<number, number>,
+): Promise<SubmitAssetPurchaseRatingsResponse> => {
+  return apiRequest<SubmitAssetPurchaseRatingsResponse>(
     `/api/asset-purchase/tasks/${taskId}/submit-ratings`,
     {
       method: "POST",
+      body: JSON.stringify({
+        ratings,
+      }),
     },
   );
 };
@@ -96,8 +103,6 @@ export const submitAssetPurchaseRatings = async (
  * Forward Asset Purchase Task To Selection
  *
  * POST /api/asset-purchase/tasks/{task_id}/forward-to-selection
- *
- * This is a separate workflow step from creating quotes.
  */
 export const forwardAssetPurchaseTaskToSelection = async (
   taskId: number,
@@ -114,14 +119,12 @@ export const forwardAssetPurchaseTaskToSelection = async (
  * Select Asset Purchase Quote
  *
  * POST /api/asset-purchase/tasks/{task_id}/select
- *
- * Used by Assets Manager-Senior after reviewing quotes.
  */
 export const selectAssetPurchaseQuote = async (
   taskId: number,
   quoteId: number,
-): Promise<string> => {
-  return apiRequest<string>(
+): Promise<SelectAssetPurchaseQuoteResponse> => {
+  return apiRequest<SelectAssetPurchaseQuoteResponse>(
     `/api/asset-purchase/tasks/${taskId}/select`,
     {
       method: "POST",
@@ -135,18 +138,10 @@ export const selectAssetPurchaseQuote = async (
 /**
  * Forward Asset Purchase Task
  *
- * First executive submission:
+ * Used for the first executive submission.
  *
- *   Create Quote
- *        ↓
- *   Forward Task
- *        ↓
- *   Assets Manager-Senior
- *
- * IMPORTANT:
- * This function should NOT be called when the executive
- * adds additional quotes after the task has already been
- * forwarded.
+ * Additional quotes created after forwarding should NOT
+ * call this endpoint again.
  */
 export const forwardAssetPurchaseTask = async (
   taskId: number,

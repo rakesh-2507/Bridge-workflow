@@ -345,53 +345,53 @@ function TaskDetails({
     //         }
     //     };
 
-    const handleAssetPurchaseApprove =
-        async () => {
-            if (
-                actionLoading !== null ||
-                !canTakeAction
-            ) {
-                return;
-            }
+    const handleAssetPurchaseApprove = async () => {
+        if (
+            actionLoading !== null ||
+            !canTakeAction
+        ) {
+            return;
+        }
 
-            if (selectedQuoteId === null) {
-                setActionError(
-                    "Please select a quote before approving."
-                );
-                return;
-            }
+        if (selectedQuoteId === null) {
+            setActionError(
+                "Please select a quote before approving."
+            );
+            return;
+        }
 
-            setActionLoading("approve");
-            setActionMessage("");
-            setActionError("");
+        setActionLoading("approve");
+        setActionMessage("");
+        setActionError("");
 
-            try {
-                await forwardAssetPurchaseTaskToSelection(
-                    task.task_id
-                );
+        try {
+            // Step 1: Forward quotations
+            await forwardAssetPurchaseTaskToSelection(
+                task.task_id
+            );
 
-                const response =
-                    await selectAssetPurchaseQuote(
-                        task.task_id,
-                        selectedQuoteId
-                    );
-
-                setSuccessMessage(
-                    response ||
-                    "Task approved successfully."
+            // Step 2: Select quote
+            const response =
+                await selectAssetPurchaseQuote(
+                    task.task_id,
+                    selectedQuoteId
                 );
 
-                setShowSuccessModal(true);
-            } catch (err) {
-                setActionError(
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to approve task."
-                );
-            } finally {
-                setActionLoading(null);
-            }
-        };
+            setSuccessMessage(
+                response.message ||
+                "Asset quotation selected successfully."
+            );
+            setShowSuccessModal(true);
+        } catch (err) {
+            setActionError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to approve task."
+            );
+        } finally {
+            setActionLoading(null);
+        }
+    };
 
     const handleAssetPurchaseReject =
         async () => {
@@ -1106,6 +1106,7 @@ function TaskDetails({
                         type="button"
                         onClick={() => {
                             setShowSuccessModal(false);
+                            window.location.reload();
                         }}
                         className="mt-6 w-full rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700"
                     >
