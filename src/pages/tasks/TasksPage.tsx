@@ -430,7 +430,7 @@ function TasksPage() {
                                                         className="text-gray-300 dark:text-gray-600"
                                                     />
 
-                                                    <p className="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                                                    <p className="mt-2 text-sm font-medium text-s">
                                                         No activity yet
                                                     </p>
 
@@ -451,20 +451,20 @@ function TasksPage() {
                                                         >
                                                             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
                                                                 <div className="flex items-start gap-3">
-                                                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                                                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 ">
                                                                         <User
                                                                             size={15}
-                                                                            className="text-gray-500 dark:text-gray-400"
+                                                                            className="text-s"
                                                                         />
                                                                     </div>
 
                                                                     <div className="min-w-0 flex-1">
                                                                         <div className="flex items-start justify-between gap-2">
-                                                                            <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                                                                            <p className="text-xs font-semibold text-s">
                                                                                 User {log.userid}
                                                                             </p>
 
-                                                                            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                                                            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-[10px] font-medium text-s dark:bg-gray-800 ">
                                                                                 {log.event}
                                                                             </span>
                                                                         </div>
@@ -495,7 +495,8 @@ function TasksPage() {
                                     </div>
                                 )}
                             </div>
-                            {/* ================================================= ASSET PURCHASE TRACKING ONLY Employee ====== =========================================== */}{" "}
+
+                            {" "}
                             {isEmployee &&
                                 selectedTask?.document_no &&
                                 (selectedTask.document_type === "AssetPurchaseRequest" ||
@@ -519,11 +520,11 @@ function TasksPage() {
                                                 </div>{" "}
                                                 <div>
                                                     {" "}
-                                                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                                    <h2 className="text-sm font-semibold text-s">
                                                         {" "}
                                                         Asset Purchase Tracking{" "}
                                                     </h2>{" "}
-                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    <p className="mt-1 text-xs text-t">
                                                         {" "}
                                                         Track your request progress{" "}
                                                     </p>{" "}
@@ -537,7 +538,7 @@ function TasksPage() {
                                         {currentPanel === "tracking" && (
                                             <div className="border-t border-gray-100 dark:border-gray-800">
                                                 {" "}
-                                                <div className="max-h-[calc(100vh-220px)] overflow-y-auto p-4 scrollbar-hide">
+                                                <div className="max-h-[calc(100vh-220px)] overflow-y-auto p-4 scrollbar-hide ">
                                                     {" "}
                                                     <AssetPurchaseTracking
                                                         assetId={selectedTask.document_no}

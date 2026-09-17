@@ -338,13 +338,13 @@ function AssetPurchaseQuoteForm({
 
             <div className="border-b border-gray-200 p-5 dark:border-gray-700">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    <h2 className="text-lg font-semibold text-s">
                         Vendor Quotes
                     </h2>
 
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                         Document No:{" "}
-                        <span className="font-medium text-gray-900 dark:text-white">
+                        <span className="font-medium text-s">
                             {documentNo || "-"}
                         </span>
                     </p>

@@ -183,7 +183,7 @@ export default function AssetPurchaseTracking({
 
     if (!tracking) {
         return (
-            <div className="py-8 text-center text-xs text-gray-500 dark:text-gray-400">
+            <div className="py-8 text-center text-xs text-s">
                 No tracking information available.
             </div>
         );
@@ -207,7 +207,7 @@ export default function AssetPurchaseTracking({
                                 Asset Purchase
                             </p>
 
-                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                            <p className="truncate text-sm font-semibold text-s">
                                 {tracking.document.document_no}
                             </p>
                         </div>
@@ -224,7 +224,7 @@ export default function AssetPurchaseTracking({
 
                 <div className="mt-4 grid grid-cols-2 gap-3">
                     <div>
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                        <p className="text-[10px] text-t">
                             Current Stage
                         </p>
 
@@ -234,7 +234,7 @@ export default function AssetPurchaseTracking({
                     </div>
 
                     <div>
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                        <p className="text-[10px] text-t">
                             Started
                         </p>
 
@@ -249,7 +249,7 @@ export default function AssetPurchaseTracking({
 
             {/* Workflow timeline */}
             <div>
-                <p className="mb-3 text-xs font-semibold text-gray-900 dark:text-white">
+                <p className="mb-3 text-xs font-semibold text-s">
                     Workflow Progress
                 </p>
 
@@ -299,15 +299,15 @@ export default function AssetPurchaseTracking({
             {/* Current assignment */}
             {tracking.assigned_to && (
                 <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                    <p className="text-[10px] text-t">
                         Currently Assigned To
                     </p>
 
-                    <p className="mt-1 text-xs font-semibold text-gray-900 dark:text-white">
+                    <p className="mt-1 text-xs font-semibold text-s">
                         {tracking.assigned_to.name}
                     </p>
 
-                    <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                    <p className="mt-0.5 text-[10px] text-t">
                         {tracking.assigned_to.mtype}
                     </p>
                 </div>
@@ -331,12 +331,12 @@ export default function AssetPurchaseTracking({
                             Selected Quote
                         </p>
 
-                        <p className="mt-1 text-xs font-semibold text-gray-900 dark:text-white">
+                        <p className="mt-1 text-xs font-semibold text-s">
                             {tracking.selected_quote.vendor_name}
                         </p>
 
                         <div className="mt-1 flex items-center justify-between gap-2">
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                            <span className="text-[10px] text-s">
                                 {
                                     tracking
                                         .selected_quote
@@ -344,7 +344,7 @@ export default function AssetPurchaseTracking({
                                 }
                             </span>
 
-                            <span className="text-xs font-medium text-gray-900 dark:text-white">
+                            <span className="text-xs font-medium text-s">
                                 {tracking.selected_quote.currency ??
                                     "INR"}{" "}
                                 {tracking.selected_quote.quoted_amount.toLocaleString(
@@ -363,7 +363,7 @@ export default function AssetPurchaseTracking({
                         Created
                     </p>
 
-                    <p className="mt-1 font-medium text-gray-700 dark:text-gray-300">
+                    <p className="mt-1 font-medium text-s">
                         {formatDate(
                             tracking.created_date
                         )}
@@ -375,7 +375,7 @@ export default function AssetPurchaseTracking({
                         Updated
                     </p>
 
-                    <p className="mt-1 font-medium text-gray-700 dark:text-gray-300">
+                    <p className="mt-1 font-medium text-s">
                         {formatDate(
                             tracking.updated_date
                         )}
