@@ -63,7 +63,7 @@ function Home() {
   ];
 
   return (
-    <div className="mx-auto">
+    <div className="mx-auto p-5">
 
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">

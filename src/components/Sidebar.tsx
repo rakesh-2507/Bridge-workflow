@@ -8,6 +8,7 @@ import {
   File,
   MessageCircle,
   FileBox,
+  Workflow,
 } from "lucide-react";
 
 import {
@@ -107,6 +108,11 @@ function Sidebar({
         label: "Dashboard",
         icon: LayoutDashboard,
         to: "/",
+      },
+      {
+        label: "workflow",
+        icon: Workflow,
+        to: "/workflow-process",
       },
     ]
     : [

@@ -31,6 +31,9 @@ import FileUploadPage from "./pages/FileUploadPage";
 import TaskChatPage from "./pages/TaskChatPage";
 import AssetPurchaseRequest from "./pages/asset-purchase/AssetPurchaseRequest";
 import AssetPurchaseQuote from "./pages/asset-purchase/AssetPurchaseQuote";
+import WorkflowProcess from "./pages/workflow/WorkflowProcess";
+import AssetPurchaseWorkflow from "./pages/workflow/AssetPurchaseWorkflow";
+import WritingWorkflow from "./pages/workflow/WritingWorkflow";
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
@@ -130,6 +133,21 @@ function App() {
             <Route
               path="/asset-quote/:taskId"
               element={<AssetPurchaseQuote />}
+            />
+
+            <Route
+              path="/workflow-process"
+              element={<WorkflowProcess />}
+            />
+
+            <Route
+              path="/workflow-process/asset-purchase"
+              element={<AssetPurchaseWorkflow />}
+            />
+
+            <Route
+              path="/workflow-process/writing"
+              element={<WritingWorkflow />}
             />
 
             <Route

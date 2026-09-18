@@ -130,7 +130,7 @@ function Projects() {
   };
 
   return (
-    <div className="mx-auto text-gray-900 dark:text-white">
+    <div className="mx-auto text-gray-900 dark:text-white p-5">
 
       {/* =========================
           PROJECT LIST
@@ -139,7 +139,7 @@ function Projects() {
       {!showAddForm && (
         <>
           {/* Header */}
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-5">
 
             <div>
               <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">

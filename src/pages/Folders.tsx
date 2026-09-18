@@ -172,7 +172,7 @@ function Folders() {
   };
 
   return (
-    <div className="mx-auto text-gray-900 dark:text-white">
+    <div className="mx-auto text-gray-900 dark:text-white p-5">
 
       {showCreateForm ? (
 
