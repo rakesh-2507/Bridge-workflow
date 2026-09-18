@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 
 import {
+  ArrowLeftRight,
   Check,
   ChevronDown,
   Eye,
   FileText,
   Loader2,
+  X,
 } from "lucide-react";
 
 import {
@@ -15,6 +17,8 @@ import {
 } from "../../api/assetPurchaseQuote";
 
 import type { AssetPurchaseQuote } from "../../types/assetPurchaseQuote";
+
+import CompareQuotes from "./CompareQuotes";
 
 interface QuoteDetailsAccordionProps {
   documentNo: string;
@@ -46,6 +50,8 @@ function QuoteDetailsAccordion({
 
   const [selectedQuoteId, setSelectedQuoteId] = useState<number | null>(null);
 
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
+
   /* ======================================================
      LOAD QUOTES
   ====================================================== */
@@ -63,6 +69,7 @@ function QuoteDetailsAccordion({
       setRatingError("");
       setSubmitSuccess("");
       setRatingsSubmitted(false);
+      setSelectedQuoteId(null);
 
       try {
         const response = await getAssetPurchaseQuotes(documentNo);
@@ -98,9 +105,6 @@ function QuoteDetailsAccordion({
 
   /* ======================================================
      UPDATE SINGLE RATING
-     
-     This only updates the selected quotation rating.
-     It does NOT submit all ratings.
   ====================================================== */
 
   const handleRatingChange = async (
@@ -219,9 +223,6 @@ function QuoteDetailsAccordion({
 
   /* ======================================================
      SELECT QUOTE
-     
-     This is UI-only.
-     Actual selection API is handled by TaskDetails.
   ====================================================== */
 
   const handleQuoteSelection = (quoteId: number) => {
@@ -230,228 +231,354 @@ function QuoteDetailsAccordion({
   };
 
   /* ======================================================
+     CLOSE COMPARISON MODAL
+  ====================================================== */
+
+  const handleCloseCompare = () => {
+    setIsCompareOpen(false);
+  };
+
+  /* ======================================================
      RENDER
   ====================================================== */
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-      {/* HEADER */}
-      <button
-        type="button"
-        onClick={() => setIsOpen((current) => !current)}
-        className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
-            <FileText
-              size={17}
-              className="text-gray-500 dark:text-gray-400"
-            />
-          </div>
+    <>
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        {/* ==================================================
+            HEADER
+        ================================================== */}
 
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-                Quote Details
-              </h2>
-
-              <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                <Eye size={11} />
-
-                {canEditRating
-                  ? ratingsSubmitted
-                    ? "Ratings Submitted"
-                    : "Rating Editable"
-                  : "View Only"}
-              </span>
+        <button
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+          className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+              <FileText
+                size={17}
+                className="text-gray-500 dark:text-gray-400"
+              />
             </div>
 
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Vendor quotations for this request
-            </p>
-          </div>
-        </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Quote Details
+                </h2>
 
-        <div className="flex items-center gap-2">
-          {!quotesLoading &&
-            !quotesError &&
-            quotes.length > 0 && (
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                {quotes.length}{" "}
-                {quotes.length === 1 ? "Quote" : "Quotes"}
-              </span>
-            )}
+                <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                  <Eye size={11} />
 
-          <ChevronDown
-            size={18}
-            className={`shrink-0 text-gray-400 transition-transform duration-200 ${
-              isOpen ? "rotate-180" : ""
-            }`}
-          />
-        </div>
-      </button>
+                  {canEditRating
+                    ? ratingsSubmitted
+                      ? "Ratings Submitted"
+                      : "Rating Editable"
+                    : "View Only"}
+                </span>
+              </div>
 
-      {/* CONTENT */}
-      {isOpen && (
-        <div className="border-t border-gray-100 dark:border-gray-800">
-          <div className="max-h-[calc(100vh-220px)] overflow-y-auto p-4 scrollbar-hide">
-            {/* DOCUMENT */}
-            <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
-                Document
-              </p>
-
-              <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                #{documentNo}
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Vendor quotations for this request
               </p>
             </div>
+          </div>
 
-            {/* RATING ERROR */}
-            {ratingError && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-                {ratingError}
-              </div>
-            )}
-
-            {/* SUCCESS */}
-            {submitSuccess && (
-              <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-xs text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
-                {submitSuccess}
-              </div>
-            )}
-
-            {/* LOADING */}
-            {quotesLoading && (
-              <div className="flex items-center justify-center py-10">
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                  <Loader2
-                    size={18}
-                    className="animate-spin"
-                  />
-
-                  Loading quotations...
-                </div>
-              </div>
-            )}
-
-            {/* ERROR */}
-            {!quotesLoading && quotesError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-                {quotesError}
-              </div>
-            )}
-
-            {/* EMPTY */}
-            {!quotesLoading &&
-              !quotesError &&
-              quotes.length === 0 && (
-                <div className="flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50 px-5 py-10 text-center dark:border-gray-800 dark:bg-gray-950">
-                  <FileText
-                    size={25}
-                    className="text-gray-300 dark:text-gray-600"
-                  />
-
-                  <p className="mt-2 text-sm font-medium text-gray-600 dark:text-gray-300">
-                    No quotations found
-                  </p>
-
-                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                    No vendor quotations are available for this request.
-                  </p>
-                </div>
-              )}
-
-            {/* QUOTES */}
+          <div className="flex items-center gap-2">
             {!quotesLoading &&
               !quotesError &&
               quotes.length > 0 && (
-                <>
-                  <div className="space-y-4">
-                    {quotes.map((quote) => (
-                      <QuotationCard
-                        key={quote.quote_id}
-                        quote={quote}
-                        canEditRating={
-                          canEditRating && !ratingsSubmitted
-                        }
-                        updatingRatingId={
-                          updatingRatingId
-                        }
-                        selectedQuoteId={
-                          selectedQuoteId
-                        }
-                        onRatingChange={
-                          handleRatingChange
-                        }
-                        onSelectQuote={
-                          handleQuoteSelection
-                        }
-                      />
-                    ))}
-                  </div>
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  {quotes.length}{" "}
+                  {quotes.length === 1 ? "Quote" : "Quotes"}
+                </span>
+              )}
 
-                  {/* SUBMIT RATINGS */}
-                  {canEditRating && (
-                    <div className="mt-5 border-t border-gray-200 pt-4 dark:border-gray-800">
-                      <div className="mb-3 flex items-center justify-between">
-                        <div>
+            <ChevronDown
+              size={18}
+              className={`shrink-0 text-gray-400 transition-transform duration-200 ${
+                isOpen ? "rotate-180" : ""
+              }`}
+            />
+          </div>
+        </button>
+
+        {/* ==================================================
+            CONTENT
+        ================================================== */}
+
+        {isOpen && (
+          <div className="border-t border-gray-100 dark:border-gray-800">
+            <div className="max-h-[calc(100vh-220px)] overflow-y-auto p-4 scrollbar-hide">
+              {/* DOCUMENT */}
+
+              <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                  Document
+                </p>
+
+                <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
+                  #{documentNo}
+                </p>
+              </div>
+
+              {/* RATING ERROR */}
+
+              {ratingError && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                  {ratingError}
+                </div>
+              )}
+
+              {/* SUCCESS */}
+
+              {submitSuccess && (
+                <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-xs text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
+                  {submitSuccess}
+                </div>
+              )}
+
+              {/* LOADING */}
+
+              {quotesLoading && (
+                <div className="flex items-center justify-center py-10">
+                  <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                    <Loader2
+                      size={18}
+                      className="animate-spin"
+                    />
+
+                    Loading quotations...
+                  </div>
+                </div>
+              )}
+
+              {/* ERROR */}
+
+              {!quotesLoading && quotesError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                  {quotesError}
+                </div>
+              )}
+
+              {/* EMPTY */}
+
+              {!quotesLoading &&
+                !quotesError &&
+                quotes.length === 0 && (
+                  <div className="flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50 px-5 py-10 text-center dark:border-gray-800 dark:bg-gray-950">
+                    <FileText
+                      size={25}
+                      className="text-gray-300 dark:text-gray-600"
+                    />
+
+                    <p className="mt-2 text-sm font-medium text-gray-600 dark:text-gray-300">
+                      No quotations found
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      No vendor quotations are available for this
+                      request.
+                    </p>
+                  </div>
+                )}
+
+              {/* QUOTES */}
+
+              {!quotesLoading &&
+                !quotesError &&
+                quotes.length > 0 && (
+                  <>
+                    {/* COMPARE BUTTON */}
+
+                    {quotes.length >= 2 && (
+                      <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-blue-100 bg-blue-50/70 px-4 py-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+                        <div className="min-w-0">
                           <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                            Submit Ratings
+                            Compare Vendor Quotes
                           </p>
 
                           <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
-                            Review all quotation ratings before submitting.
+                            Compare all quotations side by side before
+                            selecting one.
                           </p>
                         </div>
 
-                        {ratingsSubmitted && (
-                          <span className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-semibold text-green-700 dark:bg-green-950 dark:text-green-300">
-                            <Check size={11} />
-                            Submitted
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setIsCompareOpen(true)}
+                          className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
+                        >
+                          <ArrowLeftRight size={14} />
+
+                          Compare Quotes
+                        </button>
                       </div>
+                    )}
 
-                      <button
-                        type="button"
-                        onClick={handleSubmitRatings}
-                        disabled={
-                          submittingRatings ||
-                          ratingsSubmitted
-                        }
-                        className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {submittingRatings ? (
-                          <>
-                            <Loader2
-                              size={15}
-                              className="animate-spin"
-                            />
+                    {/* QUOTATION CARDS */}
 
-                            Submitting Ratings...
-                          </>
-                        ) : ratingsSubmitted ? (
-                          <>
-                            <Check size={15} />
-
-                            Ratings Submitted
-                          </>
-                        ) : (
-                          <>
-                            <Check size={15} />
-
-                            Submit Ratings
-                          </>
-                        )}
-                      </button>
+                    <div className="space-y-4">
+                      {quotes.map((quote) => (
+                        <QuotationCard
+                          key={quote.quote_id}
+                          quote={quote}
+                          canEditRating={
+                            canEditRating && !ratingsSubmitted
+                          }
+                          updatingRatingId={updatingRatingId}
+                          selectedQuoteId={selectedQuoteId}
+                          onRatingChange={handleRatingChange}
+                          onSelectQuote={handleQuoteSelection}
+                        />
+                      ))}
                     </div>
-                  )}
-                </>
-              )}
+
+                    {/* SUBMIT RATINGS */}
+
+                    {canEditRating && (
+                      <div className="mt-5 border-t border-gray-200 pt-4 dark:border-gray-800">
+                        <div className="mb-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                              Submit Ratings
+                            </p>
+
+                            <p className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400">
+                              Review all quotation ratings before
+                              submitting.
+                            </p>
+                          </div>
+
+                          {ratingsSubmitted && (
+                            <span className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-semibold text-green-700 dark:bg-green-950 dark:text-green-300">
+                              <Check size={11} />
+                              Submitted
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleSubmitRatings}
+                          disabled={
+                            submittingRatings ||
+                            ratingsSubmitted
+                          }
+                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {submittingRatings ? (
+                            <>
+                              <Loader2
+                                size={15}
+                                className="animate-spin"
+                              />
+                              Submitting Ratings...
+                            </>
+                          ) : ratingsSubmitted ? (
+                            <>
+                              <Check size={15} />
+                              Ratings Submitted
+                            </>
+                          ) : (
+                            <>
+                              <Check size={15} />
+                              Submit Ratings
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ====================================================
+          COMPARE MODAL
+      ==================================================== */}
+
+      {isCompareOpen && quotes.length >= 2 && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              handleCloseCompare();
+            }
+          }}
+        >
+          <div
+            className="relative flex max-h-[90vh] w-full max-w-[1400px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Compare Quotes"
+          >
+            {/* MODAL HEADER */}
+
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950">
+                  <ArrowLeftRight
+                    size={17}
+                    className="text-blue-600 dark:text-blue-400"
+                  />
+                </div>
+
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Compare Quotes
+                  </h2>
+
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    Compare vendor quotations for #{documentNo}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseCompare}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                aria-label="Close comparison"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* MODAL CONTENT */}
+
+            <div className="min-h-0 flex-1 overflow-auto p-5">
+              <CompareQuotes
+                quotes={quotes}
+                selectedQuoteId={selectedQuoteId}
+                onSelectQuote={handleQuoteSelection}
+              />
+            </div>
+
+            {/* MODAL FOOTER */}
+
+            <div className="flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 bg-gray-50 px-5 py-3 dark:border-gray-700 dark:bg-gray-950">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {selectedQuoteId
+                  ? "A quotation is currently selected."
+                  : "Select a quotation from the comparison table."}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseCompare}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -508,6 +635,7 @@ function QuotationCard({
       }`}
     >
       {/* CHECK */}
+
       <div
         className={`absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-md border-2 transition-all ${
           isSelected
@@ -525,6 +653,7 @@ function QuotationCard({
       </div>
 
       {/* HEADER */}
+
       <div className="flex items-start justify-between gap-3 pr-10">
         <div className="flex items-center gap-3">
           <div
@@ -568,6 +697,7 @@ function QuotationCard({
       </div>
 
       {/* INFORMATION */}
+
       <div className="mt-4 space-y-3">
         <QuotationField
           label="Vendor Name"
@@ -592,6 +722,7 @@ function QuotationCard({
         />
 
         {/* RATING */}
+
         <div
           onClick={(event) => event.stopPropagation()}
         >
@@ -683,6 +814,7 @@ function QuotationCard({
       </div>
 
       {/* FOOTER */}
+
       <div className="mt-5 flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-800">
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400">
