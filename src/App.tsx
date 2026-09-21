@@ -8,9 +8,9 @@ import {
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-import Navbar from "./components/Navbar";
-import Sidebar from "./components/Sidebar";
-import Footer from "./components/Footer";
+import Navbar from "./components/shared/Navbar";
+import Sidebar from "./components/shared/Sidebar";
+import Footer from "./components/shared/Footer";
 
 import Home from "./pages/Home";
 import Projects from "./pages/Projects";
