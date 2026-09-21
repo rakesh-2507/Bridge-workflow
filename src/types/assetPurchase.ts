@@ -1,10 +1,20 @@
 export interface AssetPurchaseRequestData {
-  asset: string;
-  asset_type: string;
-  asset_description: string;
-  required_date: string;
-  purchase_reason: string;
+    [key: string]: unknown;
+
+    asset?: string;
+    asset_type?: string;
+    asset_description?: string;
+    required_date?: string;
+    purchase_reason?: string;
+
+    // Alternative request format
+    purpose?: string;
+    quantity?: number;
+    asset_name?: string;
+    asset_category?: string;
+    estimated_amount?: number;
 }
+
 export interface CreateAssetPurchaseRequestResponse {
   success: boolean;
   code: string;

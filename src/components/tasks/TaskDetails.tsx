@@ -742,83 +742,101 @@ function TaskDetails({
                                 {!assetTaskLoading &&
                                     !assetTaskError &&
                                     assetTask && (
-                                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                                        <div className="space-y-5">
 
-                                            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                                            {/* Request Information */}
 
-                                                <AssetRequestField
-                                                    label="Asset"
-                                                    value={
-                                                        assetTask
-                                                            .document
-                                                            ?.request_data
-                                                            ?.asset ||
-                                                        "-"
-                                                    }
-                                                />
+                                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
 
-                                                <AssetRequestField
-                                                    label="Asset Type"
-                                                    value={
-                                                        assetTask
-                                                            .document
-                                                            ?.request_data
-                                                            ?.asset_type ||
-                                                        "-"
-                                                    }
-                                                />
+                                                <div className="mb-5 flex items-center justify-between gap-4">
+                                                    <div>
+                                                        <h4 className="text-sm font-semibold text-s dark:text-white">
+                                                            Request Details
+                                                        </h4>
 
-                                                <AssetRequestField
-                                                    label="Required Date"
-                                                    value={formatQuoteDate(
-                                                        assetTask
-                                                            .document
-                                                            ?.request_data
-                                                            ?.required_date
+                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                            Information provided with this request
+                                                        </p>
+                                                    </div>
+
+                                                    {assetTask.document?.document_no && (
+                                                        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                                            {assetTask.document.document_no}
+                                                        </span>
                                                     )}
-                                                />
+                                                </div>
 
-                                                <AssetRequestField
-                                                    label="Document No"
-                                                    value={
-                                                        assetTask
-                                                            .document
-                                                            ?.document_no ||
-                                                        "-"
-                                                    }
-                                                />
+                                                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
 
-                                            </div>
+                                                    {Object.entries(
+                                                        assetTask.document?.request_data ?? {}
+                                                    ).map(([key, value]) => (
+                                                        <AssetRequestDynamicField
+                                                            key={key}
+                                                            label={formatRequestFieldLabel(key)}
+                                                            value={value}
+                                                        />
+                                                    ))}
 
-                                            <div className="mt-5 border-t border-gray-200 pt-5 dark:border-gray-800">
-
-                                                <AssetRequestField
-                                                    label="Asset Description"
-                                                    value={
-                                                        assetTask
-                                                            .document
-                                                            ?.request_data
-                                                            ?.asset_description ||
-                                                        "-"
-                                                    }
-                                                    fullWidth
-                                                />
+                                                </div>
 
                                             </div>
 
-                                            <div className="mt-5">
+                                            {/* Workflow Information */}
 
-                                                <AssetRequestField
-                                                    label="Purchase Reason"
-                                                    value={
-                                                        assetTask
-                                                            .document
-                                                            ?.request_data
-                                                            ?.purchase_reason ||
-                                                        "-"
-                                                    }
-                                                    fullWidth
-                                                />
+                                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+
+                                                <h4 className="mb-5 text-sm font-semibold text-s dark:text-white">
+                                                    Workflow Information
+                                                </h4>
+
+                                                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+
+                                                    <AssetRequestField
+                                                        label="Task ID"
+                                                        value={String(
+                                                            assetTask.task_id
+                                                        )}
+                                                    />
+
+                                                    <AssetRequestField
+                                                        label="Workflow Task ID"
+                                                        value={
+                                                            assetTask.wf_task_id || "-"
+                                                        }
+                                                    />
+
+                                                    <AssetRequestField
+                                                        label="Process"
+                                                        value={
+                                                            assetTask.process_name ||
+                                                            assetTask.process_id ||
+                                                            "-"
+                                                        }
+                                                    />
+
+                                                    <AssetRequestField
+                                                        label="Assigned By"
+                                                        value={String(
+                                                            assetTask.assigned_by ?? "-"
+                                                        )}
+                                                    />
+
+                                                    <AssetRequestField
+                                                        label="Assigned To"
+                                                        value={String(
+                                                            assetTask.assigned_to ?? "-"
+                                                        )}
+                                                    />
+
+                                                    <AssetRequestField
+                                                        label="Start Date"
+                                                        value={formatQuoteDate(
+                                                            assetTask.start_date
+                                                        )}
+                                                    />
+
+                                                </div>
 
                                             </div>
 
@@ -1264,6 +1282,92 @@ function AssetRequestField({
             </p>
         </div>
     );
+}
+
+interface AssetRequestDynamicFieldProps {
+    label: string;
+    value: unknown;
+}
+
+
+function AssetRequestDynamicField({
+    label,
+    value,
+}: AssetRequestDynamicFieldProps) {
+    return (
+        <div className="min-w-0">
+            <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                {label}
+            </p>
+
+            <p className="whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-s dark:text-white">
+                {formatRequestFieldValue(value)}
+            </p>
+        </div>
+    );
+}
+
+function formatRequestFieldLabel(
+    key: string
+): string {
+    return key
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (char) =>
+            char.toUpperCase()
+        );
+}
+
+function formatRequestFieldValue(
+    value: unknown
+): string {
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+        return "-";
+    }
+
+    if (typeof value === "boolean") {
+        return value ? "Yes" : "No";
+    }
+
+    if (typeof value === "number") {
+        return value.toLocaleString("en-IN");
+    }
+
+    if (typeof value === "string") {
+        // Format date-looking fields
+        if (
+            /^\d{4}-\d{2}-\d{2}$/.test(value)
+        ) {
+            return formatQuoteDate(value);
+        }
+
+        return value;
+    }
+
+    if (Array.isArray(value)) {
+        return value
+            .map((item) =>
+                formatRequestFieldValue(item)
+            )
+            .join(", ");
+    }
+
+    if (typeof value === "object") {
+        try {
+            return JSON.stringify(
+                value,
+                null,
+                2
+            );
+        } catch {
+            return String(value);
+        }
+    }
+
+    return String(value);
 }
 
 /* ======================================================

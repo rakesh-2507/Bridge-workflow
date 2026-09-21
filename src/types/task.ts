@@ -100,31 +100,36 @@ export interface AssetPurchaseTaskDocument {
  * Response data from:
  * GET /api/asset-purchase/tasks/{task_id}
  */
+
 export interface AssetPurchaseTaskDetails {
-  task_id: number;
-  wf_task_id: string;
+    task_id: number;
+    wf_task_id: string;
 
-  task_type: string;
-  task_description: string;
+    process_id?: string;
+    process_name?: string;
 
-  document: AssetPurchaseTaskDocument;
+    task_type: string;
+    task_description: string;
 
-  status: number;
+    document: AssetPurchaseTaskDocument;
 
-  assigned_by: number;
-  assigned_to: number;
+    status: number;
 
-  levels: string[];
+    assigned_by: number;
+    assigned_to: number;
 
-  selected_quote_id: number | null;
+    levels: string[];
 
-  start_date: string;
-  end_date: string | null;
+    selected_quote_id: number | null;
 
-  key_params: AssetPurchaseKeyParams;
-  created_date: string;
-  updated_date: string;
+    start_date: string;
+    end_date: string | null;
+
+    key_params: AssetPurchaseKeyParams;
+    created_date: string;
+    updated_date: string;
 }
+
 
 export interface GetAssetPurchaseTaskResponse {
   success: boolean;
