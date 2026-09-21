@@ -1,7 +1,7 @@
 import { apiRequest } from "./client";
 
 import type {
-    CreateAssetPurchaseRequestPayload,
+    AssetPurchaseRequestData,
     CreateAssetPurchaseRequestResponse,
 } from "../types/assetPurchase";
 
@@ -13,15 +13,37 @@ import type {
  * Create Asset Purchase Request
  *
  * POST /api/asset-purchase/requests
+ *
+ * Content-Type: multipart/form-data
+ *
+ * request_data: JSON string
+ * reference_file: optional file
  */
 export const createAssetPurchaseRequest = async (
-    payload: CreateAssetPurchaseRequestPayload
+    requestData: AssetPurchaseRequestData,
+    referenceFile?: File | null
 ): Promise<CreateAssetPurchaseRequestResponse> => {
+    const formData = new FormData();
+
+    // Backend expects request_data as a JSON string
+    formData.append(
+        "request_data",
+        JSON.stringify(requestData)
+    );
+
+    // Optional reference file
+    if (referenceFile) {
+        formData.append(
+            "reference_file",
+            referenceFile
+        );
+    }
+
     return apiRequest<CreateAssetPurchaseRequestResponse>(
         "/api/asset-purchase/requests",
         {
             method: "POST",
-            body: JSON.stringify(payload),
+            body: formData,
         }
     );
 };

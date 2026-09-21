@@ -1,8 +1,10 @@
 import { useState } from "react";
 import {
     CalendarDays,
+    FileUp,
     Package,
     Send,
+    X,
 } from "lucide-react";
 
 import { createAssetPurchaseRequest } from "../../api/assetPurchase";
@@ -34,6 +36,9 @@ const initialForm: FormData = {
 function AssetPurchaseRequestForm({ onSuccess }: Props) {
     const [formData, setFormData] = useState<FormData>(initialForm);
 
+    const [referenceFile, setReferenceFile] =
+        useState<File | null>(null);
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
@@ -52,6 +57,29 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
         setError("");
         setSuccessMessage("");
+    };
+
+    const handleFileChange = (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        const file = e.target.files?.[0] ?? null;
+
+        setReferenceFile(file);
+        setError("");
+        setSuccessMessage("");
+    };
+
+    const removeFile = () => {
+        setReferenceFile(null);
+
+        // Reset file input
+        const fileInput = document.getElementById(
+            "reference_file"
+        ) as HTMLInputElement | null;
+
+        if (fileInput) {
+            fileInput.value = "";
+        }
     };
 
     const handleSubmit = async (
@@ -90,17 +118,21 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
         setIsSubmitting(true);
 
         try {
-            const response = await createAssetPurchaseRequest({
-                request_data: {
-                    asset: formData.asset.trim(),
-                    asset_type: formData.asset_type.trim(),
-                    asset_description:
-                        formData.asset_description.trim(),
-                    required_date: formData.required_date,
-                    purchase_reason:
-                        formData.purchase_reason.trim(),
-                },
-            });
+            const requestData = {
+                asset: formData.asset.trim(),
+                asset_type: formData.asset_type.trim(),
+                asset_description:
+                    formData.asset_description.trim(),
+                required_date: formData.required_date,
+                purchase_reason:
+                    formData.purchase_reason.trim(),
+            };
+
+            const response =
+                await createAssetPurchaseRequest(
+                    requestData,
+                    referenceFile
+                );
 
             setSuccessMessage(
                 response.message ||
@@ -110,6 +142,16 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
             onSuccess?.(response);
 
             setFormData(initialForm);
+            setReferenceFile(null);
+
+            // Reset file input
+            const fileInput = document.getElementById(
+                "reference_file"
+            ) as HTMLInputElement | null;
+
+            if (fileInput) {
+                fileInput.value = "";
+            }
         } catch (err: unknown) {
             console.error(
                 "Asset purchase request error:",
@@ -125,6 +167,21 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
             }
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleReset = () => {
+        setFormData(initialForm);
+        setReferenceFile(null);
+        setError("");
+        setSuccessMessage("");
+
+        const fileInput = document.getElementById(
+            "reference_file"
+        ) as HTMLInputElement | null;
+
+        if (fileInput) {
+            fileInput.value = "";
         }
     };
 
@@ -186,7 +243,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                         <div>
                             <label
                                 htmlFor="asset_type"
-                                className="mb-2 block text-sm font-medium text-s  "
+                                className="mb-2 block text-sm font-medium text-s"
                             >
                                 Asset Type
                                 <span className="ml-1 text-red-500">
@@ -201,7 +258,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                 value={formData.asset_type}
                                 onChange={handleChange}
                                 placeholder="e.g. IT Equipment"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t  outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 "
+                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900"
                             />
                         </div>
 
@@ -212,7 +269,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                     <div>
                         <label
                             htmlFor="asset_description"
-                            className="mb-2 block text-sm font-medium text-s  "
+                            className="mb-2 block text-sm font-medium text-s"
                         >
                             Asset Description
                             <span className="ml-1 text-red-500">
@@ -227,7 +284,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                             value={formData.asset_description}
                             onChange={handleChange}
                             placeholder="Enter detailed description of the asset"
-                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t  outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 "
+                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900"
                         />
                     </div>
 
@@ -236,7 +293,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                     <div>
                         <label
                             htmlFor="required_date"
-                            className="mb-2 block text-sm font-medium text-s  "
+                            className="mb-2 block text-sm font-medium text-s"
                         >
                             Required Date
                             <span className="ml-1 text-red-500">
@@ -256,7 +313,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                 type="date"
                                 value={formData.required_date}
                                 onChange={handleChange}
-                                className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-t  outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 "
+                                className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-t outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900"
                             />
                         </div>
                     </div>
@@ -266,7 +323,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                     <div>
                         <label
                             htmlFor="purchase_reason"
-                            className="mb-2 block text-sm font-medium text-s  "
+                            className="mb-2 block text-sm font-medium text-s"
                         >
                             Purchase Reason
                             <span className="ml-1 text-red-500">
@@ -281,8 +338,94 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                             value={formData.purchase_reason}
                             onChange={handleChange}
                             placeholder="e.g. Office Requirement"
-                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t  outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900 "
+                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900"
                         />
+                    </div>
+
+                    {/* Reference File */}
+
+                    <div>
+                        <label
+                            htmlFor="reference_file"
+                            className="mb-2 block text-sm font-medium text-s"
+                        >
+                            Reference File
+                            <span className="ml-2 text-xs font-normal text-gray-400">
+                                Optional
+                            </span>
+                        </label>
+
+                        <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-4 transition hover:border-blue-400 dark:border-gray-600 dark:bg-gray-900/50 dark:hover:border-blue-500">
+
+                            {!referenceFile ? (
+                                <label
+                                    htmlFor="reference_file"
+                                    className="flex cursor-pointer items-center justify-center gap-3 py-4"
+                                >
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                                        <FileUp
+                                            size={20}
+                                            className="text-blue-600 dark:text-blue-400"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <p className="text-sm font-medium text-s dark:text-white">
+                                            Upload reference file
+                                        </p>
+
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            PDF, DOC, DOCX, XLS, XLSX, JPG,
+                                            PNG or other supported files
+                                        </p>
+                                    </div>
+
+                                    <input
+                                        id="reference_file"
+                                        type="file"
+                                        className="hidden"
+                                        onChange={handleFileChange}
+                                    />
+                                </label>
+                            ) : (
+                                <div className="flex items-center justify-between gap-4 rounded-lg bg-white p-3 shadow-sm dark:bg-gray-800">
+
+                                    <div className="flex min-w-0 items-center gap-3">
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                                            <FileUp
+                                                size={18}
+                                                className="text-blue-600 dark:text-blue-400"
+                                            />
+                                        </div>
+
+                                        <div className="min-w-0">
+                                            <p className="truncate text-sm font-medium text-s dark:text-white">
+                                                {referenceFile.name}
+                                            </p>
+
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                {(
+                                                    referenceFile.size /
+                                                    1024 /
+                                                    1024
+                                                ).toFixed(2)}{" "}
+                                                MB
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={removeFile}
+                                        disabled={isSubmitting}
+                                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-900/20"
+                                        title="Remove file"
+                                    >
+                                        <X size={17} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Error */}
@@ -307,11 +450,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                 <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
                     <button
                         type="button"
-                        onClick={() => {
-                            setFormData(initialForm);
-                            setError("");
-                            setSuccessMessage("");
-                        }}
+                        onClick={handleReset}
                         disabled={isSubmitting}
                         className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                     >

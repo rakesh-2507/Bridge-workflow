@@ -1,3 +1,4 @@
+import type { AssetPurchaseRequestData } from "./assetPurchase";
 export interface Task {
   task_id: number;
 
@@ -78,17 +79,6 @@ export interface TaskDetails {
 export interface GetTaskResponse {
   success: boolean;
   data: TaskDetails;
-}
-
-/**
- * Asset Purchase Request data
- */
-export interface AssetPurchaseRequestData {
-  asset: string;
-  asset_type: string;
-  asset_description: string;
-  required_date: string;
-  purchase_reason: string;
 }
 
 /**
