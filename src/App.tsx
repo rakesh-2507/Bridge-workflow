@@ -33,6 +33,8 @@ import AssetPurchaseRequest from "./pages/asset-purchase/AssetPurchaseRequest";
 import AssetPurchaseQuote from "./pages/asset-purchase/AssetPurchaseQuote";
 import WorkflowProcess from "./components/workflow/WorkflowProcess";
 import WorkflowDiagram from "./pages/workflow/WorkflowDiagram";
+import ProcessList from "./pages/process/ProcessList";
+
 function App() {
   const [darkMode, setDarkMode] = useState(false);
 
@@ -133,6 +135,7 @@ function App() {
               element={<AssetPurchaseQuote />}
             />
 
+            <Route path="/processes" element={<ProcessList />} />
             <Route
               path="/workflow-process"
               element={<WorkflowProcess />}

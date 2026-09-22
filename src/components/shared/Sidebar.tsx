@@ -112,7 +112,7 @@ function Sidebar({
       {
         label: "workflow",
         icon: Workflow,
-        to: "/workflow-process",
+        to: "/processes",
       },
     ]
     : [
