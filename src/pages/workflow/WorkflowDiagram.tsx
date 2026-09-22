@@ -1,16 +1,17 @@
 import {
     useCallback,
-    useEffect,
     useMemo,
+    useState,
 } from "react";
 
 import {
     ArrowLeft,
     CheckCircle2,
     Circle,
+    Loader2,
+    Save,
     Settings,
 } from "lucide-react";
-
 
 import {
     useLocation,
@@ -38,14 +39,14 @@ import type {
 } from "reactflow";
 
 import "reactflow/dist/style.css";
+
 import type {
-  WorkflowDefinition,
+    WorkflowDefinition,
 } from "../../types/workflow";
 
 /* =========================================================
    TYPES
 ========================================================= */
-
 
 interface WorkflowNodeData {
     number: number;
@@ -55,6 +56,38 @@ interface WorkflowNodeData {
     | "completed"
     | "active"
     | "pending";
+}
+
+/*
+ * This is the JSON structure that will eventually
+ * be sent to your API.
+ */
+interface SavedWorkflowStage {
+    id: string;
+    stage: string;
+    details: string;
+
+    position: {
+        x: number;
+        y: number;
+    };
+}
+
+interface SavedWorkflowConnection {
+    id: string;
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+}
+
+interface SavedWorkflow {
+    workflow_id: string;
+    title: string;
+
+    stages: SavedWorkflowStage[];
+
+    connections: SavedWorkflowConnection[];
 }
 
 /* =========================================================
@@ -73,69 +106,67 @@ const WorkflowStageNode = ({
     return (
         <div
             className="
-        relative
-        w-[300px]
-        overflow-hidden
-        rounded-2xl
-        border
-        border-gray-200
-        bg-white
-        shadow-xl
-        transition-all
-        hover:-translate-y-1
-        hover:shadow-2xl
-        dark:border-gray-700
-        dark:bg-gray-900
-      "
+                relative
+                w-[300px]
+                overflow-hidden
+                rounded-2xl
+                border
+                border-gray-200
+                bg-white
+                shadow-xl
+                transition-all
+                hover:-translate-y-1
+                hover:shadow-2xl
+                dark:border-gray-700
+                dark:bg-gray-900
+            "
         >
-            {/* TARGET */}
+            {/* TARGET HANDLE */}
 
-            {data.number > 1 && (
-                <Handle
-                    type="target"
-                    position={Position.Left}
-                    className="
-            !h-3
-            !w-3
-            !border-2
-            !border-white
-            !bg-gray-400
-            dark:!border-gray-900
-          "
-                />
-            )}
+            <Handle
+                type="target"
+                position={Position.Left}
+                className="
+                    !h-3
+                    !w-3
+                    !border-2
+                    !border-white
+                    !bg-gray-400
+                    dark:!border-gray-900
+                "
+            />
 
-            {/* SOURCE */}
+            {/* SOURCE HANDLE */}
 
             <Handle
                 type="source"
                 position={Position.Right}
                 className="
-          !h-3
-          !w-3
-          !border-2
-          !border-white
-          !bg-cyan-500
-          dark:!border-gray-900
-        "
+                    !h-3
+                    !w-3
+                    !border-2
+                    !border-white
+                    !bg-cyan-500
+                    dark:!border-gray-900
+                "
             />
 
             {/* ACCENT */}
 
             <div
                 className={`
-          absolute
-          left-0
-          top-0
-          h-full
-          w-1
-          ${isCompleted
+                    absolute
+                    left-0
+                    top-0
+                    h-full
+                    w-1
+                    ${isCompleted
                         ? "bg-emerald-500"
                         : isActive
                             ? "bg-cyan-500"
                             : "bg-gray-400"
                     }
-        `}
+                `}
             />
 
             {/* HEADER */}
@@ -143,42 +174,39 @@ const WorkflowStageNode = ({
             <div className="flex items-center justify-between px-5 pt-5">
                 <div
                     className={`
-            flex
-            h-10
-            w-10
-            items-center
-            justify-center
-            rounded-full
-            text-xs
-            font-bold
-            ${isCompleted
+                        flex
+                        h-10
+                        w-10
+                        items-center
+                        justify-center
+                        rounded-full
+                        text-xs
+                        font-bold
+                        ${isCompleted
                             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
                             : isActive
                                 ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300"
                                 : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
                         }
-          `}
+                    `}
                 >
-                    {String(data.number).padStart(
-                        2,
-                        "0",
-                    )}
+                    {String(data.number).padStart(2, "0")}
                 </div>
 
                 <span
                     className="
-            rounded-full
-            bg-gray-100
-            px-2.5
-            py-1
-            text-[10px]
-            font-semibold
-            uppercase
-            tracking-wider
-            text-gray-500
-            dark:bg-gray-800
-            dark:text-gray-400
-          "
+                        rounded-full
+                        bg-gray-100
+                        px-2.5
+                        py-1
+                        text-[10px]
+                        font-semibold
+                        uppercase
+                        tracking-wider
+                        text-gray-500
+                        dark:bg-gray-800
+                        dark:text-gray-400
+                    "
                 >
                     Stage {data.number}
                 </span>
@@ -189,19 +217,19 @@ const WorkflowStageNode = ({
             <div className="px-5 pt-5">
                 <div
                     className={`
-            flex
-            h-12
-            w-12
-            items-center
-            justify-center
-            rounded-xl
-            ${isCompleted
+                        flex
+                        h-12
+                        w-12
+                        items-center
+                        justify-center
+                        rounded-xl
+                        ${isCompleted
                             ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
                             : isActive
                                 ? "bg-cyan-50 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-400"
                                 : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                         }
-          `}
+                    `}
                 >
                     {isCompleted ? (
                         <CheckCircle2 size={23} />
@@ -230,12 +258,12 @@ const WorkflowStageNode = ({
 
             <div
                 className="
-          border-t
-          border-gray-100
-          px-5
-          py-3
-          dark:border-gray-800
-        "
+                    border-t
+                    border-gray-100
+                    px-5
+                    py-3
+                    dark:border-gray-800
+                "
             >
                 <div className="flex items-center justify-between">
                     <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500">
@@ -245,16 +273,16 @@ const WorkflowStageNode = ({
                     <div className="flex items-center gap-1.5">
                         <span
                             className={`
-                h-1.5
-                w-1.5
-                rounded-full
-                ${isCompleted
+                                h-1.5
+                                w-1.5
+                                rounded-full
+                                ${isCompleted
                                     ? "bg-emerald-500"
                                     : isActive
                                         ? "bg-cyan-500"
                                         : "bg-gray-400"
                                 }
-              `}
+                            `}
                         />
 
                         <span className="text-[10px] font-semibold capitalize text-gray-500 dark:text-gray-400">
@@ -272,12 +300,24 @@ const nodeTypes = {
 };
 
 /* =========================================================
+   STORAGE KEY
+========================================================= */
+
+const getStorageKey = (
+    workflowId: string,
+) => {
+    return `workflow-diagram-${workflowId}`;
+};
+
+/* =========================================================
    MAIN COMPONENT
 ========================================================= */
 
 const WorkflowDiagram = () => {
     const navigate = useNavigate();
+
     const location = useLocation();
+
     const { workflowId } = useParams();
 
     const workflow =
@@ -285,13 +325,17 @@ const WorkflowDiagram = () => {
         | WorkflowDefinition
         | undefined;
 
-    console.log("Workflow ID:", workflowId);
-    console.log("Workflow:", workflow);
+    const [isSaving, setIsSaving] =
+        useState(false);
+
+    const [saved, setSaved] =
+        useState(false);
+
     /* =======================================================
-       NODES
+       DEFAULT NODES
     ======================================================= */
 
-    const initialNodes = useMemo(() => {
+    const defaultNodes = useMemo(() => {
         if (!workflow) {
             return [];
         }
@@ -308,13 +352,22 @@ const WorkflowDiagram = () => {
                 type: "workflowStage",
 
                 position: {
-                    x: index * 380 + 80,
-                    y: 180,
+                    x:
+                        150 +
+                        (index % 4) * 380,
+
+                    y:
+                        150 +
+                        Math.floor(
+                            index / 4,
+                        ) * 280,
                 },
 
                 data: {
                     number: index + 1,
+
                     stage: stage.stage,
+
                     details: stage.details,
 
                     status:
@@ -331,47 +384,166 @@ const WorkflowDiagram = () => {
     }, [workflow]);
 
     /* =======================================================
-       EDGES
+       LOAD SAVED DATA
     ======================================================= */
 
-    const initialEdges = useMemo(() => {
-        if (!workflow) {
-            return [];
+    const loadSavedWorkflow =
+        useCallback(() => {
+            if (!workflow || !workflowId) {
+                return null;
+            }
+
+            try {
+                const storageKey =
+                    getStorageKey(
+                        workflowId,
+                    );
+
+                const stored =
+                    localStorage.getItem(
+                        storageKey,
+                    );
+
+                if (!stored) {
+                    return null;
+                }
+
+                const parsed =
+                    JSON.parse(
+                        stored,
+                    ) as SavedWorkflow;
+
+                if (
+                    !parsed ||
+                    !Array.isArray(
+                        parsed.stages,
+                    )
+                ) {
+                    return null;
+                }
+
+                return parsed;
+            } catch (error) {
+                console.error(
+                    "Failed to load saved workflow:",
+                    error,
+                );
+
+                return null;
+            }
+        }, [
+            workflow,
+            workflowId,
+        ]);
+
+    /* =======================================================
+       INITIAL NODES
+    ======================================================= */
+
+    const initialNodes = useMemo(() => {
+        const savedWorkflow =
+            loadSavedWorkflow();
+
+        if (
+            !savedWorkflow ||
+            !savedWorkflow.stages.length
+        ) {
+            return defaultNodes;
         }
 
-        return workflow.stages
-            .slice(0, -1)
-            .map(
-                (stage, index): Edge => ({
-                    id: `edge-${index + 1}-${index + 2}`,
+        return defaultNodes.map(
+            (node) => {
+                const savedStage =
+                    savedWorkflow.stages.find(
+                        (stage) =>
+                            stage.id ===
+                            node.id,
+                    );
+
+                if (!savedStage) {
+                    return node;
+                }
+
+                return {
+                    ...node,
+
+                    position:
+                        savedStage.position,
+
+                    data: {
+                        ...node.data,
+
+                        stage:
+                            savedStage.stage,
+
+                        details:
+                            savedStage.details,
+                    },
+                };
+            },
+        );
+    }, [
+        defaultNodes,
+        loadSavedWorkflow,
+    ]);
+
+    /* =======================================================
+       INITIAL EDGES
+    ======================================================= */
+
+    const initialEdges =
+        useMemo<Edge[]>(() => {
+            const savedWorkflow =
+                loadSavedWorkflow();
+
+            if (
+                !savedWorkflow ||
+                !Array.isArray(
+                    savedWorkflow.connections,
+                )
+            ) {
+                return [];
+            }
+
+            return savedWorkflow.connections.map(
+                (connection) => ({
+                    id:
+                        connection.id ||
+                        `edge-${connection.source}-${connection.target}`,
 
                     source:
-                        stage.id ||
-                        `stage-${index + 1}`,
+                        connection.source,
 
                     target:
-                        workflow.stages[index + 1]
-                            .id ||
-                        `stage-${index + 2}`,
+                        connection.target,
 
-                    type: "smoothstep",
+                    sourceHandle:
+                        connection.sourceHandle,
 
-                    animated: true,
+                    targetHandle:
+                        connection.targetHandle,
+
+                    type: "bezier",
 
                     markerEnd: {
-                        type: MarkerType.ArrowClosed,
+                        type:
+                            MarkerType.ArrowClosed,
+
                         width: 18,
+
                         height: 18,
+
                         color: "#6366f1",
                     },
 
                     style: {
                         stroke: "#6366f1",
+
                         strokeWidth: 2.5,
                     },
                 }),
             );
-    }, [workflow]);
+        }, [loadSavedWorkflow]);
 
     /* =======================================================
        REACT FLOW STATE
@@ -379,7 +551,7 @@ const WorkflowDiagram = () => {
 
     const [
         nodes,
-        setNodes,
+        ,
         onNodesChange,
     ] = useNodesState<WorkflowNodeData>(
         initialNodes,
@@ -389,68 +561,240 @@ const WorkflowDiagram = () => {
         edges,
         setEdges,
         onEdgesChange,
-    ] = useEdgesState(initialEdges);
-
-    /* =======================================================
-       RESET WHEN WORKFLOW CHANGES
-    ======================================================= */
-
-    useEffect(() => {
-        setNodes(initialNodes);
-        setEdges(initialEdges);
-    }, [
-        initialNodes,
+    ] = useEdgesState(
         initialEdges,
-        setNodes,
-        setEdges,
-    ]);
+    );
+
 
     /* =======================================================
-       CONNECT
+       MANUAL CONNECTION
     ======================================================= */
 
     const onConnect = useCallback(
         (connection: Connection) => {
-            const {
-                source,
-                target,
-                sourceHandle,
-                targetHandle,
-            } = connection;
+            if (
+                !connection.source ||
+                !connection.target
+            ) {
+                return;
+            }
 
-            if (!source || !target) {
+            /*
+             * Prevent self connection.
+             */
+            if (
+                connection.source ===
+                connection.target
+            ) {
+                return;
+            }
+
+            /*
+             * Prevent exact duplicate.
+             */
+            const alreadyExists =
+                edges.some(
+                    (edge) =>
+                        edge.source ===
+                        connection.source &&
+                        edge.target ===
+                        connection.target,
+                );
+
+            if (alreadyExists) {
                 return;
             }
 
             const newEdge: Edge = {
                 id: `edge-${Date.now()}`,
-                source,
-                target,
-                sourceHandle,
-                targetHandle,
-                type: "smoothstep",
-                animated: true,
 
+                source:
+                    connection.source,
+
+                target:
+                    connection.target,
+
+                sourceHandle:
+                    connection.sourceHandle,
+
+                targetHandle:
+                    connection.targetHandle,
+
+                /*
+                 * BEZIER = curved line
+                 */
+                type: "bezier",
+
+                /*
+                 * Do NOT use animated: true.
+                 * Animated edges appear dotted.
+                 */
                 markerEnd: {
-                    type: MarkerType.ArrowClosed,
+                    type:
+                        MarkerType.ArrowClosed,
+
                     width: 18,
+
                     height: 18,
+
                     color: "#6366f1",
                 },
 
                 style: {
                     stroke: "#6366f1",
+
                     strokeWidth: 2.5,
                 },
             };
 
-            setEdges((currentEdges) => [
-                ...currentEdges,
-                newEdge,
-            ]);
+            setEdges(
+                (currentEdges) => [
+                    ...currentEdges,
+                    newEdge,
+                ],
+            );
+
+            setSaved(false);
         },
-        [setEdges],
+        [edges, setEdges],
     );
+
+    /* =======================================================
+       SAVE WORKFLOW
+    ======================================================= */
+
+    const handleSaveWorkflow =
+        useCallback(async () => {
+            if (!workflow || !workflowId) {
+                return;
+            }
+
+            setIsSaving(true);
+
+            setSaved(false);
+
+            try {
+                /*
+                 * Convert React Flow nodes into
+                 * clean API JSON.
+                 */
+                const savedStages =
+                    nodes.map(
+                        (node) => ({
+                            id: node.id,
+
+                            stage:
+                                node.data.stage,
+
+                            details:
+                                node.data
+                                    .details,
+
+                            position: {
+                                x: node.position.x,
+
+                                y: node.position.y,
+                            },
+                        }),
+                    );
+
+                /*
+                 * Convert React Flow edges into
+                 * clean API JSON.
+                 */
+                const savedConnections =
+                    edges.map(
+                        (edge) => ({
+                            id: edge.id,
+
+                            source:
+                                edge.source,
+
+                            target:
+                                edge.target,
+
+                            sourceHandle:
+                                edge.sourceHandle,
+
+                            targetHandle:
+                                edge.targetHandle,
+                        }),
+                    );
+
+                /*
+                 * THIS is the JSON you will
+                 * eventually send to your API.
+                 */
+                const payload: SavedWorkflow =
+                {
+                    workflow_id:
+                        workflowId,
+
+                    title:
+                        workflow.title,
+
+                    stages:
+                        savedStages,
+
+                    connections:
+                        savedConnections,
+                };
+
+                console.log(
+                    "WORKFLOW JSON:",
+                    JSON.stringify(
+                        payload,
+                        null,
+                        2,
+                    ),
+                );
+
+                /*
+                 * TEMPORARY STORAGE
+                 *
+                 * This makes the diagram survive
+                 * page refresh right now.
+                 */
+                localStorage.setItem(
+                    getStorageKey(
+                        workflowId,
+                    ),
+
+                    JSON.stringify(
+                        payload,
+                    ),
+                );
+
+                /*
+                 * =================================================
+                 * LATER REPLACE THE localStorage PART WITH API:
+                 *
+                 * await saveWorkflow(payload);
+                 * =================================================
+                 */
+
+                setSaved(true);
+
+                /*
+                 * Remove "Saved" message after 3 seconds.
+                 */
+                window.setTimeout(() => {
+                    setSaved(false);
+                }, 3000);
+            } catch (error) {
+                console.error(
+                    "Failed to save workflow:",
+                    error,
+                );
+            } finally {
+                setIsSaving(false);
+            }
+        }, [
+            workflow,
+            workflowId,
+            nodes,
+            edges,
+        ]);
 
     /* =======================================================
        NO WORKFLOW
@@ -467,18 +811,20 @@ const WorkflowDiagram = () => {
                     <button
                         type="button"
                         onClick={() =>
-                            navigate("/workflow-process")
+                            navigate(
+                                "/workflow-process",
+                            )
                         }
                         className="
-              mt-3
-              rounded-lg
-              bg-cyan-600
-              px-4
-              py-2
-              text-xs
-              font-semibold
-              text-white
-            "
+                            mt-3
+                            rounded-lg
+                            bg-cyan-600
+                            px-4
+                            py-2
+                            text-xs
+                            font-semibold
+                            text-white
+                        "
                     >
                         Back to Workflows
                     </button>
@@ -494,66 +840,74 @@ const WorkflowDiagram = () => {
     return (
         <div
             className="
-        relative
-        h-full
-        min-h-[calc(100vh-64px)]
-        w-full
-        overflow-hidden
-        bg-gray-50
-        dark:bg-gray-950
-      "
+                relative
+                h-full
+                min-h-[calc(100vh-64px)]
+                w-full
+                overflow-hidden
+                bg-gray-50
+                dark:bg-gray-950
+            "
         >
-            {/* TOP BAR */}
+            {/* =================================================
+                TOP BAR
+            ================================================= */}
 
             <div
                 className="
-          absolute
-          left-0
-          right-0
-          top-0
-          z-20
-          flex
-          h-16
-          items-center
-          justify-between
-          border-b
-          border-gray-200
-          bg-white/95
-          px-5
-          shadow-sm
-          backdrop-blur
-          dark:border-gray-800
-          dark:bg-gray-900/95
-        "
+                    absolute
+                    left-0
+                    right-0
+                    top-0
+                    z-20
+                    flex
+                    h-16
+                    items-center
+                    justify-between
+                    border-b
+                    border-gray-200
+                    bg-white/95
+                    px-5
+                    shadow-sm
+                    backdrop-blur
+                    dark:border-gray-800
+                    dark:bg-gray-900/95
+                "
             >
+                {/* LEFT */}
+
                 <div className="flex items-center gap-3">
                     <button
                         type="button"
                         onClick={() =>
-                            navigate("/workflow-process")
+                            navigate(
+                                "/workflow-process",
+                            )
                         }
                         className="
-              flex
-              h-9
-              w-9
-              items-center
-              justify-center
-              rounded-lg
-              border
-              border-gray-200
-              bg-white
-              text-gray-500
-              transition
-              hover:bg-gray-100
-              hover:text-gray-900
-              dark:border-gray-700
-              dark:bg-gray-900
-              dark:text-gray-400
-              dark:hover:bg-gray-800
-              dark:hover:text-white
-            "
+                            flex
+                            h-9
+                            w-9
+                            items-center
+                            justify-center
+                            rounded-lg
+                            border
+                            border-gray-200
+                            bg-white
+                            text-gray-500
+                            transition
+                            hover:bg-gray-100
+                            hover:text-gray-900
+                            dark:border-gray-700
+                            dark:bg-gray-900
+                            dark:text-gray-400
+                            dark:hover:bg-gray-800
+                            dark:hover:text-white
+                        "
                     >
-                        <ArrowLeft size={17} />
+                        <ArrowLeft
+                            size={17}
+                        />
                     </button>
 
                     <div>
@@ -562,23 +916,101 @@ const WorkflowDiagram = () => {
                         </h1>
 
                         <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                            {workflow.stages.length} workflow stages
+                            {
+                                workflow
+                                    .stages
+                                    .length
+                            }{" "}
+                            workflow stages
                         </p>
                     </div>
                 </div>
+
+                {/* RIGHT */}
+
+                <div className="flex items-center gap-2">
+                    {saved && (
+                        <div
+                            className="
+                                flex
+                                items-center
+                                gap-1.5
+                                rounded-lg
+                                bg-emerald-50
+                                px-3
+                                py-2
+                                text-xs
+                                font-medium
+                                text-emerald-600
+                                dark:bg-emerald-950/40
+                                dark:text-emerald-400
+                            "
+                        >
+                            <CheckCircle2
+                                size={14}
+                            />
+
+                            Saved
+                        </div>
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={
+                            handleSaveWorkflow
+                        }
+                        disabled={isSaving}
+                        className="
+                            flex
+                            items-center
+                            gap-2
+                            rounded-lg
+                            bg-cyan-600
+                            px-4
+                            py-2
+                            text-xs
+                            font-semibold
+                            text-white
+                            shadow-sm
+                            transition
+                            hover:bg-cyan-700
+                            disabled:cursor-not-allowed
+                            disabled:opacity-60
+                        "
+                    >
+                        {isSaving ? (
+                            <Loader2
+                                size={15}
+                                className="animate-spin"
+                            />
+                        ) : (
+                            <Save
+                                size={15}
+                            />
+                        )}
+
+                        {isSaving
+                            ? "Saving..."
+                            : "Save Workflow"}
+                    </button>
+                </div>
             </div>
 
-            {/* REACT FLOW */}
-
-            {/* REACT FLOW */}
+            {/* =================================================
+                REACT FLOW
+            ================================================= */}
 
             <div className="absolute inset-0 pt-16">
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
                     nodeTypes={nodeTypes}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
+                    onNodesChange={
+                        onNodesChange
+                    }
+                    onEdgesChange={
+                        onEdgesChange
+                    }
                     onConnect={onConnect}
                     fitView
                     fitViewOptions={{
@@ -597,12 +1029,18 @@ const WorkflowDiagram = () => {
                         stroke: "#6366f1",
                         strokeWidth: 2.5,
                     }}
+                    deleteKeyCode={[
+                        "Backspace",
+                        "Delete",
+                    ]}
                     proOptions={{
                         hideAttribution: true,
                     }}
                 >
                     <Background
-                        variant={BackgroundVariant.Dots}
+                        variant={
+                            BackgroundVariant.Dots
+                        }
                         gap={22}
                         size={1.2}
                         color="#cbd5e1"
@@ -611,65 +1049,86 @@ const WorkflowDiagram = () => {
                     <Controls
                         showInteractive={false}
                         className="
-        !overflow-hidden
-        !rounded-xl
-        !border
-        !border-gray-200
-        !bg-white
-        !shadow-lg
-        dark:!border-gray-700
-        dark:!bg-gray-900
-      "
+                            !overflow-hidden
+                            !rounded-xl
+                            !border
+                            !border-gray-200
+                            !bg-white
+                            !shadow-lg
+                            dark:!border-gray-700
+                            dark:!bg-gray-900
+                        "
                     />
 
                     <MiniMap
                         pannable
                         zoomable
-                        nodeColor={() => "#6366f1"}
+                        nodeColor={() =>
+                            "#6366f1"
+                        }
                         maskColor="rgba(15, 23, 42, 0.08)"
                         className="
-        !overflow-hidden
-        !rounded-xl
-        !border
-        !border-gray-200
-        !bg-white
-        !shadow-lg
-        dark:!border-gray-700
-        dark:!bg-gray-900
-      "
+                            !overflow-hidden
+                            !rounded-xl
+                            !border
+                            !border-gray-200
+                            !bg-white
+                            !shadow-lg
+                            dark:!border-gray-700
+                            dark:!bg-gray-900
+                        "
                     />
                 </ReactFlow>
             </div>
 
-            {/* STAGE COUNT */}
+            {/* =================================================
+                BOTTOM INFO
+            ================================================= */}
 
             <div
                 className="
-          absolute
-          bottom-5
-          left-5
-          z-10
-          rounded-xl
-          border
-          border-gray-200
-          bg-white/95
-          px-4
-          py-3
-          shadow-lg
-          backdrop-blur
-          dark:border-gray-800
-          dark:bg-gray-900/95
-        "
+                    absolute
+                    bottom-5
+                    left-5
+                    z-10
+                    rounded-xl
+                    border
+                    border-gray-200
+                    bg-white/95
+                    px-4
+                    py-3
+                    shadow-lg
+                    backdrop-blur
+                    dark:border-gray-800
+                    dark:bg-gray-900/95
+                "
             >
                 <div className="text-[10px] font-medium uppercase tracking-wider text-gray-400">
                     Workflow
                 </div>
 
-                <div className="mt-1 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    {workflow.stages.length}{" "}
-                    {workflow.stages.length === 1
-                        ? "Stage"
-                        : "Stages"}
+                <div className="mt-1 flex items-center gap-3">
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        {
+                            workflow
+                                .stages
+                                .length
+                        }{" "}
+                        {workflow.stages
+                            .length === 1
+                            ? "Stage"
+                            : "Stages"}
+                    </span>
+
+                    <span className="h-3 w-px bg-gray-300 dark:bg-gray-700" />
+
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {edges.length}{" "}
+                        {edges.length ===
+                            1
+                            ? "connection"
+                            : "connections"}
+                    </span>
                 </div>
             </div>
         </div>
