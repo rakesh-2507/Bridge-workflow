@@ -31,10 +31,8 @@ import FileUploadPage from "./pages/FileUploadPage";
 import TaskChatPage from "./pages/TaskChatPage";
 import AssetPurchaseRequest from "./pages/asset-purchase/AssetPurchaseRequest";
 import AssetPurchaseQuote from "./pages/asset-purchase/AssetPurchaseQuote";
-import WorkflowProcess from "./pages/workflow/WorkflowProcess";
-import AssetPurchaseWorkflow from "./pages/workflow/AssetPurchaseWorkflow";
-import WritingWorkflow from "./pages/workflow/WritingWorkflow";
-
+import WorkflowProcess from "./components/workflow/WorkflowProcess";
+import WorkflowDiagram from "./pages/workflow/WorkflowDiagram";
 function App() {
   const [darkMode, setDarkMode] = useState(false);
 
@@ -141,15 +139,9 @@ function App() {
             />
 
             <Route
-              path="/workflow-process/asset-purchase"
-              element={<AssetPurchaseWorkflow />}
+              path="/workflow-process/diagram/:workflowId"
+              element={<WorkflowDiagram />}
             />
-
-            <Route
-              path="/workflow-process/writing"
-              element={<WritingWorkflow />}
-            />
-
             <Route
               path="/projects"
               element={<Projects />}
