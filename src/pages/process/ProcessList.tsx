@@ -181,7 +181,7 @@ export default function ProcessList() {
   return (
     <div
       className="
-        min-h-screen
+        
         bg-slate-50
         p-6
         text-slate-900
@@ -483,7 +483,7 @@ export default function ProcessList() {
             grid
             gap-5
             md:grid-cols-2
-            xl:grid-cols-3
+            xl:grid-cols-4
           "
         >
           {processes.map(

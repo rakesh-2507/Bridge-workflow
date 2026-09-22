@@ -19,7 +19,9 @@ import {
 import type {
   ProcessAttribute,
   ProcessComparisonRating,
+  ProcessConnection,
   ProcessLevel,
+  ProcessPosition,
   ProcessTask,
   ProcessTaskDetails,
   TaskType,
@@ -67,6 +69,11 @@ interface EditableTask {
   SelectionAttribute: string;
 
   MaximumQuotations?: number;
+
+  /**
+   * Position inside the workflow diagram.
+   */
+  position: ProcessPosition;
 }
 
 /* ============================================================
@@ -80,8 +87,7 @@ const TASK_CONFIG_TYPE_MAP: Record<string, string> = {
 };
 
 /* ============================================================
-   DEFAULT ATTRIBUTES
-   These are required by the process API.
+   DEFAULT TASK ATTRIBUTES
 ============================================================ */
 
 const EMPLOYEE_REQUEST_ATTRIBUTES: ProcessAttribute[] = [
@@ -187,10 +193,7 @@ function normalize(value: string | undefined | null): string {
 function getConfigTypeForTask(
   taskType: string,
 ): string | null {
-  return (
-    TASK_CONFIG_TYPE_MAP[normalize(taskType)] ??
-    null
-  );
+  return TASK_CONFIG_TYPE_MAP[normalize(taskType)] ?? null;
 }
 
 /* ============================================================
@@ -269,6 +272,19 @@ function getDefaultSelectionAttribute(
 }
 
 /* ============================================================
+   DEFAULT TASK POSITION
+============================================================ */
+
+function getDefaultTaskPosition(
+  index: number,
+): ProcessPosition {
+  return {
+    x: 120 + index * 320,
+    y: 160,
+  };
+}
+
+/* ============================================================
    MAP WORKFLOW LEVEL
 ============================================================ */
 
@@ -283,7 +299,9 @@ function mapWorkflowLevel(
       ? level.actions
       : [],
 
-    Sequence: index + 1,
+    Sequence:
+      level.Sequence ??
+      index + 1,
 
     ...(level.condition
       ? {
@@ -445,6 +463,7 @@ export default function CreateProcess({
 
   const createEmptyTask = (
     type: TaskType,
+    index: number,
   ): EditableTask => {
     const attributes =
       getDefaultAttributes(
@@ -502,6 +521,11 @@ export default function CreateProcess({
         getDefaultMaximumQuotations(
           type.TaskType,
         ),
+
+      position:
+        getDefaultTaskPosition(
+          index,
+        ),
     };
   };
 
@@ -542,7 +566,10 @@ export default function CreateProcess({
 
     setTasks((current) => [
       ...current,
-      createEmptyTask(firstType),
+      createEmptyTask(
+        firstType,
+        current.length,
+      ),
     ]);
   };
 
@@ -620,13 +647,6 @@ export default function CreateProcess({
             ),
         );
 
-      /*
-       * Only update this task if the user
-       * still has the same config selected.
-       *
-       * This prevents an old API response
-       * from overwriting a newer selection.
-       */
       setTasks((current) =>
         current.map((task) => {
           if (
@@ -698,6 +718,12 @@ export default function CreateProcess({
         return;
       }
 
+      const currentTask =
+        tasks.find(
+          (task) =>
+            task.id === taskId,
+        );
+
       const defaultAttributes =
         getDefaultAttributes(
           selectedType.TaskType,
@@ -758,6 +784,12 @@ export default function CreateProcess({
 
         MaximumQuotations:
           defaultMaximumQuotations,
+
+        position:
+          currentTask?.position ??
+          getDefaultTaskPosition(
+            tasks.length,
+          ),
       });
 
       const matchingConfigs =
@@ -765,19 +797,12 @@ export default function CreateProcess({
           selectedType.TaskType,
         );
 
-      /*
-       * Automatically select a config
-       * when exactly one matching config exists.
-       */
       if (
         matchingConfigs.length === 1
       ) {
         const config =
           matchingConfigs[0];
 
-        /*
-         * Set summary data immediately.
-         */
         updateTask(taskId, {
           ConfigID:
             config.id,
@@ -792,9 +817,6 @@ export default function CreateProcess({
             config.itemParams ?? [],
         });
 
-        /*
-         * Then load complete details.
-         */
         await loadConfigDetails(
           taskId,
           config.id,
@@ -893,10 +915,6 @@ export default function CreateProcess({
   const buildProcessTask = (
     task: EditableTask,
   ): ProcessTask => {
-    /*
-     * Always ensure required attributes
-     * exist for the selected task type.
-     */
     const attributes =
       task.Attributes.length > 0
         ? task.Attributes
@@ -917,17 +935,19 @@ export default function CreateProcess({
           : {}),
       };
 
-    /*
-     * Attributes
-     */
+    /* --------------------------------------------------------
+       ATTRIBUTES
+    -------------------------------------------------------- */
+
     if (attributes.length > 0) {
       taskDetails.Attributes =
         attributes;
     }
 
-    /*
-     * Workflow configuration
-     */
+    /* --------------------------------------------------------
+       WORKFLOW CONFIGURATION
+    -------------------------------------------------------- */
+
     if (task.ConfigID) {
       taskDetails.ConfigID =
         task.ConfigID;
@@ -948,25 +968,24 @@ export default function CreateProcess({
         task.ItemParams;
     }
 
-    /*
-     * Levels
-     */
+    /* --------------------------------------------------------
+       LEVELS
+    -------------------------------------------------------- */
+
     if (task.Levels.length > 0) {
       taskDetails.Levels =
         task.Levels;
     }
 
-    /*
-     * Single-level configuration
-     */
     if (task.Level) {
       taskDetails.Level =
         task.Level;
     }
 
-    /*
-     * Rating
-     */
+    /* --------------------------------------------------------
+       RATING
+    -------------------------------------------------------- */
+
     if (
       task.ComparisonRating
     ) {
@@ -974,9 +993,10 @@ export default function CreateProcess({
         task.ComparisonRating;
     }
 
-    /*
-     * Selection
-     */
+    /* --------------------------------------------------------
+       SELECTION
+    -------------------------------------------------------- */
+
     if (
       task.SelectionAttribute
     ) {
@@ -984,9 +1004,10 @@ export default function CreateProcess({
         task.SelectionAttribute;
     }
 
-    /*
-     * Maximum quotations
-     */
+    /* --------------------------------------------------------
+       MAXIMUM QUOTATIONS
+    -------------------------------------------------------- */
+
     if (
       task.MaximumQuotations !==
         undefined &&
@@ -996,6 +1017,13 @@ export default function CreateProcess({
         task.MaximumQuotations;
     }
 
+    /* --------------------------------------------------------
+       PROCESS TASK
+
+       IMPORTANT:
+       position is now included directly on the task.
+    -------------------------------------------------------- */
+
     return {
       TaskTypeID:
         task.TaskTypeID,
@@ -1003,10 +1031,40 @@ export default function CreateProcess({
       TaskType:
         task.TaskType,
 
+      position: {
+        x: task.position.x,
+        y: task.position.y,
+      },
+
       TaskDetails:
         taskDetails,
     };
   };
+
+  /* ==========================================================
+     BUILD CONNECTIONS
+  ========================================================== */
+
+  const buildConnections =
+    (): ProcessConnection[] => {
+      if (tasks.length < 2) {
+        return [];
+      }
+
+      return tasks
+        .slice(0, -1)
+        .map(
+          (task, index) => ({
+            source: String(
+              task.id,
+            ),
+
+            target: String(
+              tasks[index + 1].id,
+            ),
+          }),
+        );
+    };
 
   /* ==========================================================
      VALIDATION
@@ -1040,10 +1098,6 @@ export default function CreateProcess({
         } must have a task name.`;
       }
 
-      /*
-       * Employee Request, Quotation Creation,
-       * Rating and Selection require attributes.
-       */
       const invalidAttributes =
         tasks.find((task) => {
           const required =
@@ -1061,9 +1115,6 @@ export default function CreateProcess({
         return `Attributes are required for "${invalidAttributes.TaskType}".`;
       }
 
-      /*
-       * Workflow configuration validation.
-       */
       const invalidConfig =
         tasks.find(
           (task) =>
@@ -1107,13 +1158,38 @@ export default function CreateProcess({
       try {
         setSaving(true);
 
+        /* ----------------------------------------------------
+           BUILD TASKS
+        ---------------------------------------------------- */
+
         const processTasks =
           tasks.map(
             buildProcessTask,
           );
 
+        /* ----------------------------------------------------
+           BUILD CONNECTIONS
+
+           Task 1 → Task 2
+           Task 2 → Task 3
+           Task 3 → Task 4
+           ...
+        ---------------------------------------------------- */
+
+        const connections =
+          buildConnections();
+
+        /* ----------------------------------------------------
+           COMPLETE API PAYLOAD
+
+           Processid is explicitly included because the
+           Swagger schema expects it inside ProcessJson.
+        ---------------------------------------------------- */
+
         const payload = {
           ProcessJson: {
+            Processid: 0,
+
             ProcessName:
               processName.trim(),
 
@@ -1125,6 +1201,8 @@ export default function CreateProcess({
 
             Tasks:
               processTasks,
+
+            connections,
           },
         };
 
@@ -1346,7 +1424,6 @@ export default function CreateProcess({
                     task.TaskType,
                   );
 
-               
                 const isLoadingConfig =
                   loadingConfigIds.includes(
                     task.id,
@@ -1504,6 +1581,83 @@ export default function CreateProcess({
                             }
                             className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                           />
+                        </div>
+
+                        {/* =================================================
+                            POSITION
+                        ================================================== */}
+
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                            Diagram Position
+                          </label>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="number"
+                              value={
+                                task.position.x
+                              }
+                              onChange={(
+                                event,
+                              ) =>
+                                updateTask(
+                                  task.id,
+                                  {
+                                    position:
+                                      {
+                                        ...task.position,
+                                        x: Number(
+                                          event
+                                            .target
+                                            .value,
+                                        ),
+                                      },
+                                  },
+                                )
+                              }
+                              disabled={
+                                saving
+                              }
+                              placeholder="X"
+                              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                            />
+
+                            <input
+                              type="number"
+                              value={
+                                task.position.y
+                              }
+                              onChange={(
+                                event,
+                              ) =>
+                                updateTask(
+                                  task.id,
+                                  {
+                                    position:
+                                      {
+                                        ...task.position,
+                                        y: Number(
+                                          event
+                                            .target
+                                            .value,
+                                        ),
+                                      },
+                                  },
+                                )
+                              }
+                              disabled={
+                                saving
+                              }
+                              placeholder="Y"
+                              className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                            />
+                          </div>
+
+                          <p className="mt-1 text-xs text-slate-400">
+                            X / Y position used by
+                            the workflow diagram.
+                          </p>
                         </div>
 
                         {/* =================================================
@@ -2197,6 +2351,24 @@ export default function CreateProcess({
                             </div>
                           </div>
                         )}
+
+                      {/* ====================================================
+                          CONNECTION PREVIEW
+                      ===================================================== */}
+
+                      {index <
+                        tasks.length - 1 && (
+                        <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
+                          <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+
+                          <span className="rounded-lg bg-slate-100 px-2.5 py-1 dark:bg-slate-800">
+                            Connects to Task{" "}
+                            {index + 2}
+                          </span>
+
+                          <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                        </div>
+                      )}
 
                       {/* ====================================================
                           LOADING

@@ -11,6 +11,30 @@ export interface ProcessAttribute {
 }
 
 // ============================================================
+// PROCESS POSITION
+// ============================================================
+//
+// Position of a task/node inside the workflow diagram.
+//
+
+export interface ProcessPosition {
+  x: number;
+  y: number;
+}
+
+// ============================================================
+// PROCESS CONNECTION
+// ============================================================
+//
+// Connection between two workflow task nodes.
+//
+
+export interface ProcessConnection {
+  source: string;
+  target: string;
+}
+
+// ============================================================
 // PROCESS LEVEL
 // ============================================================
 
@@ -26,6 +50,9 @@ export interface ProcessLevel {
   backofficeSubWorkflow?: {
     levels: ProcessLevel[];
   };
+
+  // Allows additional backend workflow properties
+  [key: string]: unknown;
 }
 
 // ============================================================
@@ -35,6 +62,9 @@ export interface ProcessLevel {
 export interface ProcessComparisonRating {
   Min?: number;
   Max?: number;
+
+  // Allows additional backend properties
+  [key: string]: unknown;
 }
 
 // ============================================================
@@ -68,6 +98,9 @@ export interface ProcessTaskDetails {
 
   // Quotation creation
   MaximumQuotations?: number;
+
+  // Allows additional backend task properties
+  [key: string]: unknown;
 }
 
 // ============================================================
@@ -77,6 +110,10 @@ export interface ProcessTaskDetails {
 export interface ProcessTask {
   TaskTypeID: number;
   TaskType: string;
+
+  // Position of this task in the workflow diagram
+  position: ProcessPosition;
+
   TaskDetails: ProcessTaskDetails;
 }
 
@@ -84,45 +121,55 @@ export interface ProcessTask {
 // PROCESS JSON
 // ============================================================
 //
-// Used when receiving an existing process from the API.
+// Used for both:
+// - Existing process responses
+// - Create process request
 //
-// Processid is required here because existing processes
-// returned by the backend contain their ID.
-// ============================================================
+// Swagger now expects Processid in ProcessJson.
+//
 
 export interface ProcessJson {
   Processid: number;
   ProcessName: string;
   DocumentType: string;
   NumberofTasks: number;
+
   Tasks: ProcessTask[];
+
+  // Workflow diagram connections
+  connections: ProcessConnection[];
 }
 
 // ============================================================
 // CREATE PROCESS JSON
 // ============================================================
 //
-// IMPORTANT:
-//
-// The create-process API payload does NOT require Processid.
-//
-// Expected:
+// The current Swagger schema expects:
 //
 // {
 //   "ProcessJson": {
+//     "Processid": 0,
 //     "ProcessName": "...",
 //     "DocumentType": "...",
 //     "NumberofTasks": 5,
-//     "Tasks": []
+//     "Tasks": [],
+//     "connections": []
 //   }
 // }
-// ============================================================
+//
+// Processid can normally be sent as 0 when creating a new
+// process, if that is what the backend expects.
+//
 
 export interface CreateProcessJson {
+  Processid: number;
   ProcessName: string;
   DocumentType: string;
   NumberofTasks: number;
+
   Tasks: ProcessTask[];
+
+  connections: ProcessConnection[];
 }
 
 // ============================================================
@@ -236,9 +283,8 @@ export interface WorkflowConfigSummary {
 //   "Sequence": 1
 // }
 //
-// This interface supports both the API workflow structure
-// and the ProcessLevel structure.
-// ============================================================
+// This interface supports both structures.
+//
 
 export interface WorkflowConfigLevel extends ProcessLevel {
   label: string;

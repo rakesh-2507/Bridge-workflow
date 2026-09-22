@@ -4,6 +4,7 @@ import type {
   CreateProcessRequest,
   CreateProcessResponse,
   GetProcessResponse,
+  ProcessJson,
   ProcessListResponse,
   TaskTypesResponse,
   WorkflowConfigResponse,
@@ -12,6 +13,25 @@ import type {
 
 // ============================================================
 // CREATE PROCESS
+// ============================================================
+//
+// Creates a complete workflow process.
+//
+// ProcessJson contains:
+//
+// - Processid
+// - ProcessName
+// - DocumentType
+// - NumberofTasks
+// - Tasks
+//   - TaskTypeID
+//   - TaskType
+//   - TaskDetails
+//   - position { x, y }
+// - connections
+//   - source
+//   - target
+//
 // ============================================================
 
 export async function createProcess(
@@ -42,12 +62,20 @@ export async function getProcessList(): Promise<ProcessListResponse> {
 // ============================================================
 // GET PROCESS BY ID
 // ============================================================
+//
+// Returns the complete ProcessJson.
+//
+// ============================================================
 
 export async function getProcess(
   processId: number,
 ): Promise<GetProcessResponse> {
+  if (!Number.isInteger(processId)) {
+    throw new Error("Valid process ID is required.");
+  }
+
   return apiRequest<GetProcessResponse>(
-    `/api/process/getprocess/${processId}`,
+    `/api/process/getprocess/${encodeURIComponent(processId)}`,
     {
       method: "GET",
     },
@@ -55,7 +83,74 @@ export async function getProcess(
 }
 
 // ============================================================
+// UPDATE PROCESS
+// ============================================================
+//
+// Updates the complete ProcessJson.
+//
+// Endpoint:
+//
+// PUT /api/process/updateprocess/{process_id}
+//
+// The current ReactFlow positions and connections are sent
+// inside ProcessJson.
+//
+// Example:
+//
+// {
+//   "ProcessJson": {
+//     "Processid": 1,
+//     "ProcessName": "Asset Purchase",
+//     "DocumentType": "Asset",
+//     "NumberofTasks": 3,
+//     "Tasks": [
+//       {
+//         "TaskTypeID": 1,
+//         "TaskType": "Raise Request",
+//         "position": {
+//           "x": 100,
+//           "y": 200
+//         },
+//         "TaskDetails": {}
+//       }
+//     ],
+//     "connections": [
+//       {
+//         "source": "task-1-0",
+//         "target": "task-2-1"
+//       }
+//     ]
+//   }
+// }
+//
+// ============================================================
+
+export async function updateProcess(
+  processId: number,
+  processData: {
+    ProcessJson: ProcessJson;
+  },
+): Promise<unknown> {
+  if (!Number.isInteger(processId)) {
+    throw new Error("Valid process ID is required.");
+  }
+
+  return apiRequest<unknown>(
+    `/api/process/updateprocess/${encodeURIComponent(processId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(processData),
+    },
+  );
+}
+
+// ============================================================
 // GET TASK TYPES
+// ============================================================
+//
+// Returns the available task types that can be added to a
+// workflow process.
+//
 // ============================================================
 
 export async function getTaskTypes(): Promise<TaskTypesResponse> {
@@ -71,22 +166,8 @@ export async function getTaskTypes(): Promise<TaskTypesResponse> {
 // GET WORKFLOW CONFIGS
 // ============================================================
 //
-// Returns available workflow configurations.
+// Returns workflow configuration summaries.
 //
-// Example:
-//
-// Approval
-//   -> Asset Purchase Approval
-//   -> Credit Approval
-//
-// Rating
-//   -> Asset Quotation Rating
-//
-// Selection
-//   -> Asset Quotation Selection
-//
-// ConfigID, ConfigType, KeyParam and ItemParams are
-// obtained from the API instead of being manually entered.
 // ============================================================
 
 export async function getWorkflowConfigs(): Promise<WorkflowConfigsResponse> {
@@ -102,27 +183,25 @@ export async function getWorkflowConfigs(): Promise<WorkflowConfigsResponse> {
 // GET WORKFLOW CONFIG BY ID
 // ============================================================
 //
-// Returns complete configuration details.
-//
-// Includes:
-//
-// - levels
-// - actions
-// - conditions
-// - assignments
-// - backoffice sub-workflows
+// Returns the complete workflow configuration.
 //
 // ============================================================
 
 export async function getWorkflowConfig(
   configId: string,
 ): Promise<WorkflowConfigResponse> {
-  if (!configId.trim()) {
-    throw new Error("Workflow configuration ID is required.");
+  const normalizedConfigId = configId.trim();
+
+  if (!normalizedConfigId) {
+    throw new Error(
+      "Workflow configuration ID is required.",
+    );
   }
 
   return apiRequest<WorkflowConfigResponse>(
-    `/api/process/workflow-configs/${encodeURIComponent(configId)}`,
+    `/api/process/workflow-configs/${encodeURIComponent(
+      normalizedConfigId,
+    )}`,
     {
       method: "GET",
     },

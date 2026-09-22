@@ -6,6 +6,27 @@ import {
 } from "react";
 
 import {
+  addEdge,
+  Background,
+  BackgroundVariant,
+  Controls,
+  Handle,
+  MarkerType,
+  MiniMap,
+  Position,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+} from "reactflow";
+
+import type {
+  Connection,
+  Edge,
+  Node,
+  NodeProps,
+} from "reactflow";
+
+import {
   ArrowLeft,
   CheckCircle2,
   Circle,
@@ -15,31 +36,20 @@ import {
   Settings,
 } from "lucide-react";
 
-import { useNavigate, useParams } from "react-router-dom";
-
-import ReactFlow, {
-  Background,
-  BackgroundVariant,
-  Controls,
-  Handle,
-  MarkerType,
-  MiniMap,
-  Position,
-  useEdgesState,
-  useNodesState,
-} from "reactflow";
-
-import type {
-  Edge,
-  Node,
-  NodeProps,
-} from "reactflow";
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 import "reactflow/dist/style.css";
 
-import { getProcess } from "../../api/process";
+import {
+  getProcess,
+  updateProcess,
+} from "../../api/process";
 
 import type {
+  ProcessConnection,
   ProcessJson,
   ProcessTask,
 } from "../../types/process";
@@ -66,16 +76,18 @@ interface SavedProcessNode {
   };
 }
 
+interface SavedProcessConnection {
+  id?: string;
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+}
+
 interface SavedProcess {
   processId: string;
   nodes: SavedProcessNode[];
-  connections: {
-    id: string;
-    source: string;
-    target: string;
-    sourceHandle?: string | null;
-    targetHandle?: string | null;
-  }[];
+  connections: SavedProcessConnection[];
 }
 
 /* =========================================================
@@ -90,7 +102,42 @@ const getStorageKey = (processId: string) => {
    HELPERS
 ========================================================= */
 
-const getTaskName = (task: ProcessTask) => {
+/**
+ * ReactFlow node IDs are generated from the task type and
+ * task index because the Process API does not expose a
+ * separate node ID.
+ */
+const getTaskNodeId = (
+  task: ProcessTask,
+  index: number,
+) => {
+  return `task-${task.TaskTypeID}-${index}`;
+};
+
+/**
+ * Checks whether a backend position is valid.
+ */
+const isValidPosition = (
+  position:
+    | {
+      x: number;
+      y: number;
+    }
+    | undefined,
+) => {
+  return (
+    position !== undefined &&
+    Number.isFinite(position.x) &&
+    Number.isFinite(position.y)
+  );
+};
+
+/**
+ * Returns a readable task name.
+ */
+const getTaskName = (
+  task: ProcessTask,
+) => {
   return (
     task.TaskDetails?.TaskName ||
     task.TaskType ||
@@ -98,21 +145,33 @@ const getTaskName = (task: ProcessTask) => {
   );
 };
 
-const getTaskDetails = (task: ProcessTask) => {
+/**
+ * Creates the description displayed inside
+ * each ReactFlow task card.
+ */
+const getTaskDetails = (
+  task: ProcessTask,
+) => {
   const details = task.TaskDetails;
 
   const parts: string[] = [];
 
   if (details?.DocumentType) {
-    parts.push(`Document: ${details.DocumentType}`);
+    parts.push(
+      `Document: ${details.DocumentType}`,
+    );
   }
 
   if (details?.ConfigType) {
-    parts.push(`Config: ${details.ConfigType}`);
+    parts.push(
+      `Config: ${details.ConfigType}`,
+    );
   }
 
   if (details?.KeyParam) {
-    parts.push(`Key: ${details.KeyParam}`);
+    parts.push(
+      `Key: ${details.KeyParam}`,
+    );
   }
 
   if (
@@ -125,20 +184,18 @@ const getTaskDetails = (task: ProcessTask) => {
 
   if (details?.Levels?.length) {
     parts.push(
-      `${details.Levels.length} workflow ${
-        details.Levels.length === 1
-          ? "level"
-          : "levels"
+      `${details.Levels.length} workflow ${details.Levels.length === 1
+        ? "level"
+        : "levels"
       }`,
     );
   }
 
   if (details?.Attributes?.length) {
     parts.push(
-      `${details.Attributes.length} ${
-        details.Attributes.length === 1
-          ? "attribute"
-          : "attributes"
+      `${details.Attributes.length} ${details.Attributes.length === 1
+        ? "attribute"
+        : "attributes"
       }`,
     );
   }
@@ -149,6 +206,9 @@ const getTaskDetails = (task: ProcessTask) => {
   );
 };
 
+/**
+ * Visual status for the process cards.
+ */
 const getTaskStatus = (
   index: number,
 ): ProcessNodeData["status"] => {
@@ -162,6 +222,29 @@ const getTaskStatus = (
 
   return "pending";
 };
+
+/**
+ * Shared edge styling.
+ */
+const getEdgeStyle = () => ({
+  type: "bezier" as const,
+
+  markerEnd: {
+    type: MarkerType.ArrowClosed,
+
+    width: 18,
+
+    height: 18,
+
+    color: "#6366f1",
+  },
+
+  style: {
+    stroke: "#6366f1",
+
+    strokeWidth: 2.5,
+  },
+});
 
 /* =========================================================
    PROCESS NODE
@@ -180,30 +263,28 @@ const ProcessTaskNode = ({
     <div
       className="
         relative
-        w-[320px]
+        w-[240px]
         overflow-hidden
-        rounded-2xl
+        rounded-xl
         border
         border-gray-200
         bg-white
-        shadow-xl
+        shadow-lg
         transition-all
-        hover:-translate-y-1
-        hover:shadow-2xl
+        hover:-translate-y-0.5
+        hover:shadow-xl
         dark:border-gray-700
         dark:bg-gray-900
       "
     >
-      {/* =================================================
-          TARGET HANDLE
-      ================================================= */}
+      {/* TARGET HANDLE */}
 
       <Handle
         type="target"
         position={Position.Left}
         className="
-          !h-3
-          !w-3
+          !h-2.5
+          !w-2.5
           !border-2
           !border-white
           !bg-gray-400
@@ -211,16 +292,14 @@ const ProcessTaskNode = ({
         "
       />
 
-      {/* =================================================
-          SOURCE HANDLE
-      ================================================= */}
+      {/* SOURCE HANDLE */}
 
       <Handle
         type="source"
         position={Position.Right}
         className="
-          !h-3
-          !w-3
+          !h-2.5
+          !w-2.5
           !border-2
           !border-white
           !bg-cyan-500
@@ -228,50 +307,44 @@ const ProcessTaskNode = ({
         "
       />
 
-      {/* =================================================
-          LEFT ACCENT
-      ================================================= */}
+      {/* LEFT ACCENT */}
 
       <div
         className={`
-          absolute
-          left-0
-          top-0
-          h-full
-          w-1
-          ${
-            isCompleted
-              ? "bg-emerald-500"
-              : isActive
-                ? "bg-cyan-500"
-                : "bg-gray-400"
+absolute
+left - 0
+top - 0
+h - full
+w - 1
+          ${isCompleted
+            ? "bg-emerald-500"
+            : isActive
+              ? "bg-cyan-500"
+              : "bg-gray-400"
           }
-        `}
+`}
       />
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+      {/* HEADER */}
 
-      <div className="flex items-center justify-between px-5 pt-5">
+      <div className="flex items-center justify-between px-4 pt-4">
         <div
           className={`
-            flex
-            h-10
-            w-10
-            items-center
-            justify-center
-            rounded-full
-            text-xs
-            font-bold
-            ${
-              isCompleted
-                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                : isActive
-                  ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300"
-                  : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+flex
+h - 8
+w - 8
+items - center
+justify - center
+rounded - full
+text - [10px]
+font - bold
+            ${isCompleted
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+              : isActive
+                ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300"
+                : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
             }
-          `}
+`}
         >
           {String(data.number).padStart(2, "0")}
         </div>
@@ -280,9 +353,9 @@ const ProcessTaskNode = ({
           className="
             rounded-full
             bg-gray-100
-            px-2.5
-            py-1
-            text-[10px]
+            px-2
+            py-0.5
+            text-[9px]
             font-semibold
             uppercase
             tracking-wider
@@ -295,66 +368,61 @@ const ProcessTaskNode = ({
         </span>
       </div>
 
-      {/* =================================================
-          ICON
-      ================================================= */}
+      {/* ICON */}
 
-      <div className="px-5 pt-5">
+      <div className="px-4 pt-3">
         <div
           className={`
-            flex
-            h-12
-            w-12
-            items-center
-            justify-center
-            rounded-xl
-            ${
-              isCompleted
-                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
-                : isActive
-                  ? "bg-cyan-50 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-400"
-                  : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+flex
+h - 9
+w - 9
+items - center
+justify - center
+rounded - lg
+            ${isCompleted
+              ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
+              : isActive
+                ? "bg-cyan-50 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-400"
+                : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
             }
-          `}
+`}
         >
           {isCompleted ? (
-            <CheckCircle2 size={23} />
+            <CheckCircle2 size={18} />
           ) : isActive ? (
-            <Settings size={23} />
+            <Settings size={18} />
           ) : (
-            <Circle size={23} />
+            <Circle size={18} />
           )}
         </div>
       </div>
 
-      {/* =================================================
-          CONTENT
-      ================================================= */}
+      {/* CONTENT */}
 
-      <div className="px-5 pb-5 pt-4">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+      <div className="px-4 pb-4 pt-3">
+        <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
           {data.taskType}
         </div>
 
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+        <h2 className="text-sm font-semibold leading-5 text-gray-900 dark:text-white">
           {data.taskName}
         </h2>
 
-        <p className="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+        <p className="mt-1.5 text-[10px] leading-4 text-gray-500 dark:text-gray-400">
           {data.details}
         </p>
 
-        {/* Config */}
+        {/* CONFIG */}
 
         {data.configType && (
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-1.5">
             <span
               className="
                 rounded-md
                 bg-purple-50
-                px-2
-                py-1
-                text-[10px]
+                px-1.5
+                py-0.5
+                text-[9px]
                 font-semibold
                 text-purple-700
                 dark:bg-purple-950/40
@@ -367,13 +435,13 @@ const ProcessTaskNode = ({
             {data.configId && (
               <span
                 className="
-                  max-w-[180px]
+                  max-w-[120px]
                   truncate
                   rounded-md
                   bg-gray-100
-                  px-2
-                  py-1
-                  text-[10px]
+                  px-1.5
+                  py-0.5
+                  text-[9px]
                   font-medium
                   text-gray-500
                   dark:bg-gray-800
@@ -388,41 +456,38 @@ const ProcessTaskNode = ({
         )}
       </div>
 
-      {/* =================================================
-          STATUS
-      ================================================= */}
+      {/* STATUS */}
 
       <div
         className="
           border-t
           border-gray-100
-          px-5
-          py-3
+          px-4
+          py-2.5
           dark:border-gray-800
         "
       >
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500">
+          <span className="text-[9px] font-medium text-gray-400 dark:text-gray-500">
             Process task
           </span>
 
           <div className="flex items-center gap-1.5">
             <span
               className={`
-                h-1.5
-                w-1.5
-                rounded-full
-                ${
-                  isCompleted
-                    ? "bg-emerald-500"
-                    : isActive
-                      ? "bg-cyan-500"
-                      : "bg-gray-400"
+h - 1.5
+w - 1.5
+rounded - full
+                ${isCompleted
+                  ? "bg-emerald-500"
+                  : isActive
+                    ? "bg-cyan-500"
+                    : "bg-gray-400"
                 }
-              `}
+`}
             />
 
-            <span className="text-[10px] font-semibold capitalize text-gray-500 dark:text-gray-400">
+            <span className="text-[9px] font-semibold capitalize text-gray-500 dark:text-gray-400">
               {data.status}
             </span>
           </div>
@@ -469,12 +534,17 @@ const OpenProcess = () => {
 
     const loadProcess = async () => {
       if (!processId) {
-        setError("Process ID is missing.");
+        setError(
+          "Process ID is missing.",
+        );
+
         setIsLoading(false);
+
         return;
       }
 
       setIsLoading(true);
+
       setError(null);
 
       try {
@@ -552,19 +622,30 @@ const OpenProcess = () => {
         task,
         index,
       ): Node<ProcessNodeData> => ({
-        id: `task-${task.TaskTypeID}-${index}`,
+        id: getTaskNodeId(
+          task,
+          index,
+        ),
 
         type: "processTask",
 
-        position: {
-          x:
-            150 +
-            (index % 3) * 430,
+        position: isValidPosition(
+          task.position,
+        )
+          ? {
+            x: task.position.x,
+            y: task.position.y,
+          }
+          : {
+            x:
+              150 +
+              (index % 3) * 430,
 
-          y:
-            150 +
-            Math.floor(index / 3) * 330,
-        },
+            y:
+              150 +
+              Math.floor(index / 3) *
+              330,
+          },
 
         data: {
           number: index + 1,
@@ -596,7 +677,7 @@ const OpenProcess = () => {
   }, [process]);
 
   /* =======================================================
-     LOAD SAVED POSITIONS
+     LOAD LOCAL CACHED POSITIONS
   ======================================================= */
 
   const initialNodes = useMemo(() => {
@@ -637,20 +718,31 @@ const OpenProcess = () => {
                 node.id,
             );
 
-          if (!savedNode) {
+          if (
+            !savedNode ||
+            !isValidPosition(
+              savedNode.position,
+            )
+          ) {
             return node;
           }
 
           return {
             ...node,
-            position:
-              savedNode.position,
+
+            position: {
+              x:
+                savedNode.position.x,
+
+              y:
+                savedNode.position.y,
+            },
           };
         },
       );
     } catch (err) {
       console.error(
-        "Failed to load saved process diagram:",
+        "Failed to load saved process positions:",
         err,
       );
 
@@ -665,143 +757,161 @@ const OpenProcess = () => {
      DEFAULT EDGES
   ======================================================= */
 
-  const defaultEdges = useMemo<
-    Edge[]
-  >(() => {
-    if (
-      !process ||
-      process.Tasks.length < 2
-    ) {
-      return [];
-    }
+  const defaultEdges = useMemo<Edge[]>(
+    () => {
+      if (
+        !process ||
+        process.Tasks.length < 2
+      ) {
+        return [];
+      }
 
-    return process.Tasks
-      .slice(0, -1)
-      .map(
-        (
-          _task,
-          index,
-        ): Edge => {
-          const source =
-            `task-${process.Tasks[index].TaskTypeID}-${index}`;
+      /*
+       * If the backend already has connections,
+       * use them first.
+       */
+      if (
+        Array.isArray(
+          process.connections,
+        ) &&
+        process.connections.length > 0
+      ) {
+        return process.connections.map(
+          (
+            connection,
+            index,
+          ): Edge => ({
+            id:
+              `edge-${connection.source}-${connection.target}-${index}`,
 
-          const target =
-            `task-${process.Tasks[index + 1].TaskTypeID}-${index + 1}`;
+            source:
+              connection.source,
 
-          return {
-            id: `edge-${source}-${target}`,
+            target:
+              connection.target,
 
-            source,
+            ...getEdgeStyle(),
+          }),
+        );
+      }
 
-            target,
+      /*
+       * Otherwise create the initial
+       * sequential workflow:
+       *
+       * Task 1 -> Task 2 -> Task 3
+       */
+      return process.Tasks
+        .slice(0, -1)
+        .map(
+          (
+            _task,
+            index,
+          ): Edge => {
+            const source =
+              getTaskNodeId(
+                process.Tasks[
+                index
+                ],
+                index,
+              );
 
-            type: "bezier",
+            const target =
+              getTaskNodeId(
+                process.Tasks[
+                index + 1
+                ],
+                index + 1,
+              );
 
-            markerEnd: {
-              type:
-                MarkerType.ArrowClosed,
+            return {
+              id: `edge-${source}-${target}`,
 
-              width: 18,
+              source,
 
-              height: 18,
+              target,
 
-              color: "#6366f1",
-            },
-
-            style: {
-              stroke: "#6366f1",
-              strokeWidth: 2.5,
-            },
-          };
-        },
-      );
-  }, [process]);
+              ...getEdgeStyle(),
+            };
+          },
+        );
+    },
+    [process],
+  );
 
   /* =======================================================
-     LOAD SAVED EDGES
+     LOAD LOCAL CACHED EDGES
   ======================================================= */
 
-  const initialEdges = useMemo<
-    Edge[]
-  >(() => {
-    if (!processId) {
-      return defaultEdges;
-    }
+  const initialEdges = useMemo<Edge[]>(
+    () => {
+      if (!processId) {
+        return defaultEdges;
+      }
 
-    try {
-      const stored =
-        localStorage.getItem(
-          getStorageKey(processId),
+      try {
+        const stored =
+          localStorage.getItem(
+            getStorageKey(processId),
+          );
+
+        if (!stored) {
+          return defaultEdges;
+        }
+
+        const parsed =
+          JSON.parse(
+            stored,
+          ) as SavedProcess;
+
+        if (
+          !parsed ||
+          !Array.isArray(
+            parsed.connections,
+          ) ||
+          parsed.connections.length === 0
+        ) {
+          return defaultEdges;
+        }
+
+        return parsed.connections.map(
+          (
+            connection,
+            index,
+          ) => ({
+            id:
+              connection.id ||
+              `edge-${connection.source}-${connection.target}-${index}`,
+
+            source:
+              connection.source,
+
+            target:
+              connection.target,
+
+            sourceHandle:
+              connection.sourceHandle,
+
+            targetHandle:
+              connection.targetHandle,
+
+            ...getEdgeStyle(),
+          }),
+        );
+      } catch (err) {
+        console.error(
+          "Failed to load saved process connections:",
+          err,
         );
 
-      if (!stored) {
         return defaultEdges;
       }
-
-      const parsed =
-        JSON.parse(
-          stored,
-        ) as SavedProcess;
-
-      if (
-        !parsed ||
-        !Array.isArray(
-          parsed.connections,
-        ) ||
-        parsed.connections.length === 0
-      ) {
-        return defaultEdges;
-      }
-
-      return parsed.connections.map(
-        (connection) => ({
-          id:
-            connection.id ||
-            `edge-${connection.source}-${connection.target}`,
-
-          source:
-            connection.source,
-
-          target:
-            connection.target,
-
-          sourceHandle:
-            connection.sourceHandle,
-
-          targetHandle:
-            connection.targetHandle,
-
-          type: "bezier",
-
-          markerEnd: {
-            type:
-              MarkerType.ArrowClosed,
-
-            width: 18,
-
-            height: 18,
-
-            color: "#6366f1",
-          },
-
-          style: {
-            stroke: "#6366f1",
-            strokeWidth: 2.5,
-          },
-        }),
-      );
-    } catch (err) {
-      console.error(
-        "Failed to load saved process connections:",
-        err,
-      );
-
-      return defaultEdges;
-    }
-  }, [
-    processId,
-    defaultEdges,
-  ]);
+    },
+    [
+      processId,
+      defaultEdges,
+    ],
+  );
 
   /* =======================================================
      REACT FLOW STATE
@@ -823,12 +933,13 @@ const OpenProcess = () => {
     initialEdges,
   );
 
-  /*
-   * When the process loads, refresh React Flow
-   * with the API data.
-   */
+  /* =======================================================
+     REFRESH REACT FLOW AFTER API LOAD
+  ======================================================= */
+
   useEffect(() => {
     setNodes(initialNodes);
+
     setEdges(initialEdges);
   }, [
     initialNodes,
@@ -836,6 +947,29 @@ const OpenProcess = () => {
     setNodes,
     setEdges,
   ]);
+
+  /* =======================================================
+     CREATE CONNECTION
+  ======================================================= */
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      setEdges(
+        (currentEdges) =>
+          addEdge(
+            {
+              ...connection,
+
+              ...getEdgeStyle(),
+            },
+            currentEdges,
+          ),
+      );
+
+      setSaved(false);
+    },
+    [setEdges],
+  );
 
   /* =======================================================
      SAVE PROCESS DIAGRAM
@@ -847,60 +981,234 @@ const OpenProcess = () => {
         return;
       }
 
+      const numericProcessId =
+        Number(processId);
+
+      if (
+        !Number.isInteger(
+          numericProcessId,
+        )
+      ) {
+        setError(
+          "Invalid process ID.",
+        );
+
+        return;
+      }
+
       setIsSaving(true);
+
       setSaved(false);
 
+      setError(null);
+
       try {
-        const payload: SavedProcess =
-          {
-            processId,
+        /* =================================================
+           1. CREATE POSITION MAP
+        ================================================= */
 
-            nodes: nodes.map(
-              (node) => ({
-                id: node.id,
+        const positionMap =
+          new Map<
+            string,
+            {
+              x: number;
+              y: number;
+            }
+          >();
 
-                position: {
-                  x: node.position.x,
-                  y: node.position.y,
-                },
+        nodes.forEach((node) => {
+          positionMap.set(
+            node.id,
+            {
+              x: node.position.x,
+              y: node.position.y,
+            },
+          );
+        });
+
+        /* =================================================
+           2. UPDATE TASK POSITIONS
+        ================================================= */
+
+        const updatedTasks =
+          process.Tasks.map(
+            (
+              task,
+              index,
+            ): ProcessTask => {
+              const nodeId =
+                getTaskNodeId(
+                  task,
+                  index,
+                );
+
+              const currentPosition =
+                positionMap.get(
+                  nodeId,
+                );
+
+              return {
+                ...task,
+
+                position:
+                  currentPosition
+                    ? {
+                      x: currentPosition.x,
+                      y: currentPosition.y,
+                    }
+                    : isValidPosition(
+                      task.position,
+                    )
+                      ? {
+                        x: task.position.x,
+                        y: task.position.y,
+                      }
+                      : {
+                        x:
+                          150 +
+                          (index % 3) *
+                          430,
+
+                        y:
+                          150 +
+                          Math.floor(
+                            index / 3,
+                          ) *
+                          330,
+                      },
+              };
+            },
+          );
+
+        /* =================================================
+           3. CONVERT REACT FLOW EDGES TO API CONNECTIONS
+        ================================================= */
+
+        const connections: ProcessConnection[] =
+          edges
+            .filter(
+              (edge) =>
+                Boolean(
+                  edge.source,
+                ) &&
+                Boolean(
+                  edge.target,
+                ),
+            )
+            .map(
+              (edge) => ({
+                source:
+                  edge.source,
+
+                target:
+                  edge.target,
               }),
-            ),
+            );
 
-            connections:
-              edges.map(
-                (edge) => ({
-                  id: edge.id,
+        /* =================================================
+           4. CREATE COMPLETE PROCESS JSON
+        ================================================= */
 
-                  source:
-                    edge.source,
+        const processJson: ProcessJson =
+        {
+          ...process,
 
-                  target:
-                    edge.target,
+          Processid:
+            numericProcessId,
 
-                  sourceHandle:
-                    edge.sourceHandle,
+          NumberofTasks:
+            updatedTasks.length,
 
-                  targetHandle:
-                    edge.targetHandle,
-                }),
-              ),
-          };
+          Tasks: updatedTasks,
+
+          connections,
+        };
+
+        /* =================================================
+           5. UPDATE BACKEND
+        ================================================= */
 
         console.log(
-          "PROCESS DIAGRAM:",
+          "Updating process:",
           JSON.stringify(
-            payload,
+            {
+              ProcessJson:
+                processJson,
+            },
             null,
             2,
           ),
         );
 
+        await updateProcess(
+          numericProcessId,
+          {
+            ProcessJson:
+              processJson,
+          },
+        );
+
+        /* =================================================
+           6. UPDATE LOCAL COMPONENT STATE
+        ================================================= */
+
+        setProcess(
+          processJson,
+        );
+
+        /* =================================================
+           7. KEEP LOCAL STORAGE AS CACHE
+        ================================================= */
+
+        const localPayload:
+          SavedProcess = {
+          processId,
+
+          nodes: nodes.map(
+            (node) => ({
+              id: node.id,
+
+              position: {
+                x:
+                  node.position.x,
+
+                y:
+                  node.position.y,
+              },
+            }),
+          ),
+
+          connections:
+            edges.map(
+              (edge) => ({
+                id:
+                  edge.id,
+
+                source:
+                  edge.source,
+
+                target:
+                  edge.target,
+
+                sourceHandle:
+                  edge.sourceHandle,
+
+                targetHandle:
+                  edge.targetHandle,
+              }),
+            ),
+        };
+
         localStorage.setItem(
           getStorageKey(processId),
           JSON.stringify(
-            payload,
+            localPayload,
           ),
         );
+
+        /* =================================================
+           8. SHOW SAVED STATUS
+        ================================================= */
 
         setSaved(true);
 
@@ -909,8 +1217,14 @@ const OpenProcess = () => {
         }, 3000);
       } catch (err) {
         console.error(
-          "Failed to save process diagram:",
+          "Failed to update process:",
           err,
+        );
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to save process diagram.",
         );
       } finally {
         setIsSaving(false);
@@ -1220,12 +1534,13 @@ const OpenProcess = () => {
           onEdgesChange={
             onEdgesChange
           }
+          onConnect={onConnect}
           fitView
           fitViewOptions={{
             padding: 0.25,
           }}
           nodesDraggable
-          nodesConnectable={false}
+          nodesConnectable
           elementsSelectable
           panOnDrag
           zoomOnScroll
@@ -1330,6 +1645,62 @@ const OpenProcess = () => {
           </span>
         </div>
       </div>
+
+      {/* =================================================
+          SAVE ERROR TOAST
+      ================================================= */}
+
+      {error && (
+        <div
+          className="
+            absolute
+            bottom-5
+            right-5
+            z-30
+            max-w-sm
+            rounded-xl
+            border
+            border-red-200
+            bg-white
+            px-4
+            py-3
+            shadow-xl
+            dark:border-red-900
+            dark:bg-gray-900
+          "
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className="
+                mt-0.5
+                flex
+                h-7
+                w-7
+                shrink-0
+                items-center
+                justify-center
+                rounded-lg
+                bg-red-50
+                text-red-500
+                dark:bg-red-950/40
+                dark:text-red-400
+              "
+            >
+              <FileText size={14} />
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                Save failed
+              </p>
+
+              <p className="mt-1 text-[11px] leading-5 text-gray-500 dark:text-gray-400">
+                {error}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
