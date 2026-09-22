@@ -31,8 +31,7 @@ import FileUploadPage from "./pages/FileUploadPage";
 import TaskChatPage from "./pages/TaskChatPage";
 import AssetPurchaseRequest from "./pages/asset-purchase/AssetPurchaseRequest";
 import AssetPurchaseQuote from "./pages/asset-purchase/AssetPurchaseQuote";
-import WorkflowProcess from "./components/workflow/WorkflowProcess";
-import WorkflowDiagram from "./pages/workflow/WorkflowDiagram";
+import OpenProcess from "./pages/workflow/WorkflowDiagram";
 import ProcessList from "./pages/process/ProcessList";
 
 function App() {
@@ -136,15 +135,12 @@ function App() {
             />
 
             <Route path="/processes" element={<ProcessList />} />
-            <Route
-              path="/workflow-process"
-              element={<WorkflowProcess />}
-            />
 
             <Route
-              path="/workflow-process/diagram/:workflowId"
-              element={<WorkflowDiagram />}
+              path="/workflow-process/:processId"
+              element={<OpenProcess />}
             />
+
             <Route
               path="/projects"
               element={<Projects />}
