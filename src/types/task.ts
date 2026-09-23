@@ -88,7 +88,7 @@ export interface AssetPurchaseTaskDocument {
   document_id: number;
   document_type: string;
   document_no: string;
-
+  document_url?: string | null;
   request_data: AssetPurchaseRequestData;
 
   created_by: number;
@@ -102,34 +102,33 @@ export interface AssetPurchaseTaskDocument {
  */
 
 export interface AssetPurchaseTaskDetails {
-    task_id: number;
-    wf_task_id: string;
+  task_id: number;
+  wf_task_id: string;
 
-    process_id?: string;
-    process_name?: string;
+  process_id?: string;
+  process_name?: string;
 
-    task_type: string;
-    task_description: string;
+  task_type: string;
+  task_description: string;
 
-    document: AssetPurchaseTaskDocument;
+  document: AssetPurchaseTaskDocument;
 
-    status: number;
+  status: number;
 
-    assigned_by: number;
-    assigned_to: number;
+  assigned_by: number;
+  assigned_to: number;
 
-    levels: string[];
+  levels: string[];
 
-    selected_quote_id: number | null;
+  selected_quote_id: number | null;
 
-    start_date: string;
-    end_date: string | null;
+  start_date: string;
+  end_date: string | null;
 
-    key_params: AssetPurchaseKeyParams;
-    created_date: string;
-    updated_date: string;
+  key_params: AssetPurchaseKeyParams;
+  created_date: string;
+  updated_date: string;
 }
-
 
 export interface GetAssetPurchaseTaskResponse {
   success: boolean;
