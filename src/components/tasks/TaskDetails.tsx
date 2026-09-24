@@ -31,6 +31,7 @@ import type {
 
 import TaskStatus from "./TaskStatus";
 import QuoteDetailsAccordion from "../asset-purchase/QuoteDetailsAccordion";
+import ViewFileModal from "../../components/ViewFileModal";
 
 /* =========================================================
    TYPES
@@ -67,6 +68,9 @@ function TaskDetails({
   const [actionError, setActionError] = useState("");
 
   const storedUser = localStorage.getItem("login_user");
+
+  const [showFileModal, setShowFileModal] = useState(false);
+
 
   let loggedInUser: {
     uid?: number;
@@ -107,6 +111,7 @@ function TaskDetails({
 
   const [successMessage, setSuccessMessage] =
     useState("");
+
 
   const isAssetPurchaseTask =
     task?.document_type === "AssetPurchaseRequest" ||
@@ -223,20 +228,12 @@ function TaskDetails({
   ====================================================== */
 
   const handleViewFile = () => {
-    const documentUrl =
-      assetTask?.document?.document_url;
-
-    if (!documentUrl) {
+    if (!referenceFileUrl) {
       console.error("No document URL found");
       return;
     }
 
-    const fileUrl =
-      new URL(documentUrl, API_BASE_URL).href;
-
-    console.log("Opening file:", fileUrl);
-
-    window.open(fileUrl, "_blank");
+    setShowFileModal(true);
   };
 
   const canTakeAction =
@@ -378,7 +375,7 @@ function TaskDetails({
 
         setSuccessMessage(
           response.message ||
-            "Asset quotation selected successfully.",
+          "Asset quotation selected successfully.",
         );
 
         setShowSuccessModal(true);
@@ -418,7 +415,7 @@ function TaskDetails({
 
         setActionMessage(
           response ||
-            "Task rejected successfully.",
+          "Task rejected successfully.",
         );
       } catch (err) {
         setActionError(
@@ -455,7 +452,7 @@ function TaskDetails({
 
       setActionMessage(
         response ||
-          "Task moved backward successfully.",
+        "Task moved backward successfully.",
       );
     } catch (err) {
       setActionError(
@@ -790,7 +787,7 @@ function TaskDetails({
                             label="Assigned By"
                             value={String(
                               assetTask.assigned_by ??
-                                "-",
+                              "-",
                             )}
                           />
 
@@ -798,7 +795,7 @@ function TaskDetails({
                             label="Assigned To"
                             value={String(
                               assetTask.assigned_to ??
-                                "-",
+                              "-",
                             )}
                           />
 
@@ -905,11 +902,11 @@ function TaskDetails({
                         assetTask.key_params
                           .selected_quote_amount
                           ? `₹${Number(
-                              assetTask.key_params
-                                .selected_quote_amount,
-                            ).toLocaleString("en-IN", {
-                              minimumFractionDigits: 2,
-                            })}`
+                            assetTask.key_params
+                              .selected_quote_amount,
+                          ).toLocaleString("en-IN", {
+                            minimumFractionDigits: 2,
+                          })}`
                           : "-"
                       }
                     />
@@ -961,14 +958,14 @@ function TaskDetails({
                     >
                       {actionLoading ===
                         "backward" && (
-                        <Loader2
-                          size={14}
-                          className="animate-spin"
-                        />
-                      )}
+                          <Loader2
+                            size={14}
+                            className="animate-spin"
+                          />
+                        )}
 
                       {actionLoading ===
-                      "backward"
+                        "backward"
                         ? "Moving Back..."
                         : "Backward"}
                     </button>
@@ -987,11 +984,11 @@ function TaskDetails({
                     >
                       {actionLoading ===
                         "reject" && (
-                        <Loader2
-                          size={14}
-                          className="animate-spin"
-                        />
-                      )}
+                          <Loader2
+                            size={14}
+                            className="animate-spin"
+                          />
+                        )}
 
                       {actionLoading === "reject"
                         ? "Rejecting..."
@@ -1012,11 +1009,11 @@ function TaskDetails({
                     >
                       {actionLoading ===
                         "approve" && (
-                        <Loader2
-                          size={14}
-                          className="animate-spin"
-                        />
-                      )}
+                          <Loader2
+                            size={14}
+                            className="animate-spin"
+                          />
+                        )}
 
                       {actionLoading === "approve"
                         ? "Approving..."
@@ -1037,11 +1034,11 @@ function TaskDetails({
                     >
                       {actionLoading ===
                         "reject" && (
-                        <Loader2
-                          size={14}
-                          className="animate-spin"
-                        />
-                      )}
+                          <Loader2
+                            size={14}
+                            className="animate-spin"
+                          />
+                        )}
 
                       {actionLoading === "reject"
                         ? "Rejecting..."
@@ -1060,11 +1057,11 @@ function TaskDetails({
                     >
                       {actionLoading ===
                         "approve" && (
-                        <Loader2
-                          size={14}
-                          className="animate-spin"
-                        />
-                      )}
+                          <Loader2
+                            size={14}
+                            className="animate-spin"
+                          />
+                        )}
 
                       {actionLoading === "approve"
                         ? "Approving..."
@@ -1123,6 +1120,17 @@ function TaskDetails({
           </div>
         </div>
       )}
+
+      <ViewFileModal
+        open={showFileModal}
+        fileUrl={
+          referenceFileUrl
+            ? new URL(referenceFileUrl, API_BASE_URL).href
+            : null
+        }
+        onClose={() => setShowFileModal(false)}
+      />
+
     </div>
   );
 }
@@ -1426,9 +1434,5 @@ function formatQuoteDate(
     },
   );
 }
-
-/* ======================================================
-   EXPORT
-====================================================== */
 
 export default TaskDetails;

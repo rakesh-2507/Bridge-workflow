@@ -146,10 +146,35 @@ export const selectAssetPurchaseQuote = async (
 export const forwardAssetPurchaseTask = async (
   taskId: number,
 ): Promise<string> => {
-  return apiRequest<string>(
-    `/api/asset-purchase/tasks/${taskId}/forward`,
+  return apiRequest<string>(`/api/asset-purchase/tasks/${taskId}/forward`, {
+    method: "POST",
+  });
+};
+
+export interface SaveCompareQuoteRatingsPayload {
+  ratings: Record<string, Record<string, number>>;
+}
+
+export interface SaveCompareQuoteRatingsResponse {
+  success?: boolean;
+  message?: string;
+  data?: unknown;
+}
+
+/**
+ * Save Compare Quote Ratings
+ *
+ * PUT /api/asset-purchase/{task_id}/compare-quotes/ratings
+ */
+export async function saveCompareQuoteRatings(
+  taskId: number,
+  payload: SaveCompareQuoteRatingsPayload,
+): Promise<SaveCompareQuoteRatingsResponse> {
+  return apiRequest<SaveCompareQuoteRatingsResponse>(
+    `/api/asset-purchase/${taskId}/compare-quotes/ratings`,
     {
-      method: "POST",
+      method: "PUT",
+      body: JSON.stringify(payload),
     },
   );
-};
+}

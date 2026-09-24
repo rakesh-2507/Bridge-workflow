@@ -9,18 +9,30 @@ import {
 import {
   Check,
   GripVertical,
+  Loader2,
   Star,
 } from "lucide-react";
 
-import type {
-  AssetPurchaseQuote,
-} from "../../types/assetPurchaseQuote";
+import type { AssetPurchaseQuote } from "../../types/assetPurchaseQuote";
+
+import {
+  saveCompareQuoteRatings,
+} from "../../api/assetPurchaseQuote";
+
+/* ============================================================
+   PROPS
+============================================================ */
 
 interface CompareQuotesProps {
+  taskId: number;
   quotes: AssetPurchaseQuote[];
   selectedQuoteId?: number | null;
   onSelectQuote?: (quoteId: number) => void;
 }
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type RatingParameter =
   | "vendor"
@@ -53,45 +65,54 @@ type DragMode = "quote" | "field" | null;
 interface DragState {
   mode: DragMode;
   id: number | ComparisonFieldId | null;
+
   startX: number;
   startY: number;
+
   currentX: number;
   currentY: number;
+
   offsetX: number;
   offsetY: number;
+
   width: number;
   height: number;
 }
 
-/* ======================================================
+/* ============================================================
    EMPTY DRAG STATE
-====================================================== */
+============================================================ */
 
 const EMPTY_DRAG_STATE: DragState = {
   mode: null,
   id: null,
+
   startX: 0,
   startY: 0,
+
   currentX: 0,
   currentY: 0,
+
   offsetX: 0,
   offsetY: 0,
+
   width: 0,
   height: 0,
 };
 
-/* ======================================================
+/* ============================================================
    COMPONENT
-====================================================== */
+============================================================ */
 
 const CompareQuotes = ({
+  taskId,
   quotes,
   selectedQuoteId = null,
   onSelectQuote,
 }: CompareQuotesProps) => {
-  /* ======================================================
-     ORDER STATE
-  ====================================================== */
+  /* ==========================================================
+     QUOTE ORDER
+  ========================================================== */
 
   const [orderedQuoteIds, setOrderedQuoteIds] =
     useState<number[]>(() =>
@@ -99,6 +120,10 @@ const CompareQuotes = ({
         (quote) => quote.quote_id,
       ),
     );
+
+  /* ==========================================================
+     FIELD ORDER
+  ========================================================== */
 
   const [fieldOrder, setFieldOrder] =
     useState<ComparisonFieldId[]>([
@@ -111,16 +136,22 @@ const CompareQuotes = ({
       "details",
     ]);
 
-  /* ======================================================
+  /* ==========================================================
      RATINGS
-  ====================================================== */
+  ========================================================== */
 
   const [quoteRatings, setQuoteRatings] =
     useState<QuoteRatings>({});
 
-  /* ======================================================
+  const [isSavingRatings, setIsSavingRatings] =
+    useState(false);
+
+  const [ratingsSaved, setRatingsSaved] =
+    useState(false);
+
+  /* ==========================================================
      DRAG STATE
-  ====================================================== */
+  ========================================================== */
 
   const [dragState, setDragState] =
     useState<DragState>(
@@ -143,9 +174,9 @@ const CompareQuotes = ({
       null,
     );
 
-  /* ======================================================
-     REFS
-  ====================================================== */
+  /* ==========================================================
+     DOM REFS
+  ========================================================== */
 
   const quoteRefs =
     useRef<
@@ -175,9 +206,9 @@ const CompareQuotes = ({
       (() => void) | null
     >(null);
 
-  /* ======================================================
+  /* ==========================================================
      COMPARISON FIELDS
-  ====================================================== */
+  ========================================================== */
 
   const comparisonFields =
     useMemo<ComparisonField[]>(
@@ -186,6 +217,7 @@ const CompareQuotes = ({
           id: "vendor",
           label: "Vendor",
           ratingParameter: "vendor",
+
           renderValue: (quote) => (
             <span className="font-medium text-gray-900 dark:text-white">
               {quote.vendor_name || "-"}
@@ -197,6 +229,7 @@ const CompareQuotes = ({
           id: "quoteNumber",
           label: "Quote Number",
           ratingParameter: "quoteNumber",
+
           renderValue: (quote) => (
             <span className="text-gray-700 dark:text-gray-300">
               {quote.quote_no || "-"}
@@ -208,6 +241,7 @@ const CompareQuotes = ({
           id: "quoteDate",
           label: "Quote Date",
           ratingParameter: "quoteDate",
+
           renderValue: (quote) => (
             <span className="text-gray-700 dark:text-gray-300">
               {formatQuoteDate(
@@ -221,6 +255,7 @@ const CompareQuotes = ({
           id: "quotedAmount",
           label: "Quoted Amount",
           ratingParameter: "quotedAmount",
+
           renderValue: (quote) => (
             <span className="font-bold text-gray-900 dark:text-white">
               {formatAmount(
@@ -235,6 +270,7 @@ const CompareQuotes = ({
           id: "currency",
           label: "Currency",
           ratingParameter: "currency",
+
           renderValue: (quote) => (
             <span className="text-gray-700 dark:text-gray-300">
               {quote.currency || "-"}
@@ -245,6 +281,7 @@ const CompareQuotes = ({
         {
           id: "executiveRating",
           label: "Executive Rating",
+
           renderValue: (quote) => {
             const rating =
               Number(
@@ -270,9 +307,7 @@ const CompareQuotes = ({
                 </div>
 
                 <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                  {quote.executive_rating ??
-                    0}
-                  /5
+                  {quote.executive_rating ?? 0}/5
                 </span>
               </div>
             );
@@ -283,10 +318,12 @@ const CompareQuotes = ({
           id: "details",
           label: "Details",
           ratingParameter: "details",
+
           renderValue: (quote) => {
             const details =
               quote.quote_data
-                ?.additionalProp1?.details;
+                ?.additionalProp1
+                ?.details;
 
             return (
               <p className="max-w-[300px] whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-300">
@@ -299,9 +336,9 @@ const CompareQuotes = ({
       [],
     );
 
-  /* ======================================================
+  /* ==========================================================
      ORDERED QUOTES
-  ====================================================== */
+  ========================================================== */
 
   const orderedQuotes = useMemo(() => {
     if (
@@ -362,72 +399,128 @@ const CompareQuotes = ({
     orderedQuoteIds,
   ]);
 
-  /* ======================================================
+  /* ==========================================================
      ORDERED FIELDS
-  ====================================================== */
+  ========================================================== */
 
-  const orderedFields = useMemo(() => {
-    const fieldMap =
-      new Map<
-        ComparisonFieldId,
-        ComparisonField
-      >(
-        comparisonFields.map(
-          (field) => [
-            field.id,
+  const orderedFields =
+    useMemo(() => {
+      const fieldMap =
+        new Map<
+          ComparisonFieldId,
+          ComparisonField
+        >(
+          comparisonFields.map(
+            (field) => [
+              field.id,
+              field,
+            ],
+          ),
+        );
+
+      return fieldOrder
+        .map((fieldId) =>
+          fieldMap.get(fieldId),
+        )
+        .filter(
+          (
             field,
-          ],
-        ),
-      );
+          ): field is ComparisonField =>
+            Boolean(field),
+        );
+    }, [
+      comparisonFields,
+      fieldOrder,
+    ]);
 
-    return fieldOrder
-      .map((fieldId) =>
-        fieldMap.get(fieldId),
-      )
-      .filter(
-        (
-          field,
-        ): field is ComparisonField =>
-          Boolean(field),
-      );
-  }, [
-    comparisonFields,
-    fieldOrder,
-  ]);
+  /* ==========================================================
+     SAVE RATINGS
+  ========================================================== */
 
-  /* ======================================================
-     RATING
-  ====================================================== */
+  const handleSaveRatings =
+    async () => {
+      if (!taskId) {
+        return;
+      }
+
+      try {
+        setIsSavingRatings(true);
+        setRatingsSaved(false);
+
+        const ratings =
+          Object.fromEntries(
+            Object.entries(
+              quoteRatings,
+            ).map(
+              ([
+                quoteId,
+                parameters,
+              ]) => [
+                String(quoteId),
+                parameters,
+              ],
+            ),
+          );
+
+        await saveCompareQuoteRatings(
+          taskId,
+          {
+            ratings,
+          },
+        );
+
+        setRatingsSaved(true);
+      } catch (error) {
+        console.error(
+          "Failed to save compare quote ratings:",
+          error,
+        );
+      } finally {
+        setIsSavingRatings(false);
+      }
+    };
+
+  /* ==========================================================
+     GET RATING
+  ========================================================== */
 
   const getRating = (
     quoteId: number,
     parameter: RatingParameter,
-  ) => {
+  ): number => {
     return (
       quoteRatings[quoteId]?.[
-      parameter
+        parameter
       ] ?? 0
     );
   };
+
+  /* ==========================================================
+     CHANGE RATING
+  ========================================================== */
 
   const handleRatingChange = (
     quoteId: number,
     parameter: RatingParameter,
     rating: number,
   ) => {
-    setQuoteRatings((previous) => ({
-      ...previous,
+    setRatingsSaved(false);
 
-      [quoteId]: {
-        ...previous[quoteId],
-        [parameter]: rating,
-      },
-    }));
+    setQuoteRatings(
+      (previous) => ({
+        ...previous,
+
+        [quoteId]: {
+          ...previous[quoteId],
+          [parameter]: rating,
+        },
+      }),
+    );
   };
 
-  /* ======================================================
+  /* ==========================================================
      FIND QUOTE UNDER POINTER
-  ====================================================== */
+  ========================================================== */
 
   const getQuoteAtPointer = (
     clientX: number,
@@ -442,7 +535,7 @@ const CompareQuotes = ({
 
       const element =
         quoteRefs.current[
-        quote.quote_id
+          quote.quote_id
         ];
 
       if (!element) {
@@ -465,7 +558,7 @@ const CompareQuotes = ({
 
       if (
         index <
-        orderedQuotes.length - 1 &&
+          orderedQuotes.length - 1 &&
         clientX < middle
       ) {
         return quote.quote_id;
@@ -475,9 +568,9 @@ const CompareQuotes = ({
     return null;
   };
 
-  /* ======================================================
+  /* ==========================================================
      FIND FIELD UNDER POINTER
-  ====================================================== */
+  ========================================================== */
 
   const getFieldAtPointer = (
     clientY: number,
@@ -492,7 +585,7 @@ const CompareQuotes = ({
 
       const element =
         fieldRefs.current[
-        field.id
+          field.id
         ];
 
       if (!element) {
@@ -515,7 +608,7 @@ const CompareQuotes = ({
 
       if (
         index <
-        orderedFields.length - 1 &&
+          orderedFields.length - 1 &&
         clientY < middle
       ) {
         return field.id;
@@ -525,9 +618,9 @@ const CompareQuotes = ({
     return null;
   };
 
-  /* ======================================================
+  /* ==========================================================
      MOVE QUOTE
-  ====================================================== */
+  ========================================================== */
 
   const moveQuote = (
     sourceId: number,
@@ -542,11 +635,13 @@ const CompareQuotes = ({
     setOrderedQuoteIds(
       (previous) => {
         const currentIds =
-          previous.filter((id) =>
-            quotes.some(
-              (quote) =>
-                quote.quote_id === id,
-            ),
+          previous.filter(
+            (id) =>
+              quotes.some(
+                (quote) =>
+                  quote.quote_id ===
+                  id,
+              ),
           );
 
         const missingIds =
@@ -557,7 +652,9 @@ const CompareQuotes = ({
             )
             .filter(
               (id) =>
-                !currentIds.includes(id),
+                !currentIds.includes(
+                  id,
+                ),
             );
 
         const ids = [
@@ -578,7 +675,9 @@ const CompareQuotes = ({
           return previous;
         }
 
-        const next = [...ids];
+        const next = [
+          ...ids,
+        ];
 
         const [movedId] =
           next.splice(
@@ -597,9 +696,9 @@ const CompareQuotes = ({
     );
   };
 
-  /* ======================================================
+  /* ==========================================================
      MOVE FIELD
-  ====================================================== */
+  ========================================================== */
 
   const moveField = (
     sourceId: ComparisonFieldId,
@@ -630,7 +729,9 @@ const CompareQuotes = ({
           return previous;
         }
 
-        const next = [...previous];
+        const next = [
+          ...previous,
+        ];
 
         const [movedField] =
           next.splice(
@@ -649,9 +750,9 @@ const CompareQuotes = ({
     );
   };
 
-  /* ======================================================
+  /* ==========================================================
      STOP DRAGGING
-  ====================================================== */
+  ========================================================== */
 
   const stopDragging = () => {
     if (
@@ -672,8 +773,11 @@ const CompareQuotes = ({
       );
     }
 
-    pointerMoveRef.current = null;
-    pointerUpRef.current = null;
+    pointerMoveRef.current =
+      null;
+
+    pointerUpRef.current =
+      null;
 
     dragStateRef.current =
       EMPTY_DRAG_STATE;
@@ -688,9 +792,9 @@ const CompareQuotes = ({
     setDragOverFieldId(null);
   };
 
-  /* ======================================================
+  /* ==========================================================
      START QUOTE DRAG
-  ====================================================== */
+  ========================================================== */
 
   const handleQuotePointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -704,7 +808,9 @@ const CompareQuotes = ({
     }
 
     const element =
-      quoteRefs.current[quoteId];
+      quoteRefs.current[
+        quoteId
+      ];
 
     if (!element) {
       return;
@@ -715,32 +821,28 @@ const CompareQuotes = ({
 
     event.preventDefault();
 
-    const initialState: DragState = {
-      mode: "quote",
-      id: quoteId,
+    const initialState: DragState =
+      {
+        mode: "quote",
+        id: quoteId,
 
-      startX: event.clientX,
-      startY: event.clientY,
+        startX: event.clientX,
+        startY: event.clientY,
 
-      currentX: event.clientX,
-      currentY: event.clientY,
+        currentX: event.clientX,
+        currentY: event.clientY,
 
-      offsetX:
-        event.clientX -
-        rect.left,
+        offsetX:
+          event.clientX -
+          rect.left,
 
-      offsetY:
-        event.clientY -
-        rect.top,
+        offsetY:
+          event.clientY -
+          rect.top,
 
-      /*
-       * IMPORTANT:
-       * Use the actual dragged element
-       * dimensions for the floating preview.
-       */
-      width: rect.width,
-      height: rect.height,
-    };
+        width: rect.width,
+        height: rect.height,
+      };
 
     dragStateRef.current =
       initialState;
@@ -784,7 +886,9 @@ const CompareQuotes = ({
           target,
         );
       } else {
-        setDragOverQuoteId(null);
+        setDragOverQuoteId(
+          null,
+        );
       }
     };
 
@@ -830,9 +934,9 @@ const CompareQuotes = ({
     );
   };
 
-  /* ======================================================
+  /* ==========================================================
      START FIELD DRAG
-  ====================================================== */
+  ========================================================== */
 
   const handleFieldPointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -846,7 +950,9 @@ const CompareQuotes = ({
     }
 
     const element =
-      fieldRefs.current[fieldId];
+      fieldRefs.current[
+        fieldId
+      ];
 
     if (!element) {
       return;
@@ -857,30 +963,28 @@ const CompareQuotes = ({
 
     event.preventDefault();
 
-    const initialState: DragState = {
-      mode: "field",
-      id: fieldId,
+    const initialState: DragState =
+      {
+        mode: "field",
+        id: fieldId,
 
-      startX: event.clientX,
-      startY: event.clientY,
+        startX: event.clientX,
+        startY: event.clientY,
 
-      currentX: event.clientX,
-      currentY: event.clientY,
+        currentX: event.clientX,
+        currentY: event.clientY,
 
-      offsetX:
-        event.clientX -
-        rect.left,
+        offsetX:
+          event.clientX -
+          rect.left,
 
-      offsetY:
-        event.clientY -
-        rect.top,
+        offsetY:
+          event.clientY -
+          rect.top,
 
-      /*
-       * Use the actual row dimensions.
-       */
-      width: rect.width,
-      height: rect.height,
-    };
+        width: rect.width,
+        height: rect.height,
+      };
 
     dragStateRef.current =
       initialState;
@@ -924,7 +1028,9 @@ const CompareQuotes = ({
           target,
         );
       } else {
-        setDragOverFieldId(null);
+        setDragOverFieldId(
+          null,
+        );
       }
     };
 
@@ -970,37 +1076,37 @@ const CompareQuotes = ({
     );
   };
 
-  /* ======================================================
+  /* ==========================================================
      DRAGGING QUOTE
-  ====================================================== */
+  ========================================================== */
 
   const draggingQuote =
     dragState.mode === "quote" &&
-      typeof dragState.id === "number"
+    typeof dragState.id === "number"
       ? orderedQuotes.find(
-        (quote) =>
-          quote.quote_id ===
-          dragState.id,
-      )
+          (quote) =>
+            quote.quote_id ===
+            dragState.id,
+        )
       : null;
 
-  /* ======================================================
+  /* ==========================================================
      DRAGGING FIELD
-  ====================================================== */
+  ========================================================== */
 
   const draggingField =
     dragState.mode === "field" &&
-      typeof dragState.id === "string"
+    typeof dragState.id === "string"
       ? comparisonFields.find(
-        (field) =>
-          field.id ===
-          dragState.id,
-      )
+          (field) =>
+            field.id ===
+            dragState.id,
+        )
       : null;
 
-  /* ======================================================
+  /* ==========================================================
      EMPTY STATE
-  ====================================================== */
+  ========================================================== */
 
   if (
     !quotes ||
@@ -1015,17 +1121,17 @@ const CompareQuotes = ({
     );
   }
 
-  /* ======================================================
+  /* ==========================================================
      UI
-  ====================================================== */
+  ========================================================== */
 
   return (
     <>
       <div className="relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
 
-        {/* ==================================================
+        {/* ====================================================
             TITLE
-        ================================================== */}
+        ==================================================== */}
 
         <div className="border-b border-gray-200 bg-gradient-to-r from-cyan-50 via-white to-purple-50 px-5 py-4 dark:border-gray-700 dark:from-cyan-950/20 dark:via-gray-900 dark:to-purple-950/20">
           <div className="flex items-center justify-between gap-4">
@@ -1044,9 +1150,9 @@ const CompareQuotes = ({
           </div>
         </div>
 
-        {/* ==================================================
+        {/* ====================================================
             TABLE
-        ================================================== */}
+        ==================================================== */}
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1050px] border-collapse">
@@ -1058,7 +1164,9 @@ const CompareQuotes = ({
                 <th className="sticky left-0 z-40 min-w-[220px] border-r border-gray-200 bg-gray-50 px-5 py-4 text-left dark:border-gray-700 dark:bg-gray-800/70">
                   <div className="flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                      <GripVertical size={16} />
+                      <GripVertical
+                        size={16}
+                      />
                     </div>
 
                     <div>
@@ -1082,9 +1190,9 @@ const CompareQuotes = ({
 
                     const isDraggingThis =
                       dragState.mode ===
-                      "quote" &&
+                        "quote" &&
                       dragState.id ===
-                      quote.quote_id;
+                        quote.quote_id;
 
                     const isDropTarget =
                       dragOverQuoteId ===
@@ -1106,13 +1214,15 @@ const CompareQuotes = ({
                           px-4 py-4 text-left align-top
                           dark:border-gray-700
                           transition-all duration-200
-                          ${isSelected
-                            ? "bg-green-50 dark:bg-green-950/20"
-                            : "bg-white dark:bg-gray-900"
+                          ${
+                            isSelected
+                              ? "bg-green-50 dark:bg-green-950/20"
+                              : "bg-white dark:bg-gray-900"
                           }
-                          ${isDraggingThis
-                            ? "opacity-25 blur-[2px] scale-[0.99]"
-                            : ""
+                          ${
+                            isDraggingThis
+                              ? "scale-[0.99] opacity-25 blur-[2px]"
+                              : ""
                           }
                         `}
                       >
@@ -1145,13 +1255,16 @@ const CompareQuotes = ({
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 items-start gap-3">
                               <div className="flex h-9 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-400 transition-all hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/30 dark:hover:text-cyan-400">
-                                <GripVertical size={18} />
+                                <GripVertical
+                                  size={18}
+                                />
                               </div>
 
                               <div className="min-w-0">
                                 <div className="mb-1.5 flex items-center gap-2">
                                   <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-gray-100 px-1.5 text-[10px] font-bold text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                                    {index + 1}
+                                    {index +
+                                      1}
                                   </span>
 
                                   <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
@@ -1169,7 +1282,9 @@ const CompareQuotes = ({
 
                             {isSelected && (
                               <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-[10px] font-semibold text-green-700 shadow-sm dark:bg-green-900/30 dark:text-green-400">
-                                <Check size={12} />
+                                <Check
+                                  size={12}
+                                />
                                 Selected
                               </span>
                             )}
@@ -1191,9 +1306,9 @@ const CompareQuotes = ({
                 (field) => {
                   const isDraggingThis =
                     dragState.mode ===
-                    "field" &&
+                      "field" &&
                     dragState.id ===
-                    field.id;
+                      field.id;
 
                   const isDropTarget =
                     dragOverFieldId ===
@@ -1212,9 +1327,10 @@ const CompareQuotes = ({
                         border-b border-gray-100
                         dark:border-gray-800
                         transition-all duration-200
-                        ${isDraggingThis
-                          ? "opacity-25 blur-[2px] scale-[0.995]"
-                          : ""
+                        ${
+                          isDraggingThis
+                            ? "scale-[0.995] opacity-25 blur-[2px]"
+                            : ""
                         }
                       `}
                     >
@@ -1227,10 +1343,11 @@ const CompareQuotes = ({
                           border-r border-gray-200
                           px-5 py-3
                           dark:border-gray-700
-                          ${isDropTarget &&
+                          ${
+                            isDropTarget &&
                             !isDraggingThis
-                            ? "bg-purple-50 dark:bg-purple-950/20"
-                            : "bg-white dark:bg-gray-900"
+                              ? "bg-purple-50 dark:bg-purple-950/20"
+                              : "bg-white dark:bg-gray-900"
                           }
                         `}
                       >
@@ -1257,7 +1374,9 @@ const CompareQuotes = ({
                           className="flex cursor-grab touch-none select-none items-center gap-2 active:cursor-grabbing"
                         >
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-400 transition-all hover:border-purple-300 hover:bg-purple-50 hover:text-purple-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500 dark:hover:border-purple-700 dark:hover:bg-purple-950/30 dark:hover:text-purple-400">
-                            <GripVertical size={17} />
+                            <GripVertical
+                              size={17}
+                            />
                           </div>
 
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1276,16 +1395,16 @@ const CompareQuotes = ({
 
                           const isQuoteDragging =
                             dragState.mode ===
-                            "quote" &&
+                              "quote" &&
                             dragState.id ===
-                            quote.quote_id;
+                              quote.quote_id;
 
                           const currentRating =
                             field.ratingParameter
                               ? getRating(
-                                quote.quote_id,
-                                field.ratingParameter,
-                              )
+                                  quote.quote_id,
+                                  field.ratingParameter,
+                                )
                               : 0;
 
                           return (
@@ -1299,11 +1418,12 @@ const CompareQuotes = ({
                                 px-4 py-3
                                 align-middle
                                 dark:border-gray-700
-                                ${isQuoteDragging
-                                  ? "opacity-25 blur-[2px]"
-                                  : isSelected
-                                    ? "bg-green-50 dark:bg-green-950/20"
-                                    : "bg-white dark:bg-gray-900"
+                                ${
+                                  isQuoteDragging
+                                    ? "opacity-25 blur-[2px]"
+                                    : isSelected
+                                      ? "bg-green-50 dark:bg-green-950/20"
+                                      : "bg-white dark:bg-gray-900"
                                 }
                               `}
                             >
@@ -1351,7 +1471,9 @@ const CompareQuotes = ({
                                               className="rounded p-0.5 transition hover:scale-110 focus:outline-none"
                                             >
                                               <Star
-                                                size={15}
+                                                size={
+                                                  15
+                                                }
                                                 className={
                                                   active
                                                     ? "fill-current text-yellow-500"
@@ -1418,9 +1540,10 @@ const CompareQuotes = ({
                             border-r border-gray-200
                             px-4 py-4
                             dark:border-gray-700
-                            ${isSelected
-                              ? "bg-green-50 dark:bg-green-950/20"
-                              : "bg-white dark:bg-gray-900"
+                            ${
+                              isSelected
+                                ? "bg-green-50 dark:bg-green-950/20"
+                                : "bg-white dark:bg-gray-900"
                             }
                           `}
                         >
@@ -1441,14 +1564,17 @@ const CompareQuotes = ({
                               text-sm
                               font-semibold
                               transition-all
-                              ${isSelected
-                                ? "bg-green-600 text-white shadow-sm hover:bg-green-700"
-                                : "border border-gray-300 bg-white text-gray-700 hover:border-cyan-400 hover:bg-cyan-50 hover:text-cyan-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/30"
+                              ${
+                                isSelected
+                                  ? "bg-green-600 text-white shadow-sm hover:bg-green-700"
+                                  : "border border-gray-300 bg-white text-gray-700 hover:border-cyan-400 hover:bg-cyan-50 hover:text-cyan-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-cyan-700 dark:hover:bg-cyan-950/30"
                               }
                             `}
                           >
                             {isSelected && (
-                              <Check size={15} />
+                              <Check
+                                size={15}
+                              />
                             )}
 
                             {isSelected
@@ -1466,9 +1592,43 @@ const CompareQuotes = ({
         </div>
       </div>
 
-      {/* ======================================================
+      {/* ========================================================
+          SAVE RATINGS FOOTER
+      ======================================================== */}
+
+      <div className="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-gray-700 dark:bg-gray-800/50">
+        {ratingsSaved && (
+          <span className="text-sm font-medium text-green-600 dark:text-green-400">
+            Ratings saved successfully
+          </span>
+        )}
+
+        <button
+          type="button"
+          onClick={handleSaveRatings}
+          disabled={isSavingRatings}
+          className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSavingRatings ? (
+            <>
+              <Loader2
+                size={16}
+                className="animate-spin"
+              />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Check size={16} />
+              Save Ratings
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* ========================================================
           FLOATING GLASS QUOTE
-      ====================================================== */}
+      ======================================================== */}
 
       {isDragging &&
         draggingQuote && (
@@ -1483,8 +1643,11 @@ const CompareQuotes = ({
                 dragState.currentY -
                 dragState.offsetY,
 
-              width: dragState.width,
-              height: dragState.height,
+              width:
+                dragState.width,
+
+              height:
+                dragState.height,
 
               transform:
                 "rotate(0deg) scale(1.01)",
@@ -1510,7 +1673,6 @@ const CompareQuotes = ({
                 dark:bg-white/[0.07]
               "
             >
-
               {/* Reflection */}
 
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/80 dark:bg-white/20" />
@@ -1520,6 +1682,7 @@ const CompareQuotes = ({
               {/* Content */}
 
               <div className="relative flex h-[calc(100%-4px)] items-center px-5 py-4">
+
                 {/* Grip */}
 
                 <div
@@ -1537,18 +1700,19 @@ const CompareQuotes = ({
                     dark:text-cyan-300
                   "
                 >
-                  <GripVertical size={19} />
+                  <GripVertical
+                    size={19}
+                  />
                 </div>
 
                 {/* Quote information */}
 
                 <div className="ml-4 min-w-0 flex-1">
                   <div className="mb-1 flex items-center gap-2">
-                   
                     {selectedQuoteId ===
                       draggingQuote.quote_id && (
-                        <span
-                          className="
+                      <span
+                        className="
                           rounded-full
                           border
                           border-green-300/40
@@ -1562,10 +1726,10 @@ const CompareQuotes = ({
                           dark:bg-green-400/10
                           dark:text-green-300
                         "
-                        >
-                          Selected
-                        </span>
-                      )}
+                      >
+                        Selected
+                      </span>
+                    )}
                   </div>
 
                   <p className="truncate text-sm font-bold text-gray-900 dark:text-white">
@@ -1615,9 +1779,9 @@ const CompareQuotes = ({
           </div>
         )}
 
-      {/* ======================================================
+      {/* ========================================================
           FLOATING GLASS FIELD
-      ====================================================== */}
+      ======================================================== */}
 
       {isDragging &&
         draggingField && (
@@ -1632,8 +1796,11 @@ const CompareQuotes = ({
                 dragState.currentY -
                 dragState.offsetY,
 
-              width: dragState.width,
-              height: dragState.height,
+              width:
+                dragState.width,
+
+              height:
+                dragState.height,
 
               transform:
                 "rotate(0deg) scale(1)",
@@ -1664,9 +1831,11 @@ const CompareQuotes = ({
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/80 dark:bg-white/20" />
 
               <div className="pointer-events-none absolute inset-x-5 top-1 h-px bg-white/40 blur-sm dark:bg-white/10" />
+
               {/* Full-width row content */}
 
               <div className="relative flex h-[calc(100%-4px)] w-full items-center gap-5 px-5 py-3">
+
                 {/* Grip */}
 
                 <div
@@ -1684,7 +1853,9 @@ const CompareQuotes = ({
                     dark:text-purple-300
                   "
                 >
-                  <GripVertical size={19} />
+                  <GripVertical
+                    size={19}
+                  />
                 </div>
 
                 {/* Field */}
@@ -1766,9 +1937,9 @@ const CompareQuotes = ({
   );
 };
 
-/* ======================================================
+/* ============================================================
    FLOATING GLASS INFO
-====================================================== */
+============================================================ */
 
 interface FloatingGlassInfoProps {
   label: string;
@@ -1806,9 +1977,9 @@ const FloatingGlassInfo = ({
   );
 };
 
-/* ======================================================
+/* ============================================================
    DATE FORMATTER
-====================================================== */
+============================================================ */
 
 const formatQuoteDate = (
   date?: string | null,
@@ -1838,9 +2009,9 @@ const formatQuoteDate = (
   );
 };
 
-/* ======================================================
+/* ============================================================
    AMOUNT FORMATTER
-====================================================== */
+============================================================ */
 
 const formatAmount = (
   amount?: number | null,
@@ -1872,5 +2043,9 @@ const formatAmount = (
     },
   )}`.trim();
 };
+
+/* ============================================================
+   EXPORT
+============================================================ */
 
 export default CompareQuotes;

@@ -4,7 +4,6 @@ import {
   ArrowLeftRight,
   Check,
   ChevronDown,
-  Eye,
   FileText,
   Loader2,
   X,
@@ -275,19 +274,7 @@ function QuoteDetailsAccordion({
                   Quote Details
                 </h2>
 
-                <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                  <Eye size={11} />
-
-                  {canSubmitRatings
-                    ? ratingsSubmitted
-                      ? "Ratings Submitted"
-                      : "Rating Submission Enabled"
-                    : canUpdateRating
-                      ? "Rating Editable"
-                      : canSelectQuote
-                        ? "Selection Enabled"
-                        : "View Only"}
-                </span>
+               
               </div>
 
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -544,6 +531,7 @@ function QuoteDetailsAccordion({
 
             <div className="min-h-0 flex-1 overflow-auto p-5">
               <CompareQuotes
+              taskId={taskId}
                 quotes={quotes}
                 selectedQuoteId={selectedQuoteId}
                 onSelectQuote={
