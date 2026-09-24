@@ -624,7 +624,7 @@ function TasksPage() {
                                 <QuoteDetailsAccordion
                                     documentNo={selectedTask.document_no}
                                     taskId={selectedTask.task_id}
-                                    canEditRating={canEditQuoteRating}
+                                      canUpdateRating={canEditQuoteRating}
                                 />
                             )}
                         </div>
