@@ -18,18 +18,6 @@ import type { Task } from "../../types/task";
 import TaskList from "../../components/tasks/TaskList";
 import TaskDetails from "../../components/tasks/TaskDetails";
 
-type TaskCardColor =
-    | "yellow"
-    | "purple";
-
-const getTaskCardColor = (
-    index: number
-): TaskCardColor => {
-    return index % 2 === 0
-        ? "yellow"
-        : "purple";
-};
-
 function TasksPage() {
     const navigate = useNavigate();
 
@@ -120,7 +108,6 @@ function TasksPage() {
         );
     }
 
-
     return (
         <div className="flex h-[calc(100vh-64px)] flex-col bg-gray-50 dark:bg-gray-950">
 
@@ -194,17 +181,6 @@ function TasksPage() {
 
                     <TaskDetails
                         task={selectedTask}
-                        taskColor={
-                            selectedTask
-                                ? getTaskCardColor(
-                                    pendingTasks.findIndex(
-                                        (task) =>
-                                            task.task_id ===
-                                            selectedTask.task_id
-                                    )
-                                )
-                                : "yellow"
-                        }
                         onEdit={(task) =>
                             navigate(
                                 `/tasks/${task.task_id}/edit`,

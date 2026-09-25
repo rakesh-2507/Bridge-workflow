@@ -84,7 +84,7 @@ import {
                     replace: true,
                 });
             } else {
-                navigate("/tasks", {
+                navigate("/tasks/today", {
                     replace: true,
                 });
             }

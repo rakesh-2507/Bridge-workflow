@@ -58,7 +58,7 @@ function TaskList({
                                         style={{
                                             top: `${index * 25}px`,
                                             zIndex: selected
-                                                ? 1000
+                                                ? 10
                                                 : index + 1,
                                         }}
                                     >

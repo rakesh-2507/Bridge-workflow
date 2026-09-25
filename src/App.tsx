@@ -16,6 +16,7 @@ import Home from "./pages/Home";
 import Projects from "./pages/Projects";
 import ProjectDetails from "./pages/ProjectDetails";
 import MembersList from "./pages/MembersList";
+import FileUploadPage from "./pages/FileUploadPage";
 
 import ProjectTypes from "./pages/ProjectTypes";
 import Templates from "./pages/Templates";
@@ -101,6 +102,10 @@ function App() {
             <Route
               path="/tasks/create"
               element={<CreateTaskPage />}
+            />
+            <Route
+              path="/files"
+              element={<FileUploadPage />}
             />
 
             <Route

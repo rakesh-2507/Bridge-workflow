@@ -4,29 +4,26 @@ import {
     CalendarDays,
     Loader2,
     Pencil,
+    SlidersHorizontal,
     Trash2,
     User,
+    X,
 } from "lucide-react";
 
 import { deleteTask } from "../../api/tasks";
+
 import type { Task } from "../../types/task";
 
 import TaskStatus from "./TaskStatus";
 
-type TaskCardColor = "yellow" | "purple";
-
 interface TaskDetailsProps {
     task: Task | null;
-    taskColor?: TaskCardColor;
     onEdit: (task: Task) => void;
     onDeleted: (taskId: number) => void;
 }
 
 function TaskDetails({
     task,
-    // Keep this for later color support.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    taskColor,
     onEdit,
     onDeleted,
 }: TaskDetailsProps) {
@@ -38,6 +35,12 @@ function TaskDetails({
 
     const [deleteError, setDeleteError] =
         useState("");
+
+    const [showAttributes, setShowAttributes] =
+        useState(false);
+
+    const [attributeForm, setAttributeForm] =
+        useState<Task | null>(null);
 
     if (!task) {
         return (
@@ -84,10 +87,60 @@ function TaskDetails({
         }
     };
 
+    const openAttributes = () => {
+        setAttributeForm({
+            ...task,
+            levels: task.levels
+                ? [...task.levels]
+                : [],
+            key_params: task.key_params
+                ? { ...task.key_params }
+                : {},
+        });
+
+        setShowAttributes(true);
+    };
+
+    const closeAttributes = () => {
+        setShowAttributes(false);
+        setAttributeForm(null);
+    };
+
+    const updateAttribute = (
+        field: keyof Task,
+        value: unknown
+    ) => {
+        setAttributeForm((previous) =>
+            previous
+                ? {
+                    ...previous,
+                    [field]: value,
+                }
+                : previous
+        );
+    };
+
+    const updateKeyParam = (
+        key: string,
+        value: string
+    ) => {
+        setAttributeForm((previous) =>
+            previous
+                ? {
+                    ...previous,
+                    key_params: {
+                        ...(previous.key_params ?? {}),
+                        [key]: value,
+                    },
+                }
+                : previous
+        );
+    };
+
     return (
         <div className="flex min-h-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
 
-
+            {/* Header */}
             <div className="shrink-0 border-b border-gray-200 px-6 py-5 dark:border-gray-800">
 
                 <div className="flex items-start justify-between gap-4">
@@ -104,6 +157,7 @@ function TaskDetails({
                             <TaskStatus
                                 status={task.status}
                             />
+
                         </div>
 
                         <p className="mt-1.5 text-xs font-medium text-gray-400">
@@ -114,6 +168,20 @@ function TaskDetails({
 
                     <div className="flex shrink-0 items-center gap-2">
 
+                        {/* Attributes */}
+                        <button
+                            type="button"
+                            onClick={openAttributes}
+                            className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                        >
+                            <SlidersHorizontal
+                                size={14}
+                            />
+
+                            Attributes
+                        </button>
+
+                        {/* Edit */}
                         <button
                             type="button"
                             onClick={() =>
@@ -122,9 +190,11 @@ function TaskDetails({
                             className="flex items-center gap-2 rounded-lg bg-gray-900 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
                         >
                             <Pencil size={14} />
+
                             Edit
                         </button>
 
+                        {/* Delete */}
                         <button
                             type="button"
                             onClick={() => {
@@ -134,6 +204,7 @@ function TaskDetails({
                             className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-950"
                         >
                             <Trash2 size={14} />
+
                             Delete
                         </button>
 
@@ -141,16 +212,19 @@ function TaskDetails({
                 </div>
             </div>
 
+            {/* Content */}
             <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
 
                 <div className="space-y-7 p-6">
 
+                    {/* Delete error */}
                     {deleteError && (
                         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
                             {deleteError}
                         </div>
                     )}
 
+                    {/* Delete confirmation */}
                     {showDeleteConfirm && (
                         <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
 
@@ -208,6 +282,7 @@ function TaskDetails({
                         </div>
                     )}
 
+                    {/* Dates */}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
                         <DateInfo
@@ -225,6 +300,8 @@ function TaskDetails({
                         />
 
                     </div>
+
+                    {/* Description */}
                     <section>
 
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -241,6 +318,8 @@ function TaskDetails({
                         </div>
 
                     </section>
+
+                    {/* Task Users */}
                     <section>
 
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -268,6 +347,470 @@ function TaskDetails({
                     </section>
 
                 </div>
+            </div>
+
+            {/* Attributes Modal */}
+            {showAttributes &&
+                attributeForm && (
+                    <div
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+                        onMouseDown={(event) => {
+                            if (
+                                event.target ===
+                                event.currentTarget
+                            ) {
+                                closeAttributes();
+                            }
+                        }}
+                    >
+                        <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+
+                            {/* Modal Header */}
+                            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-800">
+
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                        Task Attributes
+                                    </h2>
+
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        View and edit task attributes.
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={closeAttributes}
+                                    className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                                >
+                                    <X size={18} />
+                                </button>
+
+                            </div>
+
+                            {/* Modal Body */}
+                            <div className="min-h-0 flex-1 overflow-y-auto p-6">
+
+                                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+
+                                    {/* Task ID */}
+                                    <ReadOnlyField
+                                        label="Task ID"
+                                        value={String(
+                                            attributeForm.task_id
+                                        )}
+                                    />
+
+                                    {/* Process ID */}
+                                    <ReadOnlyField
+                                        label="Process ID"
+                                        value={String(
+                                            (
+                                                attributeForm as Task & {
+                                                    process_id?: string | number;
+                                                }
+                                            ).process_id ??
+                                            "N/A"
+                                        )}
+                                    />
+
+                                    {/* Task Type */}
+                                    <AttributeInput
+                                        label="Task Type"
+                                        value={
+                                            attributeForm.task_type ??
+                                            ""
+                                        }
+                                        onChange={(value) =>
+                                            updateAttribute(
+                                                "task_type",
+                                                value
+                                            )
+                                        }
+                                    />
+
+                                    {/* Project ID */}
+                                    <AttributeInput
+                                        label="Project ID"
+                                        type="number"
+                                        value={
+                                            attributeForm.project_id ??
+                                            ""
+                                        }
+                                        onChange={(value) =>
+                                            updateAttribute(
+                                                "project_id",
+                                                value === ""
+                                                    ? undefined
+                                                    : Number(value)
+                                            )
+                                        }
+                                    />
+
+                                    {/* Folder ID */}
+                                    <AttributeInput
+                                        label="Folder ID"
+                                        type="number"
+                                        value={
+                                            attributeForm.folder_id ??
+                                            ""
+                                        }
+                                        onChange={(value) =>
+                                            updateAttribute(
+                                                "folder_id",
+                                                value === ""
+                                                    ? undefined
+                                                    : Number(value)
+                                            )
+                                        }
+                                    />
+
+                                    {/* Template ID */}
+                                    <AttributeInput
+                                        label="Template ID"
+                                        type="number"
+                                        value={
+                                            attributeForm.template_id ??
+                                            ""
+                                        }
+                                        onChange={(value) =>
+                                            updateAttribute(
+                                                "template_id",
+                                                value === ""
+                                                    ? undefined
+                                                    : Number(value)
+                                            )
+                                        }
+                                    />
+
+                                    {/* Assigned By */}
+                                    <AttributeInput
+                                        label="Assigned By"
+                                        type="number"
+                                        value={
+                                            attributeForm.assigned_by ??
+                                            ""
+                                        }
+                                        onChange={(value) =>
+                                            updateAttribute(
+                                                "assigned_by",
+                                                value === ""
+                                                    ? undefined
+                                                    : Number(value)
+                                            )
+                                        }
+                                    />
+
+                                    {/* Assigned To */}
+                                    <AttributeInput
+                                        label="Assigned To"
+                                        type="number"
+                                        value={
+                                            attributeForm.assigned_to ??
+                                            ""
+                                        }
+                                        onChange={(value) =>
+                                            updateAttribute(
+                                                "assigned_to",
+                                                value === ""
+                                                    ? undefined
+                                                    : Number(value)
+                                            )
+                                        }
+                                    />
+
+                                    {/* Start Date */}
+                                    <AttributeInput
+                                        label="Start Date"
+                                        type="date"
+                                        value={
+                                            attributeForm.start_date ??
+                                            ""
+                                        }
+                                        onChange={(value) =>
+                                            updateAttribute(
+                                                "start_date",
+                                                value
+                                            )
+                                        }
+                                    />
+
+                                    {/* End Date */}
+                                    <AttributeInput
+                                        label="End Date"
+                                        type="date"
+                                        value={
+                                            attributeForm.end_date ??
+                                            ""
+                                        }
+                                        onChange={(value) =>
+                                            updateAttribute(
+                                                "end_date",
+                                                value
+                                            )
+                                        }
+                                    />
+
+                                    {/* Status */}
+                                    <AttributeInput
+                                        label="Status"
+                                        type="number"
+                                        value={
+                                            attributeForm.status ??
+                                            ""
+                                        }
+                                        onChange={(value) =>
+                                            updateAttribute(
+                                                "status",
+                                                value === ""
+                                                    ? undefined
+                                                    : Number(value)
+                                            )
+                                        }
+                                    />
+
+                                    {/* Created Date */}
+                                    <ReadOnlyField
+                                        label="Created Date"
+                                        value={
+                                            attributeForm.created_date ||
+                                            "N/A"
+                                        }
+                                    />
+
+                                    {/* Updated Date */}
+                                    <ReadOnlyField
+                                        label="Updated Date"
+                                        value={
+                                            attributeForm.updated_date ||
+                                            "N/A"
+                                        }
+                                    />
+
+                                    {/* Description */}
+                                    <div className="md:col-span-2">
+                                        <AttributeTextarea
+                                            label="Task Description"
+                                            value={
+                                                attributeForm.task_description ??
+                                                ""
+                                            }
+                                            onChange={(value) =>
+                                                updateAttribute(
+                                                    "task_description",
+                                                    value
+                                                )
+                                            }
+                                        />
+                                    </div>
+
+                                    {/* Levels */}
+                                    <div className="md:col-span-2">
+                                        <AttributeInput
+                                            label="Levels"
+                                            value={
+                                                attributeForm.levels?.join(
+                                                    ", "
+                                                ) ?? ""
+                                            }
+                                            onChange={(value) =>
+                                                updateAttribute(
+                                                    "levels",
+                                                    value
+                                                        .split(",")
+                                                        .map(
+                                                            (
+                                                                item
+                                                            ) =>
+                                                                item.trim()
+                                                        )
+                                                        .filter(
+                                                            Boolean
+                                                        )
+                                                )
+                                            }
+                                        />
+                                    </div>
+
+                                </div>
+
+                                {/* Key Params */}
+                                <div className="mt-6">
+
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                        Key Parameters
+                                    </h3>
+
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        Edit the task key parameters.
+                                    </p>
+
+                                    <div className="mt-3 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+
+                                        {Object.entries(
+                                            attributeForm.key_params ??
+                                            {}
+                                        ).length === 0 ? (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                No key parameters available.
+                                            </p>
+                                        ) : (
+                                            Object.entries(
+                                                attributeForm.key_params ??
+                                                {}
+                                            ).map(
+                                                ([key, value]) => (
+                                                    <div
+                                                        key={key}
+                                                        className="grid grid-cols-1 gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center"
+                                                    >
+                                                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                            {key}
+                                                        </label>
+
+                                                        <input
+                                                            type="text"
+                                                            value={
+                                                                value ==
+                                                                null
+                                                                    ? ""
+                                                                    : String(
+                                                                        value
+                                                                    )
+                                                            }
+                                                            onChange={(
+                                                                event
+                                                            ) =>
+                                                                updateKeyParam(
+                                                                    key,
+                                                                    event
+                                                                        .target
+                                                                        .value
+                                                                )
+                                                            }
+                                                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:border-gray-500"
+                                                        />
+                                                    </div>
+                                                )
+                                            )
+                                        )}
+
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-gray-200 px-6 py-4 dark:border-gray-800">
+
+                                <button
+                                    type="button"
+                                    onClick={closeAttributes}
+                                    className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        // API will be added later.
+                                    }}
+                                    className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                                >
+                                    <SlidersHorizontal
+                                        size={14}
+                                    />
+
+                                    Update Attributes
+                                </button>
+
+                            </div>
+
+                        </div>
+                    </div>
+                )}
+        </div>
+    );
+}
+
+interface AttributeInputProps {
+    label: string;
+    value: string | number;
+    type?: "text" | "number" | "date";
+    onChange: (value: string) => void;
+}
+
+function AttributeInput({
+    label,
+    value,
+    type = "text",
+    onChange,
+}: AttributeInputProps) {
+    return (
+        <div>
+            <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                {label}
+            </label>
+
+            <input
+                type={type}
+                value={value}
+                onChange={(event) =>
+                    onChange(event.target.value)
+                }
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:border-gray-500"
+            />
+        </div>
+    );
+}
+
+interface AttributeTextareaProps {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+}
+
+function AttributeTextarea({
+    label,
+    value,
+    onChange,
+}: AttributeTextareaProps) {
+    return (
+        <div>
+            <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                {label}
+            </label>
+
+            <textarea
+                value={value}
+                rows={3}
+                onChange={(event) =>
+                    onChange(event.target.value)
+                }
+                className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:border-gray-500"
+            />
+        </div>
+    );
+}
+
+interface ReadOnlyFieldProps {
+    label: string;
+    value: string;
+}
+
+function ReadOnlyField({
+    label,
+    value,
+}: ReadOnlyFieldProps) {
+    return (
+        <div>
+            <label className="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                {label}
+            </label>
+
+            <div className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2.5 text-sm font-medium text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                {value}
             </div>
         </div>
     );

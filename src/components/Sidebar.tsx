@@ -5,6 +5,8 @@ import {
   LogOut,
   Moon,
   Sun,
+  File,
+
 } from "lucide-react";
 
 import {
@@ -49,24 +51,30 @@ function Sidebar({
 
   const navigationItems = isAdmin
     ? [
-        {
-          label: "Dashboard",
-          icon: LayoutDashboard,
-          to: "/",
-        },
-      ]
+      {
+        label: "Dashboard",
+        icon: LayoutDashboard,
+        to: "/",
+      },
+    ]
     : [
-        {
-          label: "Tasks",
-          icon: CheckSquare,
-          to: "/tasks",
-        },
-        {
-          label: "Today Tasks",
-          icon: CalendarDays,
-          to: "/tasks/today",
-        },
-      ];
+
+      {
+        label: "Today Tasks",
+        icon: CalendarDays,
+        to: "/tasks/today",
+      },
+      {
+        label: "Tasks",
+        icon: CheckSquare,
+        to: "/tasks",
+      },
+      {
+        label: "Files",
+        icon: File,
+        to: "/files",
+      },
+    ];
 
   return (
     <aside className="hidden w-20 shrink-0 border-r border-gray-200 bg-white transition-colors dark:border-gray-700 dark:bg-gray-950 md:block">
@@ -84,10 +92,9 @@ function Sidebar({
                 to={to}
                 end
                 className={({ isActive }) =>
-                  `group relative flex items-center justify-center rounded-lg p-3 transition ${
-                    isActive
-                      ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                  `group relative flex items-center justify-center rounded-lg p-3 transition ${isActive
+                    ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                   }`
                 }
               >

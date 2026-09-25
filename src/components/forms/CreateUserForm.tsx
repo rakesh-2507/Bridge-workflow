@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createUser } from "../../api/users";
 
 interface CreateUserFormProps {
   onCancel?: () => void;
@@ -50,8 +51,8 @@ const CreateUserForm = ({
   };
 
   const handleSubmit = async (
-        e: React.SubmitEvent<HTMLFormElement>
-    ) => {
+    e: React.SubmitEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
 
     setError("");
@@ -71,22 +72,15 @@ const CreateUserForm = ({
     try {
       setLoading(true);
 
-      const response = await fetch("/api/createuser", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      const data = await createUser(formData);
 
-      const data = await response.json();
+      setSuccess("User created successfully.");
 
-      if (!response.ok) {
-        throw new Error(
-          data?.message || "Failed to create user."
-        );
+      setFormData(initialFormData);
+
+      if (onSuccess) {
+        onSuccess(data);
       }
-
       setSuccess("User created successfully.");
 
       setFormData(initialFormData);
