@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
     CalendarDays,
+    File,
+    FileText,
     Loader2,
     Pencil,
     SlidersHorizontal,
@@ -10,17 +12,30 @@ import {
     X,
 } from "lucide-react";
 
-import { deleteTask } from "../../api/tasks";
+import {
+    deleteTask,
+    getTaskFiles,
+} from "../../api/tasks";
+
+import type { TaskFile } from "../../api/tasks";
 
 import type { Task } from "../../types/task";
 
 import TaskStatus from "./TaskStatus";
+
+/* =========================================================
+   Types
+========================================================= */
 
 interface TaskDetailsProps {
     task: Task | null;
     onEdit: (task: Task) => void;
     onDeleted: (taskId: number) => void;
 }
+
+/* =========================================================
+   Component
+========================================================= */
 
 function TaskDetails({
     task,
@@ -41,6 +56,66 @@ function TaskDetails({
 
     const [attributeForm, setAttributeForm] =
         useState<Task | null>(null);
+
+    const [taskFiles, setTaskFiles] =
+        useState<TaskFile[]>([]);
+
+    const [filesLoading, setFilesLoading] =
+        useState(false);
+
+    const [filesError, setFilesError] =
+        useState("");
+
+    /* =========================================================
+       Load Task Files
+    ========================================================= */
+
+    useEffect(() => {
+        if (!task) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const loadTaskFiles = async () => {
+            setFilesLoading(true);
+            setFilesError("");
+
+            try {
+                const files = await getTaskFiles(
+                    task.task_id,
+                );
+
+                if (!cancelled) {
+                    setTaskFiles(files);
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setTaskFiles([]);
+
+                    setFilesError(
+                        err instanceof Error
+                            ? err.message
+                            : "Failed to load task files.",
+                    );
+                }
+            } finally {
+                if (!cancelled) {
+                    setFilesLoading(false);
+                }
+            }
+        };
+
+        void loadTaskFiles();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [task]);
+
+    /* =========================================================
+       No Task Selected
+    ========================================================= */
 
     if (!task) {
         return (
@@ -66,6 +141,10 @@ function TaskDetails({
         );
     }
 
+    /* =========================================================
+       Delete
+    ========================================================= */
+
     const handleDelete = async () => {
         setDeleteLoading(true);
         setDeleteError("");
@@ -80,12 +159,16 @@ function TaskDetails({
             setDeleteError(
                 err instanceof Error
                     ? err.message
-                    : "Failed to delete task."
+                    : "Failed to delete task.",
             );
         } finally {
             setDeleteLoading(false);
         }
     };
+
+    /* =========================================================
+       Attributes
+    ========================================================= */
 
     const openAttributes = () => {
         setAttributeForm({
@@ -108,7 +191,7 @@ function TaskDetails({
 
     const updateAttribute = (
         field: keyof Task,
-        value: unknown
+        value: unknown,
     ) => {
         setAttributeForm((previous) =>
             previous
@@ -116,13 +199,13 @@ function TaskDetails({
                     ...previous,
                     [field]: value,
                 }
-                : previous
+                : previous,
         );
     };
 
     const updateKeyParam = (
         key: string,
-        value: string
+        value: string,
     ) => {
         setAttributeForm((previous) =>
             previous
@@ -133,20 +216,25 @@ function TaskDetails({
                         [key]: value,
                     },
                 }
-                : previous
+                : previous,
         );
     };
+
+    /* =========================================================
+       Render
+    ========================================================= */
 
     return (
         <div className="flex min-h-0 flex-1 flex-col border-l border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
 
-            {/* Header */}
-            <div className="shrink-0 border-b border-gray-200 px-6 py-5 dark:border-gray-800">
+            {/* =================================================
+                Header
+            ================================================= */}
 
+            <div className="shrink-0 border-b border-gray-200 px-6 py-5 dark:border-gray-800">
                 <div className="flex items-start justify-between gap-4">
 
                     <div className="min-w-0">
-
                         <div className="flex flex-wrap items-center gap-3">
 
                             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -163,7 +251,6 @@ function TaskDetails({
                         <p className="mt-1.5 text-xs font-medium text-gray-400">
                             Task #{task.task_id}
                         </p>
-
                     </div>
 
                     <div className="flex shrink-0 items-center gap-2">
@@ -212,7 +299,10 @@ function TaskDetails({
                 </div>
             </div>
 
-            {/* Content */}
+            {/* =================================================
+                Content
+            ================================================= */}
+
             <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
 
                 <div className="space-y-7 p-6">
@@ -282,28 +372,35 @@ function TaskDetails({
                         </div>
                     )}
 
-                    {/* Dates */}
+                    {/* =================================================
+                        Dates
+                    ================================================= */}
+
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
                         <DateInfo
                             label="Start Date"
                             value={
-                                task.start_date || "N/A"
+                                task.start_date ||
+                                "N/A"
                             }
                         />
 
                         <DateInfo
                             label="End Date"
                             value={
-                                task.end_date || "N/A"
+                                task.end_date ||
+                                "N/A"
                             }
                         />
 
                     </div>
 
-                    {/* Description */}
-                    <section>
+                    {/* =================================================
+                        Description
+                    ================================================= */}
 
+                    <section>
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                             Description:
                         </h3>
@@ -316,10 +413,118 @@ function TaskDetails({
                             </p>
 
                         </div>
+                    </section>
+
+                    {/* =================================================
+                        Task Files
+                    ================================================= */}
+
+                    <section>
+
+                        <div className="flex items-center justify-between">
+
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                    Task Files:
+                                </h3>
+
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Files associated with this task.
+                                </p>
+                            </div>
+
+                            {!filesLoading &&
+                                taskFiles.length > 0 && (
+                                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                        {taskFiles.length}{" "}
+                                        {taskFiles.length === 1
+                                            ? "file"
+                                            : "files"}
+                                    </span>
+                                )}
+
+                        </div>
+
+                        <div className="mt-4">
+
+                            {/* Loading */}
+                            {filesLoading && (
+                                <div className="flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-8 dark:border-gray-800 dark:bg-gray-950">
+
+                                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+
+                                        <Loader2
+                                            size={16}
+                                            className="animate-spin"
+                                        />
+
+                                        Loading files...
+
+                                    </div>
+
+                                </div>
+                            )}
+
+                            {/* Error */}
+                            {!filesLoading &&
+                                filesError && (
+                                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                                        {filesError}
+                                    </div>
+                                )}
+
+                            {/* Empty */}
+                            {!filesLoading &&
+                                !filesError &&
+                                taskFiles.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center dark:border-gray-700 dark:bg-gray-950">
+
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white dark:bg-gray-900">
+                                            <File
+                                                size={18}
+                                                className="text-gray-400"
+                                            />
+                                        </div>
+
+                                        <p className="mt-3 text-xs font-medium text-gray-600 dark:text-gray-400">
+                                            No files attached
+                                        </p>
+
+                                        <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                                            Files uploaded for this task will appear here.
+                                        </p>
+
+                                    </div>
+                                )}
+
+                            {/* Files */}
+                            {!filesLoading &&
+                                !filesError &&
+                                taskFiles.length > 0 && (
+                                    <div className="space-y-2">
+
+                                        {taskFiles.map(
+                                            (file) => (
+                                                <TaskFileItem
+                                                    key={
+                                                        file.pffid
+                                                    }
+                                                    file={file}
+                                                />
+                                            ),
+                                        )}
+
+                                    </div>
+                                )}
+
+                        </div>
 
                     </section>
 
-                    {/* Task Users */}
+                    {/* =================================================
+                        Task Users
+                    ================================================= */}
+
                     <section>
 
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -331,14 +536,16 @@ function TaskDetails({
                             <TaskUser
                                 label="Assigned By"
                                 value={String(
-                                    task.assigned_by ?? "N/A"
+                                    task.assigned_by ??
+                                    "N/A",
                                 )}
                             />
 
                             <TaskUser
                                 label="Assigned To"
                                 value={String(
-                                    task.assigned_to ?? "N/A"
+                                    task.assigned_to ??
+                                    "N/A",
                                 )}
                             />
 
@@ -349,7 +556,10 @@ function TaskDetails({
                 </div>
             </div>
 
-            {/* Attributes Modal */}
+            {/* =================================================
+                Attributes Modal
+            ================================================= */}
+
             {showAttributes &&
                 attributeForm && (
                     <div
@@ -397,20 +607,7 @@ function TaskDetails({
                                     <ReadOnlyField
                                         label="Task ID"
                                         value={String(
-                                            attributeForm.task_id
-                                        )}
-                                    />
-
-                                    {/* Process ID */}
-                                    <ReadOnlyField
-                                        label="Process ID"
-                                        value={String(
-                                            (
-                                                attributeForm as Task & {
-                                                    process_id?: string | number;
-                                                }
-                                            ).process_id ??
-                                            "N/A"
+                                            attributeForm.task_id,
                                         )}
                                     />
 
@@ -424,7 +621,7 @@ function TaskDetails({
                                         onChange={(value) =>
                                             updateAttribute(
                                                 "task_type",
-                                                value
+                                                value,
                                             )
                                         }
                                     />
@@ -441,8 +638,8 @@ function TaskDetails({
                                             updateAttribute(
                                                 "project_id",
                                                 value === ""
-                                                    ? undefined
-                                                    : Number(value)
+                                                    ? null
+                                                    : Number(value),
                                             )
                                         }
                                     />
@@ -459,8 +656,8 @@ function TaskDetails({
                                             updateAttribute(
                                                 "folder_id",
                                                 value === ""
-                                                    ? undefined
-                                                    : Number(value)
+                                                    ? null
+                                                    : Number(value),
                                             )
                                         }
                                     />
@@ -477,8 +674,8 @@ function TaskDetails({
                                             updateAttribute(
                                                 "template_id",
                                                 value === ""
-                                                    ? undefined
-                                                    : Number(value)
+                                                    ? null
+                                                    : Number(value),
                                             )
                                         }
                                     />
@@ -495,8 +692,8 @@ function TaskDetails({
                                             updateAttribute(
                                                 "assigned_by",
                                                 value === ""
-                                                    ? undefined
-                                                    : Number(value)
+                                                    ? 0
+                                                    : Number(value),
                                             )
                                         }
                                     />
@@ -513,8 +710,8 @@ function TaskDetails({
                                             updateAttribute(
                                                 "assigned_to",
                                                 value === ""
-                                                    ? undefined
-                                                    : Number(value)
+                                                    ? 0
+                                                    : Number(value),
                                             )
                                         }
                                     />
@@ -530,7 +727,7 @@ function TaskDetails({
                                         onChange={(value) =>
                                             updateAttribute(
                                                 "start_date",
-                                                value
+                                                value,
                                             )
                                         }
                                     />
@@ -546,7 +743,7 @@ function TaskDetails({
                                         onChange={(value) =>
                                             updateAttribute(
                                                 "end_date",
-                                                value
+                                                value,
                                             )
                                         }
                                     />
@@ -564,7 +761,7 @@ function TaskDetails({
                                                 "status",
                                                 value === ""
                                                     ? undefined
-                                                    : Number(value)
+                                                    : Number(value),
                                             )
                                         }
                                     />
@@ -598,7 +795,7 @@ function TaskDetails({
                                             onChange={(value) =>
                                                 updateAttribute(
                                                     "task_description",
-                                                    value
+                                                    value,
                                                 )
                                             }
                                         />
@@ -610,7 +807,7 @@ function TaskDetails({
                                             label="Levels"
                                             value={
                                                 attributeForm.levels?.join(
-                                                    ", "
+                                                    ", ",
                                                 ) ?? ""
                                             }
                                             onChange={(value) =>
@@ -619,14 +816,12 @@ function TaskDetails({
                                                     value
                                                         .split(",")
                                                         .map(
-                                                            (
-                                                                item
-                                                            ) =>
-                                                                item.trim()
+                                                            (item) =>
+                                                                item.trim(),
                                                         )
                                                         .filter(
-                                                            Boolean
-                                                        )
+                                                            Boolean,
+                                                        ),
                                                 )
                                             }
                                         />
@@ -649,7 +844,7 @@ function TaskDetails({
 
                                         {Object.entries(
                                             attributeForm.key_params ??
-                                            {}
+                                            {},
                                         ).length === 0 ? (
                                             <p className="text-xs text-gray-500 dark:text-gray-400">
                                                 No key parameters available.
@@ -657,7 +852,7 @@ function TaskDetails({
                                         ) : (
                                             Object.entries(
                                                 attributeForm.key_params ??
-                                                {}
+                                                {},
                                             ).map(
                                                 ([key, value]) => (
                                                     <div
@@ -671,27 +866,26 @@ function TaskDetails({
                                                         <input
                                                             type="text"
                                                             value={
-                                                                value ==
-                                                                null
+                                                                value == null
                                                                     ? ""
                                                                     : String(
-                                                                        value
+                                                                        value,
                                                                     )
                                                             }
                                                             onChange={(
-                                                                event
+                                                                event,
                                                             ) =>
                                                                 updateKeyParam(
                                                                     key,
                                                                     event
                                                                         .target
-                                                                        .value
+                                                                        .value,
                                                                 )
                                                             }
                                                             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:border-gray-500"
                                                         />
                                                     </div>
-                                                )
+                                                ),
                                             )
                                         )}
 
@@ -730,9 +924,118 @@ function TaskDetails({
                         </div>
                     </div>
                 )}
+
         </div>
     );
 }
+
+/* =========================================================
+   Task File Item
+========================================================= */
+
+interface TaskFileItemProps {
+    file: TaskFile;
+}
+
+function TaskFileItem({
+    file,
+}: TaskFileItemProps) {
+    const fileSize = formatFileSize(
+        file.filesize,
+    );
+
+    const fileType =
+        file.MIME ||
+        "Unknown file type";
+
+    return (
+        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition hover:border-gray-300 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700 dark:hover:bg-gray-900">
+
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-gray-900">
+                <FileText
+                    size={18}
+                    className="text-gray-500 dark:text-gray-400"
+                />
+            </div>
+
+            <div className="min-w-0 flex-1">
+
+                <p
+                    className="truncate text-sm font-medium text-gray-900 dark:text-white"
+                    title={file.filename}
+                >
+                    {file.filename}
+                </p>
+
+                <div className="mt-1 flex items-center gap-2">
+
+                    <span
+                        className="truncate text-[11px] text-gray-500 dark:text-gray-400"
+                        title={fileType}
+                    >
+                        {fileType}
+                    </span>
+
+                    <span className="text-gray-300 dark:text-gray-700">
+                        •
+                    </span>
+
+                    <span className="shrink-0 text-[11px] text-gray-500 dark:text-gray-400">
+                        {fileSize}
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+    );
+}
+
+/* =========================================================
+   Format File Size
+========================================================= */
+
+function formatFileSize(
+    size: number | undefined,
+): string {
+    if (
+        size === undefined ||
+        size === null ||
+        Number.isNaN(Number(size)) ||
+        Number(size) <= 0
+    ) {
+        return "Unknown size";
+    }
+
+    const bytes = Number(size);
+
+    if (bytes < 1024) {
+        return `${bytes} B`;
+    }
+
+    if (bytes < 1024 * 1024) {
+        return `${(
+            bytes / 1024
+        ).toFixed(1)} KB`;
+    }
+
+    if (bytes < 1024 * 1024 * 1024) {
+        return `${(
+            bytes /
+            (1024 * 1024)
+        ).toFixed(1)} MB`;
+    }
+
+    return `${(
+        bytes /
+        (1024 * 1024 * 1024)
+    ).toFixed(1)} GB`;
+}
+
+/* =========================================================
+   Attribute Input
+========================================================= */
 
 interface AttributeInputProps {
     label: string;
@@ -765,6 +1068,10 @@ function AttributeInput({
     );
 }
 
+/* =========================================================
+   Attribute Textarea
+========================================================= */
+
 interface AttributeTextareaProps {
     label: string;
     value: string;
@@ -794,6 +1101,10 @@ function AttributeTextarea({
     );
 }
 
+/* =========================================================
+   Read Only Field
+========================================================= */
+
 interface ReadOnlyFieldProps {
     label: string;
     value: string;
@@ -815,6 +1126,10 @@ function ReadOnlyField({
         </div>
     );
 }
+
+/* =========================================================
+   Date Info
+========================================================= */
 
 interface DateInfoProps {
     label: string;
@@ -848,6 +1163,10 @@ function DateInfo({
         </div>
     );
 }
+
+/* =========================================================
+   Task User
+========================================================= */
 
 interface TaskUserProps {
     label: string;

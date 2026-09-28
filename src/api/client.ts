@@ -139,24 +139,40 @@ export async function apiRequest<T>(
     let accessToken =
         localStorage.getItem("access_token");
 
+    /*
+     * Detect FormData requests.
+     *
+     * FormData must NOT have a manually assigned
+     * Content-Type. The browser automatically adds:
+     *
+     * multipart/form-data; boundary=...
+     */
+    const isFormData =
+        options.body instanceof FormData;
+
+    const headers: HeadersInit = {
+        ...(isFormData
+            ? {}
+            : {
+                  "Content-Type":
+                      "application/json",
+              }),
+
+        ...(accessToken
+            ? {
+                  Authorization:
+                      `Bearer ${accessToken}`,
+              }
+            : {}),
+
+        ...options.headers,
+    };
+
     let response = await fetch(
         `${API_BASE_URL}${endpoint}`,
         {
             ...options,
-
-            headers: {
-                "Content-Type":
-                    "application/json",
-
-                ...(accessToken
-                    ? {
-                          Authorization:
-                              `Bearer ${accessToken}`,
-                      }
-                    : {}),
-
-                ...options.headers,
-            },
+            headers,
         }
     );
 
@@ -174,20 +190,33 @@ export async function apiRequest<T>(
             accessToken =
                 await refreshAccessToken();
 
+            /*
+             * Rebuild headers for retry.
+             *
+             * Important:
+             * Keep FormData requests without
+             * Content-Type so the browser can
+             * generate the multipart boundary.
+             */
+            const retryHeaders: HeadersInit = {
+                ...(isFormData
+                    ? {}
+                    : {
+                          "Content-Type":
+                              "application/json",
+                      }),
+
+                Authorization:
+                    `Bearer ${accessToken}`,
+
+                ...options.headers,
+            };
+
             response = await fetch(
                 `${API_BASE_URL}${endpoint}`,
                 {
                     ...options,
-
-                    headers: {
-                        "Content-Type":
-                            "application/json",
-
-                        Authorization:
-                            `Bearer ${accessToken}`,
-
-                        ...options.headers,
-                    },
+                    headers: retryHeaders,
                 }
             );
         } catch {

@@ -3,7 +3,7 @@ import { apiRequest } from "./client";
 export interface Folder {
   fid: number;
   fname: string;
-  pid: number;
+  pid: number | null;
   tid: number;
   fnamedesc: string;
 }
@@ -15,14 +15,14 @@ export interface FoldersResponse {
 
 export interface CreateFolderData {
   fname: string;
-  pid: number;
+  pid: number | null;
   tid: number;
   fnamedesc: string;
 }
 
 export interface UpdateFolderData {
   fname: string;
-  pid: number;
+  pid: number | null;
   tid: number;
   fnamedesc: string;
 }
@@ -48,19 +48,23 @@ export interface FolderRolesResponse {
   folders: FolderRole[];
 }
 
-export async function getFolders() {
-  return apiRequest<FoldersResponse>("/api/getfolders");
+// ----------------------------------------
+// Folder List
+// ----------------------------------------
+
+export async function getFolders(): Promise<FoldersResponse> {
+  return apiRequest<FoldersResponse>("/api/getfolders", {
+    method: "GET",
+  });
 }
 
-export async function getFolder(fid: number) {
-  return apiRequest<Folder>(
-    `/api/getfolder/${fid}`
-  );
-}
+// ----------------------------------------
+// Folder CRUD
+// ----------------------------------------
 
 export async function createFolder(
-  data: CreateFolderData
-) {
+  data: CreateFolderData,
+): Promise<Folder> {
   return apiRequest<Folder>("/api/createfolder", {
     method: "POST",
     body: JSON.stringify(data),
@@ -69,37 +73,50 @@ export async function createFolder(
 
 export async function updateFolder(
   fid: number,
-  data: UpdateFolderData
-) {
+  data: UpdateFolderData,
+): Promise<Folder> {
   return apiRequest<Folder>(
     `/api/updatefolder/${fid}`,
     {
       method: "PUT",
       body: JSON.stringify(data),
-    }
+    },
   );
 }
 
-export async function deleteFolder(fid: number) {
+export async function deleteFolder(
+  fid: number,
+): Promise<string> {
   return apiRequest<string>(
     `/api/deletefolder/${fid}`,
     {
       method: "DELETE",
-    }
+    },
   );
 }
 
-export async function getTemplateFolders(tid: number) {
+export async function getTemplateFolders(
+  tid: number,
+): Promise<FoldersResponse> {
   return apiRequest<FoldersResponse>(
-    `/api/gettemplatefolders/${tid}`
+    `/api/gettemplatefolders/${tid}`,
+    {
+      method: "GET",
+    },
   );
 }
 
-// Get folders and their configured roles for a template
+// ----------------------------------------
+// Folder Roles
+// ----------------------------------------
+
 export async function getTemplateFolderRoles(
-  templateId: number
-) {
+  templateId: number,
+): Promise<FolderRolesResponse> {
   return apiRequest<FolderRolesResponse>(
-    `/api/folders/${templateId}/roles`
+    `/api/folders/${templateId}/roles`,
+    {
+      method: "GET",
+    },
   );
 }
