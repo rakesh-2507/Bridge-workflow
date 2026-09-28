@@ -6,7 +6,7 @@ import {
   Moon,
   Sun,
   File,
-
+  Workflow,
 } from "lucide-react";
 
 import {
@@ -74,6 +74,11 @@ function Sidebar({
         icon: File,
         to: "/files",
       },
+      {
+        label: "Stories Workflow",
+        to: "/stories-workflow",
+        icon: Workflow,
+      }
     ];
 
   return (
