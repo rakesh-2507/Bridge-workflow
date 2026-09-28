@@ -21,6 +21,7 @@ function TemplateWizard() {
       name: "",
       description: "",
       project_type_id: 0,
+      workflow_config_id: "",
     });
 
   const [folders, setFolders] = useState<
@@ -56,7 +57,12 @@ function TemplateWizard() {
       setLoading(true);
 
       const payload: CreateProjectTemplatePayload = {
-        project_template: template,
+        project_template: {
+          name: template.name,
+          description: template.description,
+          project_type_id: template.project_type_id,
+          workflow_config_id: template.workflow_config_id,
+        },
         folders: buildApiFolders(),
       };
 
@@ -76,6 +82,7 @@ function TemplateWizard() {
         name: "",
         description: "",
         project_type_id: 0,
+        workflow_config_id: "",
       });
 
       setFolders([]);

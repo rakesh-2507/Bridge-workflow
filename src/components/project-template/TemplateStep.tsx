@@ -3,10 +3,12 @@ import { useEffect, useState } from "react";
 import type {
   ProjectTemplateDetails,
   ProjectType,
+  WorkflowConfig,
 } from "../../types/projectTemplate";
 
 import {
   checkProjectTemplateName,
+  getWorkflowConfigs,
 } from "../../api/projectTemplates";
 
 import {
@@ -58,6 +60,19 @@ function TemplateStep({
     useState("");
 
   /* =====================================================
+     WORKFLOW CONFIGS
+  ===================================================== */
+
+  const [workflowConfigs, setWorkflowConfigs] =
+    useState<WorkflowConfig[]>([]);
+
+  const [loadingWorkflowConfigs, setLoadingWorkflowConfigs] =
+    useState(true);
+
+  const [workflowConfigLoadError, setWorkflowConfigLoadError] =
+    useState("");
+
+  /* =====================================================
      CREATE PROJECT TYPE
   ===================================================== */
 
@@ -88,8 +103,7 @@ function TemplateStep({
 
     const loadProjectTypes = async () => {
       try {
-        const response =
-          await getProjectTypes();
+        const response = await getProjectTypes();
 
         if (!cancelled) {
           setProjectTypes(
@@ -122,24 +136,67 @@ function TemplateStep({
   }, []);
 
   /* =====================================================
+     LOAD WORKFLOW CONFIGS
+  ===================================================== */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWorkflowConfigs = async () => {
+      try {
+        setLoadingWorkflowConfigs(true);
+        setWorkflowConfigLoadError("");
+
+        const response =
+          await getWorkflowConfigs();
+
+        if (!cancelled) {
+          const activeConfigs =
+            response.data.configs.filter(
+              (config) =>
+                config.status.toLowerCase() ===
+                "active"
+            );
+
+          setWorkflowConfigs(activeConfigs);
+        }
+      } catch (error) {
+        console.error(
+          "Failed to load workflow configs:",
+          error
+        );
+
+        if (!cancelled) {
+          setWorkflowConfigLoadError(
+            "Unable to load workflow configurations."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingWorkflowConfigs(false);
+        }
+      }
+    };
+
+    loadWorkflowConfigs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* =====================================================
      TEMPLATE NAME VALIDATION
-     
+
      Backend:
      /api/checkprojecttemplatename?name=...
-     
+
      Validation happens after 500ms.
   ===================================================== */
 
   useEffect(() => {
-    const name =
-      data.name.trim();
+    const name = data.name.trim();
 
-    /*
-     * Don't synchronously reset state here.
-     *
-     * The UI derives the empty state directly
-     * from data.name.
-     */
     if (!name) {
       return;
     }
@@ -155,10 +212,6 @@ function TemplateStep({
               name
             );
 
-          /*
-           * Ignore old API response if the
-           * user has already changed the name.
-           */
           if (
             name !== data.name.trim()
           ) {
@@ -210,11 +263,9 @@ function TemplateStep({
 
   /* =====================================================
      PROJECT TYPE DUPLICATE VALIDATION
-     
+
      Uses GET /api/getprojecttypes
-     
-     No hardcoded project types.
-     
+
      Validation happens after 500ms.
   ===================================================== */
 
@@ -222,11 +273,6 @@ function TemplateStep({
     const typeName =
       newProjectType.trim();
 
-    /*
-     * Don't synchronously reset state here.
-     *
-     * Empty state is derived from newProjectType.
-     */
     if (!typeName) {
       return;
     }
@@ -242,10 +288,6 @@ function TemplateStep({
               typeName.toLowerCase()
           );
 
-        /*
-         * Make sure this validation result
-         * still belongs to the current input.
-         */
         if (
           typeName !==
           newProjectType.trim()
@@ -308,14 +350,6 @@ function TemplateStep({
     value: string
   ) => {
     setNewProjectType(value);
-
-    /*
-     * We intentionally don't reset validation
-     * synchronously in an effect.
-     *
-     * The current input itself determines
-     * whether the previous validation is still valid.
-     */
   };
 
   /* =====================================================
@@ -335,10 +369,6 @@ function TemplateStep({
         return;
       }
 
-      /*
-       * Don't submit while validation
-       * is still running.
-       */
       if (
         projectTypeStatus ===
         "checking"
@@ -346,10 +376,6 @@ function TemplateStep({
         return;
       }
 
-      /*
-       * The current value must have
-       * successfully passed validation.
-       */
       if (
         projectTypeStatus !==
         "valid"
@@ -369,40 +395,23 @@ function TemplateStep({
 
         setCreateTypeError("");
 
-        /*
-         * Backend creates the ID.
-         */
         const created =
           await createProjectType({
             projecttype: typeName,
           });
 
-        /*
-         * Add newly created project
-         * type to the dropdown.
-         */
         setProjectTypes((prev) => [
           ...prev,
           created,
         ]);
 
-        /*
-         * Automatically select the
-         * newly created project type.
-         */
         handleChange(
           "project_type_id",
           created.ptypeid
         );
 
-        /*
-         * Close the add form.
-         */
         setShowAddType(false);
 
-        /*
-         * Clear the add form.
-         */
         setNewProjectType("");
 
         setValidatedProjectType("");
@@ -418,11 +427,6 @@ function TemplateStep({
           error
         );
 
-        /*
-         * If backend rejects the request
-         * because another user created the
-         * same type, show a useful message.
-         */
         if (
           error instanceof Error
         ) {
@@ -491,11 +495,6 @@ function TemplateStep({
   const isProjectTypeEmpty =
     projectTypeName === "";
 
-  /*
-   * The current input is different from
-   * the last validated value, therefore
-   * validation is still pending.
-   */
   const isProjectTypeChecking =
     !isProjectTypeEmpty &&
     projectTypeStatus ===
@@ -510,12 +509,24 @@ function TemplateStep({
     !createTypeError;
 
   /* =====================================================
+     WORKFLOW CONFIG STATUS
+  ===================================================== */
+
+  const hasWorkflowConfig =
+    Boolean(
+      data.workflow_config_id
+    );
+
+  /* =====================================================
      STEP VALIDATION
   ===================================================== */
 
   const canGoNext =
     isNameValid &&
-    Boolean(data.project_type_id);
+    Boolean(data.project_type_id) &&
+    hasWorkflowConfig &&
+    !loadingWorkflowConfigs &&
+    workflowConfigs.length > 0;
 
   const canAddProjectType =
     isProjectTypeValid &&
@@ -564,6 +575,27 @@ function TemplateStep({
       return;
     }
 
+    /* Workflow configuration */
+
+    if (!data.workflow_config_id) {
+      setWorkflowConfigLoadError(
+        "Please select a workflow configuration."
+      );
+
+      return;
+    }
+
+    if (
+      loadingWorkflowConfigs ||
+      workflowConfigs.length === 0
+    ) {
+      setWorkflowConfigLoadError(
+        "Workflow configurations are not available."
+      );
+
+      return;
+    }
+
     onNext();
   };
 
@@ -581,11 +613,11 @@ function TemplateStep({
       ========================================== */}
 
       <div>
-        <h2 className="text-xl font-semibold">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           Create Project Template
         </h2>
 
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Enter the basic details for
           your project template.
         </p>
@@ -596,7 +628,7 @@ function TemplateStep({
       ========================================== */}
 
       <div>
-        <label className="block text-sm font-medium mb-2">
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
           Template Name
         </label>
 
@@ -610,36 +642,30 @@ function TemplateStep({
             )
           }
           placeholder="Enter template name"
-          className={`w-full rounded-lg px-4 py-2.5 border ${
+          className={`w-full rounded-lg px-4 py-2.5 border bg-white text-gray-900 dark:bg-gray-800 dark:text-white ${
             nameError
               ? "border-red-500"
-              : "border-gray-300"
+              : "border-gray-300 dark:border-gray-600"
           }`}
         />
 
-        {/* Checking */}
-
         {isNameChecking && (
-          <p className="text-sm text-gray-500 mt-2">
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Checking template name...
           </p>
         )}
 
-        {/* Error */}
-
         {!isNameChecking &&
           nameError && (
-            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-              <p className="text-sm text-red-600">
+            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30">
+              <p className="text-sm text-red-600 dark:text-red-400">
                 ❌ {nameError}
               </p>
             </div>
           )}
 
-        {/* Success */}
-
         {isNameValid && (
-          <p className="text-sm text-green-600 mt-2">
+          <p className="mt-2 text-sm text-green-600 dark:text-green-400">
             ✓ Template name is available
           </p>
         )}
@@ -650,7 +676,7 @@ function TemplateStep({
       ========================================== */}
 
       <div>
-        <label className="block text-sm font-medium mb-2">
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
           Description
         </label>
 
@@ -664,7 +690,7 @@ function TemplateStep({
           }
           placeholder="Enter template description"
           rows={4}
-          className="w-full border border-gray-300 rounded-lg px-4 py-2.5"
+          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
         />
       </div>
 
@@ -673,7 +699,7 @@ function TemplateStep({
       ========================================== */}
 
       <div>
-        <label className="block text-sm font-medium mb-2">
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
           Project Type
         </label>
 
@@ -692,7 +718,7 @@ function TemplateStep({
           disabled={
             loadingProjectTypes
           }
-          className="w-full border border-gray-300 rounded-lg px-4 py-2.5"
+          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
         >
           <option value="">
             {loadingProjectTypes
@@ -713,20 +739,14 @@ function TemplateStep({
           )}
         </select>
 
-        {/* Loading error / required error */}
-
         {projectTypeLoadError && (
-          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-            <p className="text-sm text-red-600">
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30">
+            <p className="text-sm text-red-600 dark:text-red-400">
               ❌{" "}
               {projectTypeLoadError}
             </p>
           </div>
         )}
-
-        {/* ========================================
-            ADD PROJECT TYPE LINK
-        ======================================== */}
 
         {!showAddType && (
           <button
@@ -740,19 +760,15 @@ function TemplateStep({
                 "idle"
               );
             }}
-            className="mt-3 text-sm text-blue-600 hover:text-blue-700"
+            className="mt-3 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           >
             + Add Project Type
           </button>
         )}
 
-        {/* ========================================
-            ADD PROJECT TYPE FORM
-        ======================================== */}
-
         {showAddType && (
-          <div className="mt-4 border rounded-xl p-5 bg-gray-50">
-            <h3 className="font-semibold mb-3">
+          <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800">
+            <h3 className="mb-3 font-semibold text-gray-900 dark:text-white">
               Add New Project Type
             </h3>
 
@@ -771,10 +787,10 @@ function TemplateStep({
                 disabled={
                   creatingProjectType
                 }
-                className={`flex-1 border rounded-lg px-3 py-2 ${
+                className={`flex-1 rounded-lg border bg-white px-3 py-2 text-gray-900 dark:bg-gray-900 dark:text-white ${
                   createTypeError
                     ? "border-red-500"
-                    : "border-gray-300"
+                    : "border-gray-300 dark:border-gray-600"
                 }`}
               />
 
@@ -786,7 +802,7 @@ function TemplateStep({
                 disabled={
                   !canAddProjectType
                 }
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {creatingProjectType
                   ? "Adding..."
@@ -801,41 +817,96 @@ function TemplateStep({
                 disabled={
                   creatingProjectType
                 }
-                className="px-4 py-2 border rounded-lg"
+                className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-600 dark:text-gray-200"
               >
                 Cancel
               </button>
             </div>
 
-            {/* Checking */}
-
             {isProjectTypeChecking && (
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                 Checking project type...
               </p>
             )}
 
-            {/* Duplicate / error */}
-
             {!isProjectTypeChecking &&
               createTypeError && (
-                <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-                  <p className="text-sm text-red-600">
+                <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30">
+                  <p className="text-sm text-red-600 dark:text-red-400">
                     ❌{" "}
                     {createTypeError}
                   </p>
                 </div>
               )}
 
-            {/* Available */}
-
             {isProjectTypeValid && (
-              <p className="text-sm text-green-600 mt-2">
+              <p className="mt-2 text-sm text-green-600 dark:text-green-400">
                 ✓ Project type name is
                 available
               </p>
             )}
           </div>
+        )}
+      </div>
+
+      {/* ==========================================
+          WORKFLOW CONFIGURATION
+      ========================================== */}
+
+      <div>
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Workflow Configuration
+        </label>
+
+        <select
+          value={
+            data.workflow_config_id
+          }
+          onChange={(e) => {
+            handleChange(
+              "workflow_config_id",
+              e.target.value
+            );
+
+            setWorkflowConfigLoadError("");
+          }}
+          disabled={
+            loadingWorkflowConfigs
+          }
+          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        >
+          <option value="">
+            {loadingWorkflowConfigs
+              ? "Loading workflow configurations..."
+              : "Select workflow configuration"}
+          </option>
+
+          {workflowConfigs.map(
+            (config) => (
+              <option
+                key={config.id}
+                value={config.id}
+              >
+                {config.icon} {config.name}
+              </option>
+            )
+          )}
+        </select>
+
+        {workflowConfigLoadError && (
+          <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30">
+            <p className="text-sm text-red-600 dark:text-red-400">
+              ❌{" "}
+              {workflowConfigLoadError}
+            </p>
+          </div>
+        )}
+
+        {data.workflow_config_id && (
+          <p className="mt-2 break-all text-xs text-gray-500 dark:text-gray-400">
+            Config ID:{" "}
+            {data.workflow_config_id}
+          </p>
         )}
       </div>
 
@@ -847,7 +918,7 @@ function TemplateStep({
         <button
           type="submit"
           disabled={!canGoNext}
-          className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="rounded-lg bg-blue-600 px-6 py-2.5 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Next: Folders →
         </button>

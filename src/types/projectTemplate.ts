@@ -8,6 +8,7 @@ export interface ProjectTemplate {
   name: string;
   name_desc: string;
   projecttype: number;
+  workflow_config_id?: string;
 }
 
 export interface ProjectTemplateListResponse {
@@ -19,6 +20,7 @@ export interface ProjectTemplateDetails {
   name: string;
   description: string;
   project_type_id: number;
+  workflow_config_id: string;
 }
 
 export interface ProjectTemplateFolder {
@@ -42,6 +44,32 @@ export interface CreateProjectTemplatePayload {
 }
 
 /* ----------------------------------------
+ * Workflow Config
+ * ---------------------------------------- */
+
+export interface WorkflowConfig {
+  id: string;
+  name: string;
+  icon: string;
+  configType: string;
+  itemParams: string[];
+  keyParam: string | null;
+  status: string;
+  version: number;
+  levels: number;
+  hasSubWorkflow: boolean;
+}
+
+export interface WorkflowConfigResponse {
+  success: boolean;
+  code: string;
+  message: string;
+  data: {
+    configs: WorkflowConfig[];
+  };
+}
+
+/* ----------------------------------------
  * Create Project From Template
  * ---------------------------------------- */
 
@@ -55,17 +83,7 @@ export interface CreateProjectFromTemplateDetails {
   start_date: string;
   end_date: string;
 
-  /*
-   * Keep member_id for now.
-   *
-   * We will change this only after
-   * confirming the backend payload for
-   * multiple project members.
-   */
   member_ids: number[];
-  /*
-   * Single coordinator.
-   */
   coordinator: number;
 
   is_project_manage: number;
@@ -92,17 +110,6 @@ export interface FolderSchedule {
  * Template Folder Roles
  * ---------------------------------------- */
 
-/*
- * The API returns role objects, not strings.
- *
- * Example:
- *
- * {
- *   "fid": 10,
- *   "role": "Manager",
- *   "id": 1
- * }
- */
 export interface TemplateFolderRoleItem {
   fid: number;
   role: string;
@@ -151,14 +158,6 @@ export interface CreateProjectFromTemplatePayload {
 
 export interface CreateProjectWizardData {
   project: CreateProjectFromTemplateDetails;
-
-  /*
-   * Step 2
-   */
   folderSchedules: FolderSchedule[];
-
-  /*
-   * Step 3
-   */
   folderAssignments: FolderAssignment[];
 }

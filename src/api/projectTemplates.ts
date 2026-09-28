@@ -1,5 +1,9 @@
 import { apiRequest } from "./client";
-import type { CreateProjectTemplatePayload } from "../types/projectTemplate";
+
+import type {
+  CreateProjectTemplatePayload,
+  WorkflowConfigResponse,
+} from "../types/projectTemplate";
 
 export const createProjectTemplate = async (
   data: CreateProjectTemplatePayload
@@ -9,6 +13,10 @@ export const createProjectTemplate = async (
     body: JSON.stringify(data),
   });
 };
+
+/* ----------------------------------------
+ * Check Project Template Name
+ * ---------------------------------------- */
 
 export interface CheckTemplateNameResponse {
   available: boolean;
@@ -26,3 +34,17 @@ export const checkProjectTemplateName = async (
     }
   );
 };
+
+/* ----------------------------------------
+ * Workflow Configs
+ * ---------------------------------------- */
+
+export const getWorkflowConfigs =
+  async (): Promise<WorkflowConfigResponse> => {
+    return apiRequest<WorkflowConfigResponse>(
+      "/api/getworkflowconfigs",
+      {
+        method: "GET",
+      }
+    );
+  };
