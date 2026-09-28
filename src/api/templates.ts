@@ -1,8 +1,11 @@
 import { apiRequest } from "./client";
+
 import type {
   ProjectTemplate,
   ProjectTemplateListResponse,
 } from "../types/projectTemplate";
+
+export type { ProjectTemplate as Template };
 
 export async function getTemplates() {
   return apiRequest<ProjectTemplateListResponse>(

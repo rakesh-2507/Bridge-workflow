@@ -14,6 +14,8 @@ import {
     useState,
 } from "react";
 
+import type { ChangeEvent } from "react";
+
 import {
     getProjects,
     type Project,
@@ -33,78 +35,65 @@ import {
 // --------------------------------------------------
 
 function FileUploadPage() {
-    const fileInputRef =
-        useRef<HTMLInputElement | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     // --------------------------------------------------
     // Current User
     // --------------------------------------------------
 
-    const currentUserId = useMemo(
-        () => {
-            try {
-                const storedUser =
-                    localStorage.getItem(
-                        "login_user"
-                    );
+    const currentUserId = useMemo(() => {
+        try {
+            const storedUser = localStorage.getItem("login_user");
 
-                if (!storedUser) {
-                    return null;
-                }
-
-                const user =
-                    JSON.parse(storedUser) as Record<
-                        string,
-                        unknown
-                    >;
-
-                const userId =
-                    user.uid ??
-                    user.user_id ??
-                    user.id;
-
-                if (
-                    typeof userId === "number"
-                ) {
-                    return userId;
-                }
-
-                if (
-                    typeof userId === "string" &&
-                    userId.trim() !== ""
-                ) {
-                    const parsedId =
-                        Number(userId);
-
-                    return Number.isNaN(
-                        parsedId
-                    )
-                        ? null
-                        : parsedId;
-                }
-
-                return null;
-            } catch (err) {
-                console.error(
-                    "Failed to read logged-in user:",
-                    err
-                );
-
+            if (!storedUser) {
                 return null;
             }
-        },
-        []
-    );
+
+            const user = JSON.parse(storedUser) as Record<
+                string,
+                unknown
+            >;
+
+            const userId =
+                user.uid ??
+                user.user_id ??
+                user.id;
+
+            if (
+                typeof userId === "number" &&
+                Number.isInteger(userId)
+            ) {
+                return userId;
+            }
+
+            if (
+                typeof userId === "string" &&
+                userId.trim() !== ""
+            ) {
+                const parsedId = Number(userId);
+
+                return Number.isInteger(parsedId)
+                    ? parsedId
+                    : null;
+            }
+
+            return null;
+        } catch (err) {
+            console.error(
+                "Failed to read logged-in user:",
+                err
+            );
+
+            return null;
+        }
+    }, []);
 
     // --------------------------------------------------
     // Data
     // --------------------------------------------------
 
-    const [projects, setProjects] =
-        useState<Project[]>([]);
-
-    const [folders, setFolders] =
-        useState<ProjectFolder[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [folders, setFolders] = useState<ProjectFolder[]>([]);
 
     // --------------------------------------------------
     // Loading
@@ -116,8 +105,7 @@ function FileUploadPage() {
     const [isLoadingFolders, setIsLoadingFolders] =
         useState(false);
 
-    const [isUploading, setIsUploading] =
-        useState(false);
+    const [isUploading, setIsUploading] = useState(false);
 
     // --------------------------------------------------
     // Selection
@@ -139,143 +127,156 @@ function FileUploadPage() {
     const [uploadSuccess, setUploadSuccess] =
         useState(false);
 
-    const [error, setError] =
-        useState("");
+    const [error, setError] = useState("");
 
     // --------------------------------------------------
-    // Load projects
+    // Load Projects and Folders
     // --------------------------------------------------
 
     useEffect(() => {
-        async function loadProjects() {
-            try {
-                setIsLoadingProjects(true);
-                setError("");
+        let isMounted = true;
 
-                const response =
-                    await getProjects();
+        const fetchData = async () => {
+            setIsLoadingProjects(true);
+            setIsLoadingFolders(true);
+            setError("");
+
+            try {
+                const [
+                    projectsResponse,
+                    foldersResponse,
+                ] = await Promise.all([
+                    getProjects(),
+                    getFolders(),
+                ]);
+
+                if (!isMounted) {
+                    return;
+                }
 
                 setProjects(
-                    response.projects
+                    projectsResponse?.projects ?? []
                 );
-            } catch (err) {
-                console.error(
-                    "Failed to load projects:",
-                    err
-                );
-
-                setError(
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to load projects."
-                );
-            } finally {
-                setIsLoadingProjects(false);
-            }
-        }
-
-        loadProjects();
-    }, []);
-
-    // --------------------------------------------------
-    // Load folders
-    // --------------------------------------------------
-
-    useEffect(() => {
-        async function loadFolders() {
-            try {
-                setIsLoadingFolders(true);
-
-                const response =
-                    await getFolders();
 
                 setFolders(
-                    response.folders
+                    foldersResponse?.folders ?? []
                 );
             } catch (err) {
+                if (!isMounted) {
+                    return;
+                }
+
                 console.error(
-                    "Failed to load folders:",
+                    "Failed to load upload data:",
                     err
                 );
 
                 setError(
                     err instanceof Error
                         ? err.message
-                        : "Failed to load folders."
+                        : "Failed to load projects and folders."
                 );
             } finally {
-                setIsLoadingFolders(false);
+                if (isMounted) {
+                    setIsLoadingProjects(false);
+                    setIsLoadingFolders(false);
+                }
             }
-        }
+        };
 
-        loadFolders();
+        void fetchData();
+
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     // --------------------------------------------------
-    // Folders for selected project
+    // Selected Project
     // --------------------------------------------------
 
-    const availableFolders = useMemo(
-        () => {
-            if (selectedProjectId === "") {
-                return [];
-            }
+    const selectedProject = useMemo(() => {
+        if (selectedProjectId === "") {
+            return undefined;
+        }
 
-            return folders.filter(
-                (folder) =>
-                    folder.pid ===
-                    selectedProjectId
-            );
-        },
-        [
-            folders,
-            selectedProjectId,
-        ]
-    );
+        return projects.find(
+            (project) =>
+                Number(project.project_id) ===
+                Number(selectedProjectId)
+        );
+    }, [
+        projects,
+        selectedProjectId,
+    ]);
 
     // --------------------------------------------------
-    // Selected project
+    // Folders for Selected Project
+    //
+    // IMPORTANT:
+    // folder.pid = parent folder ID
+    // folder.tid = task/template/type ID
+    //
+    // Project also contains tid.
+    //
+    // Therefore folders are matched using:
+    // project.tid === folder.tid
+    //
+    // Only pid === null folders are shown here
+    // because they are top-level folders.
     // --------------------------------------------------
 
-    const selectedProject = useMemo(
-        () =>
-            projects.find(
-                (project) =>
-                    project.project_id ===
-                    selectedProjectId
-            ),
-        [
-            projects,
-            selectedProjectId,
-        ]
-    );
+    const availableFolders = useMemo(() => {
+        if (!selectedProject) {
+            return [];
+        }
+
+        const projectTid = Number(
+            selectedProject.tid
+        );
+
+        if (!Number.isInteger(projectTid)) {
+            return [];
+        }
+
+        return folders.filter(
+            (folder) =>
+                Number(folder.tid) === projectTid &&
+                (folder.pid === null ||
+                    folder.pid === undefined)
+        );
+    }, [
+        folders,
+        selectedProject,
+    ]);
 
     // --------------------------------------------------
-    // Selected folder
+    // Selected Folder
     // --------------------------------------------------
 
-    const selectedFolder = useMemo(
-        () =>
-            folders.find(
-                (folder) =>
-                    folder.fid ===
-                    selectedFolderId
-            ),
-        [
-            folders,
-            selectedFolderId,
-        ]
-    );
+    const selectedFolder = useMemo(() => {
+        if (selectedFolderId === "") {
+            return undefined;
+        }
+
+        return availableFolders.find(
+            (folder) =>
+                Number(folder.fid) ===
+                Number(selectedFolderId)
+        );
+    }, [
+        availableFolders,
+        selectedFolderId,
+    ]);
 
     // --------------------------------------------------
-    // File selection
+    // File Selection
     // --------------------------------------------------
 
     const handleFileChange = (
-        event: React.ChangeEvent<HTMLInputElement>
+        event: ChangeEvent<HTMLInputElement>
     ) => {
-        const file =
-            event.target.files?.[0];
+        const file = event.target.files?.[0];
 
         if (!file) {
             return;
@@ -287,7 +288,7 @@ function FileUploadPage() {
     };
 
     // --------------------------------------------------
-    // Remove file
+    // Remove File
     // --------------------------------------------------
 
     const handleRemoveFile = () => {
@@ -299,24 +300,23 @@ function FileUploadPage() {
     };
 
     // --------------------------------------------------
-    // Project selection
+    // Project Selection
     // --------------------------------------------------
 
     const handleProjectChange = (
-        event: React.ChangeEvent<HTMLSelectElement>
+        event: ChangeEvent<HTMLSelectElement>
     ) => {
-        const value =
-            event.target.value;
+        const value = event.target.value;
 
         const projectId =
             value === ""
                 ? ""
                 : Number(value);
 
-        setSelectedProjectId(
-            projectId
-        );
+        setSelectedProjectId(projectId);
 
+        // Folder belongs to the selected project/template,
+        // so reset it whenever the project changes.
         setSelectedFolderId("");
 
         setUploadSuccess(false);
@@ -324,23 +324,20 @@ function FileUploadPage() {
     };
 
     // --------------------------------------------------
-    // Folder selection
+    // Folder Selection
     // --------------------------------------------------
 
     const handleFolderChange = (
-        event: React.ChangeEvent<HTMLSelectElement>
+        event: ChangeEvent<HTMLSelectElement>
     ) => {
-        const value =
-            event.target.value;
+        const value = event.target.value;
 
         const folderId =
             value === ""
                 ? ""
                 : Number(value);
 
-        setSelectedFolderId(
-            folderId
-        );
+        setSelectedFolderId(folderId);
 
         setUploadSuccess(false);
         setError("");
@@ -354,43 +351,25 @@ function FileUploadPage() {
         setError("");
         setUploadSuccess(false);
 
-        // ----------------------------------------------
-        // Validate file
-        // ----------------------------------------------
-
+        // Validate file.
         if (!selectedFile) {
-            setError(
-                "Please select a file."
-            );
+            setError("Please select a file.");
             return;
         }
 
-        // ----------------------------------------------
-        // Validate project
-        // ----------------------------------------------
-
+        // Validate project.
         if (selectedProjectId === "") {
-            setError(
-                "Please select a project."
-            );
+            setError("Please select a project.");
             return;
         }
 
-        // ----------------------------------------------
-        // Validate folder
-        // ----------------------------------------------
-
+        // Validate folder.
         if (selectedFolderId === "") {
-            setError(
-                "Please select a folder."
-            );
+            setError("Please select a folder.");
             return;
         }
 
-        // ----------------------------------------------
-        // Validate current user
-        // ----------------------------------------------
-
+        // Validate user.
         if (currentUserId === null) {
             setError(
                 "Unable to identify the logged-in user. Please login again."
@@ -398,35 +377,85 @@ function FileUploadPage() {
             return;
         }
 
+        // Normalize IDs.
+        const projectId = Number(
+            selectedProjectId
+        );
+
+        const folderId = Number(
+            selectedFolderId
+        );
+
+        if (
+            !Number.isInteger(projectId) ||
+            !Number.isInteger(folderId)
+        ) {
+            setError(
+                "Invalid project or folder selected."
+            );
+            return;
+        }
+
+        // Confirm the folder is part of the currently
+        // selected project's folder list.
+        const folderExists =
+            availableFolders.some(
+                (folder) =>
+                    Number(folder.fid) ===
+                    folderId
+            );
+
+        if (!folderExists) {
+            setError(
+                "The selected folder does not belong to the selected project."
+            );
+            return;
+        }
+
         try {
             setIsUploading(true);
 
-            console.log("UPLOAD REQUEST:", {
-                project_id: selectedProjectId,
-                folder_id: selectedFolderId,
-                uploaded_by: currentUserId,
-                file_name: selectedFile.name,
-                selectedProject,
-                selectedFolder,
-            });
-
-            await uploadFileToFolder(
-                selectedProjectId,
-                selectedFolderId,
-                currentUserId,
-                selectedFile,
+            console.log(
+                "UPLOAD REQUEST:",
+                {
+                    project_id: projectId,
+                    folder_id: folderId,
+                    uploaded_by: currentUserId,
+                    file_name: selectedFile.name,
+                    file_size: selectedFile.size,
+                    project_tid:
+                        selectedProject?.tid,
+                    folder_tid:
+                        selectedFolder?.tid,
+                    selectedProject,
+                    selectedFolder,
+                }
             );
 
-            // ------------------------------------------
-            // Success
-            // ------------------------------------------
+            const response =
+                await uploadFileToFolder(
+                    projectId,
+                    folderId,
+                    currentUserId,
+                    selectedFile
+                );
 
+            console.log(
+                "UPLOAD RESPONSE:",
+                response
+            );
+
+            if (response?.success === false) {
+                throw new Error(
+                    response.message ||
+                        "The server could not upload the file."
+                );
+            }
+
+            // Success.
             setUploadSuccess(true);
 
-            // ------------------------------------------
-            // Reset form
-            // ------------------------------------------
-
+            // Reset form.
             setSelectedFile(null);
             setSelectedProjectId("");
             setSelectedFolderId("");
@@ -464,13 +493,8 @@ function FileUploadPage() {
                 dark:bg-gray-950
             "
         >
-            <div
-                className="
-                    mx-auto
-                    w-full
-                    max-w-7xl
-                "
-            >
+            <div className="mx-auto w-full max-w-7xl">
+
                 {/* Header */}
 
                 <div className="mb-6">
@@ -493,8 +517,7 @@ function FileUploadPage() {
                             dark:text-gray-400
                         "
                     >
-                        Upload a file to a
-                        project folder.
+                        Upload a file to a project folder.
                     </p>
                 </div>
 
@@ -527,14 +550,11 @@ function FileUploadPage() {
 
                         <div>
                             <p className="font-semibold">
-                                File uploaded
-                                successfully.
+                                File uploaded successfully.
                             </p>
 
                             <p className="mt-0.5 text-xs">
-                                The file has been
-                                added to the
-                                selected folder.
+                                The file has been added to the selected folder.
                             </p>
                         </div>
                     </div>
@@ -544,6 +564,7 @@ function FileUploadPage() {
 
                 {error && (
                     <div
+                        role="alert"
                         className="
                             mb-5
                             rounded-xl
@@ -573,7 +594,8 @@ function FileUploadPage() {
                         lg:grid-cols-[1fr_380px]
                     "
                 >
-                    {/* LEFT */}
+
+                    {/* LEFT: File Selection */}
 
                     <div
                         className="
@@ -607,9 +629,7 @@ function FileUploadPage() {
                                     dark:text-gray-400
                                 "
                             >
-                                Choose the file
-                                you want to
-                                upload.
+                                Choose the file you want to upload.
                             </p>
                         </div>
 
@@ -620,6 +640,7 @@ function FileUploadPage() {
                                     onClick={() =>
                                         fileInputRef.current?.click()
                                     }
+                                    disabled={isUploading}
                                     className="
                                         flex
                                         min-h-[300px]
@@ -636,6 +657,8 @@ function FileUploadPage() {
                                         transition
                                         hover:border-sky-400
                                         hover:bg-sky-50
+                                        disabled:cursor-not-allowed
+                                        disabled:opacity-60
                                         dark:border-gray-700
                                         dark:bg-gray-950
                                         dark:hover:border-sky-700
@@ -656,9 +679,7 @@ function FileUploadPage() {
                                             dark:text-sky-300
                                         "
                                     >
-                                        <Upload
-                                            size={25}
-                                        />
+                                        <Upload size={25} />
                                     </div>
 
                                     <p
@@ -670,9 +691,7 @@ function FileUploadPage() {
                                             dark:text-gray-200
                                         "
                                     >
-                                        Click to
-                                        select a
-                                        file
+                                        Click to select a file
                                     </p>
 
                                     <p
@@ -683,22 +702,15 @@ function FileUploadPage() {
                                             dark:text-gray-400
                                         "
                                     >
-                                        Select a
-                                        file from
-                                        your
-                                        computer
+                                        Select a file from your computer
                                     </p>
                                 </button>
 
                                 <input
-                                    ref={
-                                        fileInputRef
-                                    }
+                                    ref={fileInputRef}
                                     type="file"
                                     className="hidden"
-                                    onChange={
-                                        handleFileChange
-                                    }
+                                    onChange={handleFileChange}
                                 />
                             </>
                         ) : (
@@ -713,13 +725,8 @@ function FileUploadPage() {
                                     dark:bg-gray-950
                                 "
                             >
-                                <div
-                                    className="
-                                        flex
-                                        items-center
-                                        gap-4
-                                    "
-                                >
+                                <div className="flex items-center gap-4">
+
                                     <div
                                         className="
                                             flex
@@ -735,9 +742,7 @@ function FileUploadPage() {
                                             dark:text-sky-300
                                         "
                                     >
-                                        <FileIcon
-                                            size={22}
-                                        />
+                                        <FileIcon size={22} />
                                     </div>
 
                                     <div className="min-w-0 flex-1">
@@ -750,9 +755,7 @@ function FileUploadPage() {
                                                 dark:text-white
                                             "
                                         >
-                                            {
-                                                selectedFile.name
-                                            }
+                                            {selectedFile.name}
                                         </p>
 
                                         <p
@@ -771,9 +774,8 @@ function FileUploadPage() {
 
                                     <button
                                         type="button"
-                                        onClick={
-                                            handleRemoveFile
-                                        }
+                                        onClick={handleRemoveFile}
+                                        disabled={isUploading}
                                         className="
                                             rounded-lg
                                             p-2
@@ -781,21 +783,20 @@ function FileUploadPage() {
                                             transition
                                             hover:bg-red-50
                                             hover:text-red-600
+                                            disabled:opacity-50
                                             dark:hover:bg-red-950
                                             dark:hover:text-red-400
                                         "
                                         aria-label="Remove file"
                                     >
-                                        <X
-                                            size={18}
-                                        />
+                                        <X size={18} />
                                     </button>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* RIGHT */}
+                    {/* RIGHT: File Destination */}
 
                     <div
                         className="
@@ -829,8 +830,7 @@ function FileUploadPage() {
                                     dark:text-gray-400
                                 "
                             >
-                                Select the project
-                                and folder.
+                                Select the project and folder.
                             </p>
                         </div>
 
@@ -854,12 +854,8 @@ function FileUploadPage() {
                             <div className="relative">
                                 <select
                                     id="project"
-                                    value={
-                                        selectedProjectId
-                                    }
-                                    onChange={
-                                        handleProjectChange
-                                    }
+                                    value={selectedProjectId}
+                                    onChange={handleProjectChange}
                                     disabled={
                                         isLoadingProjects ||
                                         isUploading
@@ -894,9 +890,7 @@ function FileUploadPage() {
                                     </option>
 
                                     {projects.map(
-                                        (
-                                            project
-                                        ) => (
+                                        (project) => (
                                             <option
                                                 key={
                                                     project.project_id
@@ -947,15 +941,10 @@ function FileUploadPage() {
                             <div className="relative">
                                 <select
                                     id="folder"
-                                    value={
-                                        selectedFolderId
-                                    }
-                                    onChange={
-                                        handleFolderChange
-                                    }
+                                    value={selectedFolderId}
+                                    onChange={handleFolderChange}
                                     disabled={
-                                        selectedProjectId ===
-                                        "" ||
+                                        selectedProjectId === "" ||
                                         isLoadingFolders ||
                                         isUploading
                                     }
@@ -985,40 +974,29 @@ function FileUploadPage() {
                                     "
                                 >
                                     <option value="">
-                                        {selectedProjectId ===
-                                            ""
+                                        {selectedProjectId === ""
                                             ? "Select a project first"
                                             : isLoadingFolders
                                                 ? "Loading folders..."
-                                                : availableFolders.length ===
-                                                    0
+                                                : availableFolders.length === 0
                                                     ? "No folders found"
                                                     : "Select folder"}
                                     </option>
 
                                     {availableFolders.map(
-                                        (
-                                            folder
-                                        ) => (
+                                        (folder) => (
                                             <option
-                                                key={
-                                                    folder.fid
-                                                }
-                                                value={
-                                                    folder.fid
-                                                }
+                                                key={folder.fid}
+                                                value={folder.fid}
                                             >
-                                                {
-                                                    folder.fname
-                                                }
+                                                {folder.fname}
                                             </option>
                                         )
                                     )}
                                 </select>
 
                                 {isLoadingFolders &&
-                                    selectedProjectId !==
-                                    "" && (
+                                    selectedProjectId !== "" && (
                                         <Loader2
                                             size={16}
                                             className="
@@ -1031,14 +1009,30 @@ function FileUploadPage() {
                                         />
                                     )}
                             </div>
+
+                            {selectedProjectId !== "" &&
+                                !isLoadingFolders &&
+                                availableFolders.length === 0 && (
+                                    <p
+                                        className="
+                                            mt-2
+                                            text-xs
+                                            text-amber-600
+                                            dark:text-amber-400
+                                        "
+                                    >
+                                        No top-level folders are associated
+                                        with this project.
+                                    </p>
+                                )}
                         </div>
 
                         {/* Destination Preview */}
 
                         {(selectedProject ||
                             selectedFolder) && (
-                                <div
-                                    className="
+                            <div
+                                className="
                                     mt-6
                                     rounded-xl
                                     border
@@ -1048,9 +1042,9 @@ function FileUploadPage() {
                                     dark:border-sky-900
                                     dark:bg-sky-950
                                 "
-                                >
-                                    <p
-                                        className="
+                            >
+                                <p
+                                    className="
                                         mb-4
                                         text-xs
                                         font-semibold
@@ -1059,112 +1053,94 @@ function FileUploadPage() {
                                         text-sky-700
                                         dark:text-sky-300
                                     "
-                                    >
-                                        Upload
-                                        Destination
-                                    </p>
+                                >
+                                    Upload Destination
+                                </p>
 
-                                    {selectedProject && (
-                                        <div
+                                {selectedProject && (
+                                    <div className="flex items-start gap-3">
+                                        <FileIcon
+                                            size={17}
                                             className="
-                                            flex
-                                            items-start
-                                            gap-3
-                                        "
-                                        >
-                                            <FileIcon
-                                                size={17}
-                                                className="
                                                 mt-0.5
                                                 shrink-0
                                                 text-sky-700
                                                 dark:text-sky-300
                                             "
-                                            />
+                                        />
 
-                                            <div className="min-w-0">
-                                                <p
-                                                    className="
+                                        <div className="min-w-0">
+                                            <p
+                                                className="
                                                     text-xs
                                                     text-gray-500
                                                     dark:text-gray-400
                                                 "
-                                                >
-                                                    Project
-                                                </p>
+                                            >
+                                                Project
+                                            </p>
 
-                                                <p
-                                                    className="
+                                            <p
+                                                className="
                                                     mt-0.5
                                                     text-sm
                                                     font-medium
                                                     text-gray-900
                                                     dark:text-white
                                                 "
-                                                >
-                                                    {selectedProject.projectname ||
-                                                        "Unnamed project"}
-                                                </p>
-                                            </div>
+                                            >
+                                                {selectedProject.projectname ||
+                                                    "Unnamed project"}
+                                            </p>
                                         </div>
-                                    )}
+                                    </div>
+                                )}
 
-                                    {selectedFolder && (
-                                        <div
+                                {selectedFolder && (
+                                    <div className="mt-4 flex items-start gap-3">
+                                        <Folder
+                                            size={17}
                                             className="
-                                            mt-4
-                                            flex
-                                            items-start
-                                            gap-3
-                                        "
-                                        >
-                                            <Folder
-                                                size={17}
-                                                className="
                                                 mt-0.5
                                                 shrink-0
                                                 text-sky-700
                                                 dark:text-sky-300
                                             "
-                                            />
+                                        />
 
-                                            <div className="min-w-0">
-                                                <p
-                                                    className="
+                                        <div className="min-w-0">
+                                            <p
+                                                className="
                                                     text-xs
                                                     text-gray-500
                                                     dark:text-gray-400
                                                 "
-                                                >
-                                                    Folder
-                                                </p>
+                                            >
+                                                Folder
+                                            </p>
 
-                                                <p
-                                                    className="
+                                            <p
+                                                className="
                                                     mt-0.5
                                                     text-sm
                                                     font-medium
                                                     text-gray-900
                                                     dark:text-white
                                                 "
-                                                >
-                                                    {
-                                                        selectedFolder.fname
-                                                    }
-                                                </p>
-                                            </div>
+                                            >
+                                                {selectedFolder.fname}
+                                            </p>
                                         </div>
-                                    )}
-                                </div>
-                            )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Upload Button */}
 
                         <button
                             type="button"
-                            onClick={
-                                handleUpload
-                            }
+                            onClick={handleUpload}
                             disabled={
                                 isUploading ||
                                 isLoadingProjects ||
@@ -1204,9 +1180,7 @@ function FileUploadPage() {
                                 </>
                             ) : (
                                 <>
-                                    <Upload
-                                        size={17}
-                                    />
+                                    <Upload size={17} />
                                     Upload File
                                 </>
                             )}
@@ -1238,7 +1212,7 @@ function formatFileSize(
 
     const index = Math.floor(
         Math.log(bytes) /
-        Math.log(1024)
+            Math.log(1024)
     );
 
     return `${(

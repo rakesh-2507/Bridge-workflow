@@ -73,11 +73,6 @@ function TaskList({
                                             <TaskCard
                                                 task={task}
                                                 selected={selected}
-                                                color={
-                                                    index % 2 === 0
-                                                        ? "yellow"
-                                                        : "purple"
-                                                }
                                                 onClick={() =>
                                                     onSelect(task)
                                                 }
