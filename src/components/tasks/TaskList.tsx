@@ -1,5 +1,8 @@
+import { useMemo } from "react";
+
 import type { Task } from "../../types/task";
 import TaskCard from "./TaskCard";
+import { getJwtPayload } from "../../api/auth";
 
 interface TaskListProps {
     tasks: Task[];
@@ -13,12 +16,41 @@ function TaskList({
     selectedTask,
     onSelect,
 }: TaskListProps) {
+    const loggedInUserId = useMemo(() => {
+        const token = localStorage.getItem("access_token");
+
+        if (!token) {
+            return null;
+        }
+
+        const payload = getJwtPayload(token);
+
+        if (!payload?.sub) {
+            return null;
+        }
+
+        return Number(payload.sub);
+    }, []);
+
+    const userTasks = useMemo(() => {
+        if (loggedInUserId === null) {
+            return [];
+        }
+
+        return tasks.filter(
+            (task) =>
+                Number(task.assigned_to) === loggedInUserId
+        );
+    }, [tasks, loggedInUserId]);
+
+    console.log("Logged-in user ID:", loggedInUserId);
+    console.log("All tasks:", tasks);
+    console.log("User tasks:", userTasks);
+
     return (
         <div className="flex min-h-0 flex-col">
-
-            {/* Scroll Area */}
             <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-                {tasks.length === 0 ? (
+                {userTasks.length === 0 ? (
                     <div className="flex min-h-[300px] items-center justify-center p-5 text-center">
                         <div>
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -26,14 +58,14 @@ function TaskList({
                             </p>
 
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                There are no tasks to display.
+                                There are no tasks assigned to you.
                             </p>
                         </div>
                     </div>
                 ) : (
                     <div className="px-5 pb-5 pt-4">
                         <div className="flex flex-col gap-0">
-                            {tasks.map((task, index) => {
+                            {userTasks.map((task, index) => {
                                 const selected =
                                     selectedTask?.task_id ===
                                     task.task_id;

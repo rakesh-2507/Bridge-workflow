@@ -86,9 +86,9 @@ function TaskCard({
             <div className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
                 <Clock3 size={13} />
 
-                {task.status === 3
+                {task.status === 1
                     ? "Task completed"
-                    : task.status === 2
+                    : task.status === 0
                         ? "Currently in progress"
                         : "Waiting for completion"}
             </div>

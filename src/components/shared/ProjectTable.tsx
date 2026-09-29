@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Project } from "../api/projects";
+import type { Project } from "../../api/projects";
 
 interface ProjectTableProps {
   projects: Project[];

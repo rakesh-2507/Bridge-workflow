@@ -12,7 +12,7 @@ interface TaskStatusProps {
 function TaskStatus({
     status,
 }: TaskStatusProps) {
-    if (status === 3) {
+    if (status === 1) {
         return (
             <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
                 <CheckCircle2 size={13} />

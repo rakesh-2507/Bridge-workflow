@@ -1,7 +1,13 @@
 import { apiRequest } from "./client";
 
-import type { Task, CreateTaskPayload, UpdateTaskPayload } from "../types/task";
-
+import type {
+  Task,
+  CreateTaskPayload,
+  UpdateTaskPayload,
+  TaskComment,
+  TaskActionPayload,
+  TaskActionResponse,
+} from "../types/task";
 /* =========================================================
  * Types
  * ========================================================= */
@@ -249,7 +255,6 @@ export async function getTaskFiles(taskId: number): Promise<TaskFile[]> {
   return normalizeFilesResponse(response);
 }
 
-
 export async function getFolderFiles(folderId: number): Promise<TaskFile[]> {
   const response = await apiRequest<unknown>(
     `/api/getfolderfiles/${folderId}`,
@@ -288,4 +293,48 @@ export async function uploadFileToFolder(
     method: "POST",
     body: formData,
   });
+}
+
+export async function getTaskComments(taskId: number): Promise<TaskComment[]> {
+  const response = await apiRequest<unknown>(`/api/tasks/${taskId}/comments`, {
+    method: "GET",
+  });
+
+  return normalizeCommentsResponse(response);
+}
+
+export async function performTaskAction(
+  taskId: number,
+  payload: TaskActionPayload,
+): Promise<TaskActionResponse> {
+  return apiRequest<TaskActionResponse>(`/api/tasks/${taskId}/action`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+function normalizeCommentsResponse(response: unknown): TaskComment[] {
+  if (Array.isArray(response)) {
+    return response as TaskComment[];
+  }
+
+  if (response !== null && typeof response === "object") {
+    const data = response as Record<string, unknown>;
+
+    if (Array.isArray(data.comments)) {
+      return data.comments as TaskComment[];
+    }
+
+    if (Array.isArray(data.data)) {
+      return data.data as TaskComment[];
+    }
+
+    if (Array.isArray(data.items)) {
+      return data.items as TaskComment[];
+    }
+  }
+
+  console.error("Unexpected comments API response:", response);
+
+  return [];
 }

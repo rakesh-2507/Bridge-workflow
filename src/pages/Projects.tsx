@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import ProjectTable from "../components/ProjectTable";
+import ProjectTable from "../components/shared/ProjectTable";
 import AddProjectForm from "../components/forms/AddProjectForm";
 import {
   getProjects,

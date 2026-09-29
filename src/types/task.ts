@@ -102,3 +102,35 @@ export interface CreateTaskPayload {
 export interface UpdateTaskPayload extends CreateTaskPayload {
   status: number;
 }
+
+/* =========================================================
+ * Task Comments
+ * ========================================================= */
+
+export interface TaskComment {
+  id?: number;
+  task_id?: number;
+  user_id?: number;
+  username?: string;
+  comment: string;
+  action?: string;
+  created_at?: string;
+  datetime?: string;
+
+  [key: string]: unknown;
+}
+
+/* =========================================================
+ * Task Actions
+ * ========================================================= */
+
+export interface TaskActionPayload {
+  action: string;
+  comment: string;
+}
+
+export interface TaskActionResponse {
+  success?: boolean;
+  message?: string;
+  data?: unknown;
+}
