@@ -31,15 +31,10 @@ import {
 import {
     getFolderFiles,
     uploadFileToFolder,
+    downloadFolderFile,
+    saveFolderFile,
     type TaskFile,
 } from "../api/tasks";
-
-/* =========================================================
-   Constants
-========================================================= */
-
-const API_BASE_URL =
-    "https://bridgeapi.sidpz.com";
 
 /* =========================================================
    Component
@@ -48,63 +43,6 @@ const API_BASE_URL =
 function FileUploadPage() {
     const fileInputRef =
         useRef<HTMLInputElement | null>(null);
-
-    /* =========================================================
-       Current User
-    ========================================================= */
-
-    const currentUserId = useMemo(() => {
-        try {
-            const storedUser =
-                localStorage.getItem(
-                    "login_user",
-                );
-
-            if (!storedUser) {
-                return null;
-            }
-
-            const user =
-                JSON.parse(
-                    storedUser,
-                ) as Record<string, unknown>;
-
-            const userId =
-                user.uid ??
-                user.user_id ??
-                user.id;
-
-            if (
-                typeof userId === "number" &&
-                Number.isInteger(userId)
-            ) {
-                return userId;
-            }
-
-            if (
-                typeof userId === "string" &&
-                userId.trim() !== ""
-            ) {
-                const parsedId =
-                    Number(userId);
-
-                return Number.isInteger(
-                    parsedId,
-                )
-                    ? parsedId
-                    : null;
-            }
-
-            return null;
-        } catch (err) {
-            console.error(
-                "Failed to read logged-in user:",
-                err,
-            );
-
-            return null;
-        }
-    }, []);
 
     /* =========================================================
        Data
@@ -165,6 +103,12 @@ function FileUploadPage() {
     const [viewingFile, setViewingFile] =
         useState<TaskFile | null>(null);
 
+    const [viewingFileUrl, setViewingFileUrl] =
+        useState<string | null>(null);
+
+    const [isViewingFile, setIsViewingFile] =
+        useState(false);
+
     /* =========================================================
        Messages
     ========================================================= */
@@ -181,7 +125,7 @@ function FileUploadPage() {
     ] = useState("");
 
     /* =========================================================
-       Load Projects and Folders
+       Load Projects + Folders
     ========================================================= */
 
     useEffect(() => {
@@ -206,13 +150,11 @@ function FileUploadPage() {
                 }
 
                 setProjects(
-                    projectsResponse?.projects ??
-                    [],
+                    projectsResponse?.projects ?? [],
                 );
 
                 setFolders(
-                    foldersResponse?.folders ??
-                    [],
+                    foldersResponse?.folders ?? [],
                 );
             } catch (err) {
                 if (!isMounted) {
@@ -220,7 +162,7 @@ function FileUploadPage() {
                 }
 
                 console.error(
-                    "Failed to load upload data:",
+                    "Failed to load projects and folders:",
                     err,
                 );
 
@@ -231,13 +173,8 @@ function FileUploadPage() {
                 );
             } finally {
                 if (isMounted) {
-                    setIsLoadingProjects(
-                        false,
-                    );
-
-                    setIsLoadingFolders(
-                        false,
-                    );
+                    setIsLoadingProjects(false);
+                    setIsLoadingFolders(false);
                 }
             }
         };
@@ -254,20 +191,14 @@ function FileUploadPage() {
     ========================================================= */
 
     const selectedProject = useMemo(() => {
-        if (
-            selectedProjectId === ""
-        ) {
+        if (selectedProjectId === "") {
             return undefined;
         }
 
         return projects.find(
             (project) =>
-                Number(
-                    project.project_id,
-                ) ===
-                Number(
-                    selectedProjectId,
-                ),
+                Number(project.project_id) ===
+                Number(selectedProjectId),
         );
     }, [
         projects,
@@ -278,137 +209,136 @@ function FileUploadPage() {
        Available Folders
     ========================================================= */
 
-    const availableFolders =
-        useMemo(() => {
-            if (!selectedProject) {
-                return [];
-            }
+    const availableFolders = useMemo(() => {
+        if (!selectedProject) {
+            return [];
+        }
 
-            const projectTid =
-                Number(
-                    selectedProject.tid,
-                );
+        const projectTid = Number(
+            selectedProject.tid,
+        );
 
-            if (
-                !Number.isInteger(
-                    projectTid,
-                )
-            ) {
-                return [];
-            }
+        if (!Number.isInteger(projectTid)) {
+            return [];
+        }
 
-            return folders.filter(
-                (folder) =>
-                    Number(folder.tid) ===
-                        projectTid &&
-                    (
-                        folder.pid ===
-                            null ||
-                        folder.pid ===
-                            undefined
-                    ),
-            );
-        }, [
-            folders,
-            selectedProject,
-        ]);
+        return folders.filter(
+            (folder) =>
+                Number(folder.tid) ===
+                    projectTid &&
+                (
+                    folder.pid === null ||
+                    folder.pid === undefined
+                ),
+        );
+    }, [
+        folders,
+        selectedProject,
+    ]);
 
     /* =========================================================
        Selected Folder
     ========================================================= */
 
-    const selectedFolder =
-        useMemo(() => {
-            if (
-                selectedFolderId === ""
-            ) {
-                return undefined;
-            }
+    const selectedFolder = useMemo(() => {
+        if (selectedFolderId === "") {
+            return undefined;
+        }
 
-            return availableFolders.find(
-                (folder) =>
-                    Number(folder.fid) ===
-                    Number(
-                        selectedFolderId,
-                    ),
-            );
-        }, [
-            availableFolders,
-            selectedFolderId,
-        ]);
+        return availableFolders.find(
+            (folder) =>
+                Number(folder.fid) ===
+                Number(selectedFolderId),
+        );
+    }, [
+        availableFolders,
+        selectedFolderId,
+    ]);
 
     /* =========================================================
        Load Files For Selected Folder
     ========================================================= */
 
     useEffect(() => {
-        if (
-            selectedFolderId === ""
-        ) {
-            return;
-        }
-
-        const folderId =
-            Number(selectedFolderId);
-
-        if (!Number.isInteger(folderId)) {
+        if (selectedFolderId === "") {
             return;
         }
 
         let cancelled = false;
 
-        const loadFolderFiles =
-            async () => {
-                setIsLoadingFolderFiles(
-                    true,
-                );
+        const loadFolderFiles = async () => {
+            setIsLoadingFolderFiles(true);
+            setFolderFilesError("");
 
-                setFolderFilesError("");
+            try {
+                const files =
+                    await getFolderFiles(
+                        Number(selectedFolderId),
+                    );
 
-                try {
-                    const files =
-                        await getFolderFiles(
-                            folderId,
-                        );
+                if (!cancelled) {
+                    /*
+                     * The backend returns:
+                     *
+                     * pffid
+                     * projectid
+                     * fid
+                     * filename
+                     * filesize
+                     * MIME
+                     *
+                     * Only display files belonging
+                     * to the currently selected project.
+                     */
+                    const projectFiles =
+                        selectedProjectId === ""
+                            ? files
+                            : files.filter(
+                                  (file) =>
+                                      Number(
+                                          file.projectid ??
+                                              file.project_id,
+                                      ) ===
+                                      Number(
+                                          selectedProjectId,
+                                      ),
+                              );
 
-                    if (!cancelled) {
-                        setFolderFiles(
-                            files,
-                        );
-                    }
-                } catch (err) {
-                    if (!cancelled) {
-                        console.error(
-                            "Failed to load folder files:",
-                            err,
-                        );
-
-                        setFolderFiles(
-                            [],
-                        );
-
-                        setFolderFilesError(
-                            err instanceof
-                                Error
-                                ? err.message
-                                : "Failed to load folder files.",
-                        );
-                    }
-                } finally {
-                    if (!cancelled) {
-                        setIsLoadingFolderFiles(
-                            false,
-                        );
-                    }
+                    setFolderFiles(
+                        projectFiles,
+                    );
                 }
-            };
+            } catch (err) {
+                if (!cancelled) {
+                    console.error(
+                        "Failed to load folder files:",
+                        err,
+                    );
+
+                    setFolderFiles([]);
+
+                    setFolderFilesError(
+                        err instanceof Error
+                            ? err.message
+                            : "Failed to load folder files.",
+                    );
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsLoadingFolderFiles(false);
+                }
+            }
+        };
 
         void loadFolderFiles();
 
         return () => {
             cancelled = true;
         };
-    }, [selectedFolderId]);
+    }, [
+        selectedFolderId,
+        selectedProjectId,
+    ]);
 
     /* =========================================================
        File Selection
@@ -430,15 +360,14 @@ function FileUploadPage() {
     };
 
     /* =========================================================
-       Remove File
+       Remove Selected File
     ========================================================= */
 
     const handleRemoveFile = () => {
         setSelectedFile(null);
 
         if (fileInputRef.current) {
-            fileInputRef.current.value =
-                "";
+            fileInputRef.current.value = "";
         }
     };
 
@@ -457,16 +386,11 @@ function FileUploadPage() {
                 ? ""
                 : Number(value);
 
-        setSelectedProjectId(
-            projectId,
-        );
-
+        setSelectedProjectId(projectId);
         setSelectedFolderId("");
 
         setFolderFiles([]);
-
         setFolderFilesError("");
-
         setUploadSuccess(false);
         setError("");
     };
@@ -486,107 +410,242 @@ function FileUploadPage() {
                 ? ""
                 : Number(value);
 
-        setSelectedFolderId(
-            folderId,
-        );
+        setSelectedFolderId(folderId);
 
         setFolderFiles([]);
-
         setFolderFilesError("");
-
         setUploadSuccess(false);
         setError("");
     };
 
     /* =========================================================
-       Build File URL
+       Get Actual File Project ID
+       
+       IMPORTANT:
+       The API returns `projectid`.
+       Do NOT blindly use selectedProjectId.
     ========================================================= */
 
-    const getFileUrl = (
+    const getFileProjectId = (
         file: TaskFile,
-    ): string | null => {
-        const possibleUrl =
-            file.file_url ??
-            file.url ??
-            file.download_url ??
-            file.document_url ??
-            file.path;
+    ): number => {
+        return Number(
+            file.projectid ??
+                file.project_id ??
+                selectedProjectId,
+        );
+    };
 
-        if (
-            typeof possibleUrl !==
-                "string" ||
-            possibleUrl.trim() === ""
-        ) {
-            return null;
-        }
+    /* =========================================================
+       Get Actual File Folder ID
+       
+       Backend returns `fid`.
+    ========================================================= */
 
-        if (
-            possibleUrl.startsWith(
-                "http://",
-            ) ||
-            possibleUrl.startsWith(
-                "https://",
-            )
-        ) {
-            return possibleUrl;
-        }
-
-        return new URL(
-            possibleUrl,
-            API_BASE_URL,
-        ).href;
+    const getFileFolderId = (
+        file: TaskFile,
+    ): number => {
+        return Number(
+            file.fid ??
+                file.folder_id ??
+                selectedFolderId,
+        );
     };
 
     /* =========================================================
        View File
     ========================================================= */
 
-    const handleViewFile = (
+    const handleViewFile = async (
         file: TaskFile,
     ) => {
-        setViewingFile(file);
+        const projectId =
+            getFileProjectId(file);
+
+        const folderId =
+            getFileFolderId(file);
+
+        const fileId =
+            Number(file.pffid);
+
+        if (
+            !Number.isInteger(projectId) ||
+            projectId <= 0
+        ) {
+            setError(
+                "Invalid project ID for this file.",
+            );
+            return;
+        }
+
+        if (
+            !Number.isInteger(folderId) ||
+            folderId <= 0
+        ) {
+            setError(
+                "Invalid folder ID for this file.",
+            );
+            return;
+        }
+
+        if (
+            !Number.isInteger(fileId) ||
+            fileId <= 0
+        ) {
+            setError(
+                "Invalid file ID.",
+            );
+            return;
+        }
+
+        try {
+            setError("");
+
+            /*
+             * Release previous blob URL.
+             */
+            if (viewingFileUrl) {
+                URL.revokeObjectURL(
+                    viewingFileUrl,
+                );
+            }
+
+            setViewingFile(file);
+            setViewingFileUrl(null);
+            setIsViewingFile(true);
+
+            /*
+             * IMPORTANT:
+             *
+             * Use the project's ID belonging
+             * to the file.
+             *
+             * Example:
+             *
+             * projectid = 59
+             * fid       = 237
+             * pffid     = 63
+             *
+             * Request:
+             *
+             * /api/59/folders/237/files/63/download
+             */
+            const blob =
+                await downloadFolderFile(
+                    projectId,
+                    folderId,
+                    fileId,
+                );
+
+            const blobUrl =
+                URL.createObjectURL(blob);
+
+            setViewingFileUrl(
+                blobUrl,
+            );
+        } catch (err) {
+            console.error(
+                "Failed to view file:",
+                err,
+            );
+
+            setViewingFile(null);
+            setViewingFileUrl(null);
+
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to open the file.",
+            );
+        } finally {
+            setIsViewingFile(false);
+        }
+    };
+
+    /* =========================================================
+       Close File Viewer
+    ========================================================= */
+
+    const handleCloseViewer = () => {
+        if (viewingFileUrl) {
+            URL.revokeObjectURL(
+                viewingFileUrl,
+            );
+        }
+
+        setViewingFileUrl(null);
+        setViewingFile(null);
+        setIsViewingFile(false);
     };
 
     /* =========================================================
        Download File
     ========================================================= */
 
-    const handleDownloadFile = (
+    const handleDownloadFile = async (
         file: TaskFile,
     ) => {
-        const fileUrl =
-            getFileUrl(file);
+        const projectId =
+            getFileProjectId(file);
 
-        if (!fileUrl) {
+        const folderId =
+            getFileFolderId(file);
+
+        const fileId =
+            Number(file.pffid);
+
+        if (
+            !Number.isInteger(projectId) ||
+            projectId <= 0
+        ) {
             setError(
-                "The server did not provide a file URL for this file.",
+                "Invalid project ID for this file.",
             );
-
             return;
         }
 
-        const link =
-            document.createElement(
-                "a",
+        if (
+            !Number.isInteger(folderId) ||
+            folderId <= 0
+        ) {
+            setError(
+                "Invalid folder ID for this file.",
+            );
+            return;
+        }
+
+        if (
+            !Number.isInteger(fileId) ||
+            fileId <= 0
+        ) {
+            setError(
+                "Invalid file ID.",
+            );
+            return;
+        }
+
+        try {
+            setError("");
+
+            await saveFolderFile(
+                projectId,
+                folderId,
+                fileId,
+                file.filename ||
+                    "download",
+            );
+        } catch (err) {
+            console.error(
+                "Failed to download file:",
+                err,
             );
 
-        link.href = fileUrl;
-        link.download =
-            file.filename ||
-            "download";
-
-        link.target = "_blank";
-        link.rel = "noopener";
-
-        document.body.appendChild(
-            link,
-        );
-
-        link.click();
-
-        document.body.removeChild(
-            link,
-        );
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to download the file.",
+            );
+        }
     };
 
     /* =========================================================
@@ -601,37 +660,20 @@ function FileUploadPage() {
             setError(
                 "Please select a file.",
             );
-
             return;
         }
 
-        if (
-            selectedProjectId === ""
-        ) {
+        if (selectedProjectId === "") {
             setError(
                 "Please select a project.",
             );
-
             return;
         }
 
-        if (
-            selectedFolderId === ""
-        ) {
+        if (selectedFolderId === "") {
             setError(
                 "Please select a folder.",
             );
-
-            return;
-        }
-
-        if (
-            currentUserId === null
-        ) {
-            setError(
-                "Unable to identify the logged-in user. Please login again.",
-            );
-
             return;
         }
 
@@ -642,73 +684,68 @@ function FileUploadPage() {
             Number(selectedFolderId);
 
         if (
-            !Number.isInteger(
-                projectId,
-            ) ||
-            !Number.isInteger(
-                folderId,
-            )
+            !Number.isInteger(projectId) ||
+            projectId <= 0
         ) {
             setError(
-                "Invalid project or folder selected.",
+                "Invalid project selected.",
             );
+            return;
+        }
 
+        if (
+            !Number.isInteger(folderId) ||
+            folderId <= 0
+        ) {
+            setError(
+                "Invalid folder selected.",
+            );
             return;
         }
 
         const folderExists =
             availableFolders.some(
                 (folder) =>
-                    Number(
-                        folder.fid,
-                    ) === folderId,
+                    Number(folder.fid) ===
+                    folderId,
             );
 
         if (!folderExists) {
             setError(
                 "The selected folder does not belong to the selected project.",
             );
-
             return;
         }
 
         try {
             setIsUploading(true);
 
-            const response =
-                await uploadFileToFolder(
-                    projectId,
-                    folderId,
-                    currentUserId,
-                    selectedFile,
-                );
-
-            if (
-                response?.success ===
-                false
-            ) {
-                throw new Error(
-                    response.message ||
-                        "The server could not upload the file.",
-                );
-            }
+            /*
+             * POST
+             * /api/{projectId}/folders/{folderId}/files
+             *
+             * FormData:
+             * files = selectedFile
+             */
+            await uploadFileToFolder(
+                projectId,
+                folderId,
+                selectedFile,
+            );
 
             setUploadSuccess(true);
 
             setSelectedFile(null);
 
-            if (
-                fileInputRef.current
-            ) {
+            if (fileInputRef.current) {
                 fileInputRef.current.value =
                     "";
             }
 
-            /* Refresh folder files */
-
-            setIsLoadingFolderFiles(
-                true,
-            );
+            /*
+             * Refresh files after upload.
+             */
+            setIsLoadingFolderFiles(true);
 
             try {
                 const files =
@@ -716,13 +753,25 @@ function FileUploadPage() {
                         folderId,
                     );
 
+                /*
+                 * Again, only show files belonging
+                 * to the selected project.
+                 */
+                const projectFiles =
+                    files.filter(
+                        (file) =>
+                            Number(
+                                file.projectid ??
+                                    file.project_id,
+                            ) ===
+                            projectId,
+                    );
+
                 setFolderFiles(
-                    files,
+                    projectFiles,
                 );
 
-                setFolderFilesError(
-                    "",
-                );
+                setFolderFilesError("");
             } catch (refreshError) {
                 console.error(
                     "Failed to refresh folder files:",
@@ -790,8 +839,8 @@ function FileUploadPage() {
                         "
                     >
                         Upload files to a project folder
-                        and manage the files already stored
-                        in that folder.
+                        and manage the files already
+                        stored in that folder.
                     </p>
                 </div>
 
@@ -865,8 +914,6 @@ function FileUploadPage() {
 
                 {/* =================================================
                     ROW 1
-                    1/3 File Destination
-                    2/3 Folder Files
                 ================================================= */}
 
                 <div
@@ -879,7 +926,7 @@ function FileUploadPage() {
                 >
 
                     {/* =================================================
-                        1/3 FILE DESTINATION
+                        FILE DESTINATION
                     ================================================= */}
 
                     <div
@@ -990,8 +1037,9 @@ function FileUploadPage() {
                                                     project.project_id
                                                 }
                                             >
-                                                {project.projectname ||
-                                                    "Unnamed project"}
+                                                {
+                                                    project.projectname
+                                                }
                                             </option>
                                         ),
                                     )}
@@ -1076,7 +1124,7 @@ function FileUploadPage() {
                                             : isLoadingFolders
                                                 ? "Loading folders..."
                                                 : availableFolders.length ===
-                                                      0
+                                                    0
                                                     ? "No folders found"
                                                     : "Select folder"}
                                     </option>
@@ -1253,7 +1301,7 @@ function FileUploadPage() {
                     </div>
 
                     {/* =================================================
-                        2/3 FOLDER FILES
+                        FOLDER FILES
                     ================================================= */}
 
                     <div
@@ -1389,40 +1437,40 @@ function FileUploadPage() {
                             {selectedFolderId !==
                                 "" &&
                                 isLoadingFolderFiles && (
+                                <div
+                                    className="
+                                        flex
+                                        min-h-[300px]
+                                        items-center
+                                        justify-center
+                                        rounded-xl
+                                        border
+                                        border-gray-200
+                                        bg-gray-50
+                                        dark:border-gray-800
+                                        dark:bg-gray-950
+                                    "
+                                >
                                     <div
                                         className="
                                             flex
-                                            min-h-[300px]
                                             items-center
-                                            justify-center
-                                            rounded-xl
-                                            border
-                                            border-gray-200
-                                            bg-gray-50
-                                            dark:border-gray-800
-                                            dark:bg-gray-950
+                                            gap-2
+                                            text-sm
+                                            text-gray-500
+                                            dark:text-gray-400
                                         "
                                     >
-                                        <div
-                                            className="
-                                                flex
-                                                items-center
-                                                gap-2
-                                                text-sm
-                                                text-gray-500
-                                                dark:text-gray-400
-                                            "
-                                        >
-                                            <Loader2
-                                                size={18}
-                                                className="animate-spin"
-                                            />
+                                        <Loader2
+                                            size={18}
+                                            className="animate-spin"
+                                        />
 
-                                            Loading folder
-                                            files...
-                                        </div>
+                                        Loading folder
+                                        files...
                                     </div>
-                                )}
+                                </div>
+                            )}
 
                             {/* Error */}
 
@@ -1430,26 +1478,26 @@ function FileUploadPage() {
                                 "" &&
                                 !isLoadingFolderFiles &&
                                 folderFilesError && (
-                                    <div
-                                        className="
-                                            rounded-xl
-                                            border
-                                            border-red-200
-                                            bg-red-50
-                                            px-4
-                                            py-3
-                                            text-sm
-                                            text-red-700
-                                            dark:border-red-900
-                                            dark:bg-red-950
-                                            dark:text-red-300
-                                        "
-                                    >
-                                        {
-                                            folderFilesError
-                                        }
-                                    </div>
-                                )}
+                                <div
+                                    className="
+                                        rounded-xl
+                                        border
+                                        border-red-200
+                                        bg-red-50
+                                        px-4
+                                        py-3
+                                        text-sm
+                                        text-red-700
+                                        dark:border-red-900
+                                        dark:bg-red-950
+                                        dark:text-red-300
+                                    "
+                                >
+                                    {
+                                        folderFilesError
+                                    }
+                                </div>
+                            )}
 
                             {/* Empty */}
 
@@ -1459,45 +1507,45 @@ function FileUploadPage() {
                                 !folderFilesError &&
                                 folderFiles.length ===
                                     0 && (
-                                    <div
+                                <div
+                                    className="
+                                        flex
+                                        min-h-[300px]
+                                        flex-col
+                                        items-center
+                                        justify-center
+                                        rounded-xl
+                                        border
+                                        border-dashed
+                                        border-gray-300
+                                        bg-gray-50
+                                        text-center
+                                        dark:border-gray-700
+                                        dark:bg-gray-950
+                                    "
+                                >
+                                    <FileIcon
+                                        size={32}
                                         className="
-                                            flex
-                                            min-h-[300px]
-                                            flex-col
-                                            items-center
-                                            justify-center
-                                            rounded-xl
-                                            border
-                                            border-dashed
-                                            border-gray-300
-                                            bg-gray-50
-                                            text-center
-                                            dark:border-gray-700
-                                            dark:bg-gray-950
+                                            text-gray-400
+                                            dark:text-gray-500
+                                        "
+                                    />
+
+                                    <p
+                                        className="
+                                            mt-3
+                                            text-sm
+                                            font-medium
+                                            text-gray-600
+                                            dark:text-gray-400
                                         "
                                     >
-                                        <FileIcon
-                                            size={32}
-                                            className="
-                                                text-gray-400
-                                                dark:text-gray-500
-                                            "
-                                        />
-
-                                        <p
-                                            className="
-                                                mt-3
-                                                text-sm
-                                                font-medium
-                                                text-gray-600
-                                                dark:text-gray-400
-                                            "
-                                        >
-                                            No files in this
-                                            folder
-                                        </p>
-                                    </div>
-                                )}
+                                        No files in this
+                                        folder
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Files */}
 
@@ -1507,43 +1555,42 @@ function FileUploadPage() {
                                 !folderFilesError &&
                                 folderFiles.length >
                                     0 && (
-                                    <div
-                                        className="
-                                            grid
-                                            grid-cols-1
-                                            gap-2
-                                            xl:grid-cols-2
-                                        "
-                                    >
-                                        {folderFiles.map(
-                                            (
-                                                file,
-                                            ) => (
-                                                <FolderFileRow
-                                                    key={
-                                                        file.pffid
-                                                    }
-                                                    file={
-                                                        file
-                                                    }
-                                                    onView={
-                                                        handleViewFile
-                                                    }
-                                                    onDownload={
-                                                        handleDownloadFile
-                                                    }
-                                                />
-                                            ),
-                                        )}
-                                    </div>
-                                )}
+                                <div
+                                    className="
+                                        grid
+                                        grid-cols-1
+                                        gap-2
+                                        xl:grid-cols-2
+                                    "
+                                >
+                                    {folderFiles.map(
+                                        (
+                                            file,
+                                        ) => (
+                                            <FolderFileRow
+                                                key={
+                                                    file.pffid
+                                                }
+                                                file={
+                                                    file
+                                                }
+                                                onView={
+                                                    handleViewFile
+                                                }
+                                                onDownload={
+                                                    handleDownloadFile
+                                                }
+                                            />
+                                        ),
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
 
                 {/* =================================================
-                    ROW 2
-                    3/3 SELECT FILE + UPLOAD
+                    ROW 2 - SELECT FILE + UPLOAD
                 ================================================= */}
 
                 <div
@@ -1648,8 +1695,7 @@ function FileUploadPage() {
                                         dark:text-gray-200
                                     "
                                 >
-                                    Click to select
-                                    a file
+                                    Click to select a file
                                 </p>
 
                                 <p
@@ -1689,7 +1735,6 @@ function FileUploadPage() {
                             "
                         >
                             <div className="flex items-center gap-4">
-
                                 <div
                                     className="
                                         flex
@@ -1768,9 +1813,7 @@ function FileUploadPage() {
                         </div>
                     )}
 
-                    {/* =================================================
-                        Upload Button
-                    ================================================= */}
+                    {/* Upload Button */}
 
                     <button
                         type="button"
@@ -1838,11 +1881,12 @@ function FileUploadPage() {
             {viewingFile && (
                 <FileViewerModal
                     file={viewingFile}
-                    fileUrl={getFileUrl(
-                        viewingFile,
-                    )}
-                    onClose={() =>
-                        setViewingFile(null)
+                    fileUrl={viewingFileUrl}
+                    isLoading={
+                        isViewingFile
+                    }
+                    onClose={
+                        handleCloseViewer
                     }
                     onDownload={() =>
                         handleDownloadFile(
@@ -1870,8 +1914,40 @@ function FolderFileRow({
     onView,
     onDownload,
 }: FolderFileRowProps) {
-    const fileUrl =
-        getTaskFileUrl(file);
+    const hasFileId =
+        Number.isInteger(
+            Number(file.pffid),
+        ) &&
+        Number(file.pffid) > 0;
+
+    const hasProjectId =
+        Number.isInteger(
+            Number(
+                file.projectid ??
+                    file.project_id,
+            ),
+        ) &&
+        Number(
+            file.projectid ??
+                file.project_id,
+        ) > 0;
+
+    const hasFolderId =
+        Number.isInteger(
+            Number(
+                file.fid ??
+                    file.folder_id,
+            ),
+        ) &&
+        Number(
+            file.fid ??
+                file.folder_id,
+        ) > 0;
+
+    const canAccessFile =
+        hasFileId &&
+        hasProjectId &&
+        hasFolderId;
 
     return (
         <div
@@ -1926,7 +2002,9 @@ function FolderFileRow({
                         text-gray-900
                         dark:text-white
                     "
-                    title={file.filename}
+                    title={
+                        file.filename
+                    }
                 >
                     {file.filename}
                 </p>
@@ -1973,16 +2051,21 @@ function FolderFileRow({
             </div>
 
             <div className="flex shrink-0 items-center gap-1.5">
+
+                {/* View */}
+
                 <button
                     type="button"
                     onClick={() =>
                         onView(file)
                     }
-                    disabled={!fileUrl}
+                    disabled={
+                        !canAccessFile
+                    }
                     title={
-                        fileUrl
+                        canAccessFile
                             ? "View file"
-                            : "File URL unavailable"
+                            : "File information unavailable"
                     }
                     className="
                         flex
@@ -2010,19 +2093,24 @@ function FolderFileRow({
                     <ExternalLink
                         size={14}
                     />
+
                     View
                 </button>
+
+                {/* Download */}
 
                 <button
                     type="button"
                     onClick={() =>
                         onDownload(file)
                     }
-                    disabled={!fileUrl}
+                    disabled={
+                        !canAccessFile
+                    }
                     title={
-                        fileUrl
+                        canAccessFile
                             ? "Download file"
-                            : "File URL unavailable"
+                            : "File information unavailable"
                     }
                     className="
                         flex
@@ -2057,6 +2145,7 @@ function FolderFileRow({
 interface FileViewerModalProps {
     file: TaskFile;
     fileUrl: string | null;
+    isLoading: boolean;
     onClose: () => void;
     onDownload: () => void;
 }
@@ -2064,14 +2153,17 @@ interface FileViewerModalProps {
 function FileViewerModal({
     file,
     fileUrl,
+    isLoading,
     onClose,
     onDownload,
 }: FileViewerModalProps) {
     const mimeType =
-        file.MIME?.toLowerCase() || "";
+        file.MIME?.toLowerCase() ||
+        "";
 
     const filename =
-        file.filename?.toLowerCase() || "";
+        file.filename?.toLowerCase() ||
+        "";
 
     const isPdf =
         mimeType.includes(
@@ -2135,6 +2227,7 @@ function FileViewerModal({
                     dark:bg-gray-900
                 "
             >
+
                 {/* Header */}
 
                 <div
@@ -2160,9 +2253,13 @@ function FileViewerModal({
                                 text-gray-900
                                 dark:text-white
                             "
-                            title={file.filename}
+                            title={
+                                file.filename
+                            }
                         >
-                            {file.filename}
+                            {
+                                file.filename
+                            }
                         </p>
 
                         <p
@@ -2179,13 +2276,16 @@ function FileViewerModal({
                     </div>
 
                     <div className="flex shrink-0 items-center gap-2">
+
+                        {/* Download */}
+
                         <button
                             type="button"
                             onClick={
                                 onDownload
                             }
                             disabled={
-                                !fileUrl
+                                isLoading
                             }
                             className="
                                 flex
@@ -2210,8 +2310,11 @@ function FileViewerModal({
                             <Download
                                 size={14}
                             />
+
                             Download
                         </button>
+
+                        {/* Close */}
 
                         <button
                             type="button"
@@ -2247,7 +2350,37 @@ function FileViewerModal({
                         dark:bg-gray-950
                     "
                 >
-                    {!fileUrl ? (
+
+                    {/* Loading */}
+
+                    {isLoading ? (
+                        <div
+                            className="
+                                flex
+                                h-full
+                                items-center
+                                justify-center
+                            "
+                        >
+                            <div
+                                className="
+                                    flex
+                                    items-center
+                                    gap-2
+                                    text-sm
+                                    text-gray-500
+                                    dark:text-gray-400
+                                "
+                            >
+                                <Loader2
+                                    size={20}
+                                    className="animate-spin"
+                                />
+
+                                Loading file...
+                            </div>
+                        </div>
+                    ) : !fileUrl ? (
                         <div
                             className="
                                 flex
@@ -2286,15 +2419,48 @@ function FileViewerModal({
                                         dark:text-gray-400
                                     "
                                 >
-                                    The API response does not
-                                    contain a file URL.
+                                    The file could not
+                                    be loaded from the
+                                    server.
                                 </p>
+
+                                <button
+                                    type="button"
+                                    onClick={
+                                        onDownload
+                                    }
+                                    className="
+                                        mt-4
+                                        inline-flex
+                                        items-center
+                                        gap-2
+                                        rounded-lg
+                                        bg-sky-900
+                                        px-4
+                                        py-2.5
+                                        text-xs
+                                        font-semibold
+                                        text-white
+                                        hover:bg-sky-800
+                                        dark:bg-sky-200
+                                        dark:text-sky-950
+                                        dark:hover:bg-sky-300
+                                    "
+                                >
+                                    <Download
+                                        size={14}
+                                    />
+
+                                    Download File
+                                </button>
                             </div>
                         </div>
                     ) : isPdf ? (
                         <iframe
                             src={fileUrl}
-                            title={file.filename}
+                            title={
+                                file.filename
+                            }
                             className="
                                 h-full
                                 min-h-[600px]
@@ -2317,7 +2483,9 @@ function FileViewerModal({
                         >
                             <img
                                 src={fileUrl}
-                                alt={file.filename}
+                                alt={
+                                    file.filename
+                                }
                                 className="
                                     max-h-full
                                     max-w-full
@@ -2394,8 +2562,9 @@ function FileViewerModal({
                                         dark:text-gray-300
                                     "
                                 >
-                                    Preview is not available
-                                    for this file type.
+                                    Preview is not
+                                    available for
+                                    this file type.
                                 </p>
 
                                 <button
@@ -2416,11 +2585,15 @@ function FileViewerModal({
                                         font-semibold
                                         text-white
                                         hover:bg-sky-800
+                                        dark:bg-sky-200
+                                        dark:text-sky-950
+                                        dark:hover:bg-sky-300
                                     "
                                 >
                                     <Download
                                         size={14}
                                     />
+
                                     Download File
                                 </button>
                             </div>
@@ -2430,45 +2603,6 @@ function FileViewerModal({
             </div>
         </div>
     );
-}
-
-/* =========================================================
-   File URL
-========================================================= */
-
-function getTaskFileUrl(
-    file: TaskFile,
-): string | null {
-    const possibleUrl =
-        file.file_url ??
-        file.url ??
-        file.download_url ??
-        file.document_url ??
-        file.path;
-
-    if (
-        typeof possibleUrl !==
-            "string" ||
-        possibleUrl.trim() === ""
-    ) {
-        return null;
-    }
-
-    if (
-        possibleUrl.startsWith(
-            "http://",
-        ) ||
-        possibleUrl.startsWith(
-            "https://",
-        )
-    ) {
-        return possibleUrl;
-    }
-
-    return new URL(
-        possibleUrl,
-        API_BASE_URL,
-    ).href;
 }
 
 /* =========================================================
