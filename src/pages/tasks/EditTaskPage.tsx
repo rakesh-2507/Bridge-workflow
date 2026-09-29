@@ -3,9 +3,14 @@ import {
     useState,
 } from "react";
 
+import type {
+    ChangeEvent,
+} from "react";
+
 import {
     ArrowLeft,
     CheckCircle2,
+    Download,
     File,
     Loader2,
     Upload,
@@ -19,58 +24,33 @@ import {
 } from "react-router-dom";
 
 import {
+    downloadFolderFile,
+    getFolderFiles,
     getTask,
     uploadFileToFolder,
 } from "../../api/tasks";
 
+import type {
+    TaskFile,
+} from "../../api/tasks";
 
-import {
-    getJwtPayload,
-} from "../../api/auth";
-
-import type { Task } from "../../types/task";
+import type {
+    Task,
+} from "../../types/task";
 
 import TaskForm from "../../components/tasks/TaskForm";
 
-interface TaskFile {
-    id: number;
-    name: string;
-    size: number;
-    type: string;
+/* =========================================================
+ * Task Files
+ * ========================================================= */
+
+interface TaskFilesProps {
+    task: Task;
 }
 
-function getCurrentUserId(): number | null {
-    try {
-        const token =
-            localStorage.getItem("access_token");
-
-        if (!token) {
-            return null;
-        }
-
-        const payload =
-            getJwtPayload(token);
-
-        if (!payload?.sub) {
-            return null;
-        }
-
-        const userId = Number(
-            payload.sub
-        );
-
-        return Number.isNaN(userId)
-            ? null
-            : userId;
-    } catch {
-        return null;
-    }
-}
 function TaskFiles({
     task,
-}: {
-    task: Task;
-}) {
+}: TaskFilesProps) {
     const [
         selectedFile,
         setSelectedFile,
@@ -82,9 +62,19 @@ function TaskFiles({
     ] = useState<TaskFile[]>([]);
 
     const [
+        isLoadingFiles,
+        setIsLoadingFiles,
+    ] = useState(false);
+
+    const [
         isUploading,
         setIsUploading,
     ] = useState(false);
+
+    const [
+        downloadingFileId,
+        setDownloadingFileId,
+    ] = useState<number | null>(null);
 
     const [
         uploadSuccess,
@@ -96,10 +86,19 @@ function TaskFiles({
         setError,
     ] = useState("");
 
+    const [
+        fileLoadError,
+        setFileLoadError,
+    ] = useState("");
+
+    /* =====================================================
+     * FORMAT FILE SIZE
+     * ===================================================== */
+
     const formatFileSize = (
-        bytes: number
-    ) => {
-        if (bytes === 0) {
+        bytes: number,
+    ): string => {
+        if (!bytes || bytes <= 0) {
             return "0 Bytes";
         }
 
@@ -113,9 +112,9 @@ function TaskFiles({
         const index = Math.min(
             Math.floor(
                 Math.log(bytes) /
-                Math.log(1024)
+                Math.log(1024),
             ),
-            units.length - 1
+            units.length - 1,
         );
 
         return `${(
@@ -124,8 +123,66 @@ function TaskFiles({
         ).toFixed(2)} ${units[index]}`;
     };
 
+    /* =====================================================
+     * LOAD FOLDER FILES
+     * ===================================================== */
+
+    useEffect(() => {
+        const folderId = task.folder_id;
+
+        if (
+            folderId === null ||
+            folderId === undefined
+        ) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const loadFiles = async () => {
+            try {
+                setIsLoadingFiles(true);
+                setFileLoadError("");
+
+                const folderFiles =
+                    await getFolderFiles(
+                        folderId,
+                    );
+
+                if (cancelled) {
+                    return;
+                }
+
+                setFiles(folderFiles);
+            } catch (err) {
+                if (cancelled) {
+                    return;
+                }
+
+                setFileLoadError(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to load attached files.",
+                );
+            } finally {
+                if (!cancelled) {
+                    setIsLoadingFiles(false);
+                }
+            }
+        };
+
+        void loadFiles();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [task.folder_id]);
+    /* =====================================================
+     * SELECT FILE
+     * ===================================================== */
+
     const handleFileChange = (
-        event: React.ChangeEvent<HTMLInputElement>
+        event: ChangeEvent<HTMLInputElement>,
     ) => {
         const file =
             event.target.files?.[0];
@@ -139,37 +196,40 @@ function TaskFiles({
         setError("");
 
         /*
-         * Allow selecting the same
-         * file again.
+         * Allow selecting the same file
+         * again later.
          */
         event.target.value = "";
     };
 
+    /* =====================================================
+     * UPLOAD FILE
+     * ===================================================== */
+
     const handleUpload = async () => {
         if (!selectedFile) {
-            setError("Please select a file first.");
-            return;
-        }
-
-        const uploadedBy = getCurrentUserId();
-
-        if (!uploadedBy) {
             setError(
-                "Unable to identify the current user."
+                "Please select a file first.",
             );
             return;
         }
 
-        if (!task.project_id) {
+        if (
+            task.project_id === null ||
+            task.project_id === undefined
+        ) {
             setError(
-                "This task does not have a project assigned."
+                "This task does not have a project assigned.",
             );
             return;
         }
 
-        if (!task.folder_id) {
+        if (
+            task.folder_id === null ||
+            task.folder_id === undefined
+        ) {
             setError(
-                "This task does not have a folder assigned."
+                "This task does not have a folder assigned.",
             );
             return;
         }
@@ -178,59 +238,148 @@ function TaskFiles({
             setIsUploading(true);
             setUploadSuccess(false);
             setError("");
+            setFileLoadError("");
 
-            const response =
-                await uploadFileToFolder(
-                    task.project_id,
+            /*
+             * New backend API:
+             *
+             * POST
+             * /api/{project_id}/folders/{folder_id}/files
+             *
+             * multipart/form-data:
+             * files = selectedFile
+             *
+             * No uploaded_by field is required.
+             */
+            await uploadFileToFolder(
+                task.project_id,
+                task.folder_id,
+                selectedFile,
+            );
+
+            /*
+             * Reload the files from the backend
+             * after a successful upload.
+             */
+            const refreshedFiles =
+                await getFolderFiles(
                     task.folder_id,
-                    uploadedBy,
-                    selectedFile
                 );
 
-            if (!response.success) {
-                throw new Error(
-                    response.message ||
-                    "Failed to upload file."
-                );
-            }
-
-            const uploadedFile =
-                response.data?.file;
-
-            if (!uploadedFile) {
-                throw new Error(
-                    "File upload succeeded, but no file information was returned."
-                );
-            }
-
-            const newFile: TaskFile = {
-                id: uploadedFile.pffid,
-                name: uploadedFile.filename,
-                size: uploadedFile.filesize,
-                type: uploadedFile.MIME,
-            };
-
-            setFiles((currentFiles) => [
-                ...currentFiles,
-                newFile,
-            ]);
-
+            setFiles(refreshedFiles);
             setSelectedFile(null);
             setUploadSuccess(true);
         } catch (err) {
             setError(
                 err instanceof Error
                     ? err.message
-                    : "Failed to upload file."
+                    : "Failed to upload file.",
             );
         } finally {
             setIsUploading(false);
         }
     };
 
+    /* =====================================================
+     * DOWNLOAD FILE
+     * ===================================================== */
+
+    const handleDownload = async (
+        file: TaskFile,
+    ) => {
+        if (
+            task.project_id === null ||
+            task.project_id === undefined
+        ) {
+            setError(
+                "This task does not have a project assigned.",
+            );
+            return;
+        }
+
+        if (
+            task.folder_id === null ||
+            task.folder_id === undefined
+        ) {
+            setError(
+                "This task does not have a folder assigned.",
+            );
+            return;
+        }
+
+        if (
+            file.pffid === null ||
+            file.pffid === undefined
+        ) {
+            setError(
+                "File ID is missing. Unable to download this file.",
+            );
+            return;
+        }
+
+        try {
+            setDownloadingFileId(
+                file.pffid,
+            );
+
+            setError("");
+
+            const blob =
+                await downloadFolderFile(
+                    task.project_id,
+                    task.folder_id,
+                    file.pffid,
+                );
+
+            const url =
+                URL.createObjectURL(blob);
+
+            const link =
+                document.createElement("a");
+
+            link.href = url;
+
+            link.download =
+                file.filename ||
+                `file-${file.pffid}`;
+
+            document.body.appendChild(
+                link,
+            );
+
+            link.click();
+
+            link.remove();
+
+            /*
+             * Give the browser a moment to
+             * start the download before
+             * releasing the object URL.
+             */
+            window.setTimeout(() => {
+                URL.revokeObjectURL(url);
+            }, 1000);
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Failed to download file.",
+            );
+        } finally {
+            setDownloadingFileId(null);
+        }
+    };
+
+    /* =====================================================
+     * RENDER
+     * ===================================================== */
+
     return (
         <div className="flex min-h-full flex-col">
-            {/* Section Header */}
+            {/* =================================================
+             * HEADER
+             * ================================================= */}
+
             <div
                 className="
                     border-b
@@ -281,14 +430,16 @@ function TaskFiles({
                                 dark:text-gray-400
                             "
                         >
-                            Attach files to this
-                            task.
+                            Attach files to this task.
                         </p>
                     </div>
                 </div>
             </div>
 
-            {/* Files Content */}
+            {/* =================================================
+             * CONTENT
+             * ================================================= */}
+
             <div
                 className="
                     flex
@@ -297,7 +448,10 @@ function TaskFiles({
                     p-6
                 "
             >
-                {/* Upload Area */}
+                {/* =================================================
+                 * UPLOAD AREA
+                 * ================================================= */}
+
                 <label
                     className="
                         flex
@@ -327,6 +481,9 @@ function TaskFiles({
                         className="hidden"
                         onChange={
                             handleFileChange
+                        }
+                        disabled={
+                            isUploading
                         }
                     />
 
@@ -371,12 +528,14 @@ function TaskFiles({
                             dark:text-gray-400
                         "
                     >
-                        Select a file from your
-                        computer
+                        Select a file from your computer
                     </p>
                 </label>
 
-                {/* Selected File */}
+                {/* =================================================
+                 * SELECTED FILE
+                 * ================================================= */}
+
                 {selectedFile && (
                     <div className="mt-4">
                         <div
@@ -409,9 +568,7 @@ function TaskFiles({
                                     dark:text-sky-400
                                 "
                             >
-                                <File
-                                    size={18}
-                                />
+                                <File size={18} />
                             </div>
 
                             <div className="min-w-0 flex-1">
@@ -438,7 +595,7 @@ function TaskFiles({
                                     "
                                 >
                                     {formatFileSize(
-                                        selectedFile.size
+                                        selectedFile.size,
                                     )}
                                 </p>
                             </div>
@@ -447,7 +604,7 @@ function TaskFiles({
                                 type="button"
                                 onClick={() =>
                                     setSelectedFile(
-                                        null
+                                        null,
                                     )
                                 }
                                 disabled={
@@ -467,9 +624,7 @@ function TaskFiles({
                                 "
                                 aria-label="Remove selected file"
                             >
-                                <X
-                                    size={16}
-                                />
+                                <X size={16} />
                             </button>
                         </div>
 
@@ -523,7 +678,10 @@ function TaskFiles({
                     </div>
                 )}
 
-                {/* Success Message */}
+                {/* =================================================
+                 * SUCCESS
+                 * ================================================= */}
+
                 {uploadSuccess && (
                     <div
                         className="
@@ -548,12 +706,14 @@ function TaskFiles({
                             size={16}
                         />
 
-                        File uploaded
-                        successfully.
+                        File uploaded successfully.
                     </div>
                 )}
 
-                {/* Error */}
+                {/* =================================================
+                 * ERROR
+                 * ================================================= */}
+
                 {error && (
                     <div
                         className="
@@ -575,7 +735,10 @@ function TaskFiles({
                     </div>
                 )}
 
-                {/* Attached Files */}
+                {/* =================================================
+                 * ATTACHED FILES
+                 * ================================================= */}
+
                 <div className="mt-6">
                     <div className="mb-3 flex items-center justify-between">
                         <h3
@@ -608,7 +771,97 @@ function TaskFiles({
                         </span>
                     </div>
 
-                    {files.length === 0 ? (
+                    {/* File load error */}
+
+                    {fileLoadError && (
+                        <div
+                            className="
+                                mb-3
+                                rounded-lg
+                                border
+                                border-red-200
+                                bg-red-50
+                                px-4
+                                py-3
+                                text-xs
+                                text-red-700
+                                dark:border-red-900
+                                dark:bg-red-950
+                                dark:text-red-400
+                            "
+                        >
+                            {fileLoadError}
+                        </div>
+                    )}
+
+                    {/* Loading */}
+
+                    {task.folder_id === null ||
+                        task.folder_id === undefined ? (
+                        <div
+                            className="
+            rounded-lg
+            border
+            border-gray-200
+            px-4
+            py-6
+            text-center
+            dark:border-gray-800
+        "
+                        >
+                            <File
+                                size={24}
+                                className="
+                mx-auto
+                text-gray-300
+                dark:text-gray-600
+            "
+                            />
+
+                            <p
+                                className="
+                mt-2
+                text-xs
+                text-gray-500
+                dark:text-gray-400
+            "
+                            >
+                                No folder is assigned to this task.
+                            </p>
+                        </div>
+                    ) : isLoadingFiles ? (
+                        <div
+                            className="
+                                rounded-lg
+                                border
+                                border-gray-200
+                                px-4
+                                py-8
+                                text-center
+                                dark:border-gray-800
+                            "
+                        >
+                            <Loader2
+                                size={22}
+                                className="
+                                    mx-auto
+                                    animate-spin
+                                    text-gray-400
+                                "
+                            />
+
+                            <p
+                                className="
+                                    mt-2
+                                    text-xs
+                                    text-gray-500
+                                    dark:text-gray-400
+                                "
+                            >
+                                Loading files...
+                            </p>
+                        </div>
+                    ) : files.length === 0 ? (
                         <div
                             className="
                                 rounded-lg
@@ -637,83 +890,143 @@ function TaskFiles({
                                     dark:text-gray-400
                                 "
                             >
-                                No files attached
-                                to this task.
+                                No files attached to this
+                                task.
                             </p>
                         </div>
                     ) : (
                         <div className="space-y-2">
                             {files.map(
-                                (file) => (
-                                    <div
-                                        key={
-                                            file.id
-                                        }
-                                        className="
-                                            flex
-                                            items-center
-                                            gap-3
-                                            rounded-lg
-                                            border
-                                            border-gray-200
-                                            bg-white
-                                            p-3
-                                            dark:border-gray-800
-                                            dark:bg-gray-900
-                                        "
-                                    >
+                                (file) => {
+                                    const isDownloading =
+                                        downloadingFileId ===
+                                        file.pffid;
+
+                                    return (
                                         <div
+                                            key={
+                                                file.pffid
+                                            }
                                             className="
                                                 flex
-                                                h-9
-                                                w-9
-                                                shrink-0
                                                 items-center
-                                                justify-center
+                                                gap-3
                                                 rounded-lg
-                                                bg-gray-100
-                                                text-gray-500
-                                                dark:bg-gray-800
-                                                dark:text-gray-400
+                                                border
+                                                border-gray-200
+                                                bg-white
+                                                p-3
+                                                dark:border-gray-800
+                                                dark:bg-gray-900
                                             "
                                         >
-                                            <File
-                                                size={
-                                                    17
-                                                }
-                                            />
-                                        </div>
-
-                                        <div className="min-w-0 flex-1">
-                                            <p
+                                            <div
                                                 className="
-                                                    truncate
-                                                    text-sm
-                                                    font-medium
-                                                    text-gray-800
-                                                    dark:text-gray-200
-                                                "
-                                            >
-                                                {
-                                                    file.name
-                                                }
-                                            </p>
-
-                                            <p
-                                                className="
-                                                    mt-0.5
-                                                    text-[11px]
+                                                    flex
+                                                    h-9
+                                                    w-9
+                                                    shrink-0
+                                                    items-center
+                                                    justify-center
+                                                    rounded-lg
+                                                    bg-gray-100
                                                     text-gray-500
+                                                    dark:bg-gray-800
                                                     dark:text-gray-400
                                                 "
                                             >
-                                                {formatFileSize(
-                                                    file.size
+                                                <File
+                                                    size={17}
+                                                />
+                                            </div>
+
+                                            <div className="min-w-0 flex-1">
+                                                <p
+                                                    className="
+                                                        truncate
+                                                        text-sm
+                                                        font-medium
+                                                        text-gray-800
+                                                        dark:text-gray-200
+                                                    "
+                                                    title={
+                                                        file.filename
+                                                    }
+                                                >
+                                                    {
+                                                        file.filename
+                                                    }
+                                                </p>
+
+                                                <p
+                                                    className="
+                                                        mt-0.5
+                                                        text-[11px]
+                                                        text-gray-500
+                                                        dark:text-gray-400
+                                                    "
+                                                >
+                                                    {formatFileSize(
+                                                        file.filesize,
+                                                    )}
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    void handleDownload(
+                                                        file,
+                                                    )
+                                                }
+                                                disabled={
+                                                    isDownloading
+                                                }
+                                                className="
+                                                    flex
+                                                    shrink-0
+                                                    items-center
+                                                    gap-1.5
+                                                    rounded-lg
+                                                    border
+                                                    border-gray-200
+                                                    px-2.5
+                                                    py-1.5
+                                                    text-xs
+                                                    font-medium
+                                                    text-gray-600
+                                                    transition
+                                                    hover:border-sky-300
+                                                    hover:bg-sky-50
+                                                    hover:text-sky-700
+                                                    disabled:cursor-not-allowed
+                                                    disabled:opacity-50
+                                                    dark:border-gray-700
+                                                    dark:text-gray-300
+                                                    dark:hover:border-sky-700
+                                                    dark:hover:bg-sky-950
+                                                    dark:hover:text-sky-400
+                                                "
+                                                title="Download file"
+                                            >
+                                                {isDownloading ? (
+                                                    <Loader2
+                                                        size={14}
+                                                        className="animate-spin"
+                                                    />
+                                                ) : (
+                                                    <Download
+                                                        size={14}
+                                                    />
                                                 )}
-                                            </p>
+
+                                                {isDownloading
+                                                    ? "Downloading..."
+                                                    : "Download"}
+                                            </button>
                                         </div>
-                                    </div>
-                                )
+                                    );
+                                },
                             )}
                         </div>
                     )}
@@ -723,30 +1036,48 @@ function TaskFiles({
     );
 }
 
+/* =========================================================
+ * Edit Task Page
+ * ========================================================= */
+
 function EditTaskPage() {
     const {
         taskId,
     } = useParams();
 
-    const navigate = useNavigate();
+    const navigate =
+        useNavigate();
 
-    const location = useLocation();
+    const location =
+        useLocation();
 
     const existingTask =
         location.state?.task as
         | Task
         | undefined;
 
-    const [task, setTask] =
-        useState<Task | null>(
-            existingTask ?? null
-        );
+    const [
+        task,
+        setTask,
+    ] = useState<Task | null>(
+        existingTask ?? null,
+    );
 
-    const [loading, setLoading] =
-        useState(!existingTask);
+    const [
+        loading,
+        setLoading,
+    ] = useState(
+        !existingTask,
+    );
 
-    const [error, setError] =
-        useState("");
+    const [
+        error,
+        setError,
+    ] = useState("");
+
+    /* =====================================================
+     * LOAD TASK
+     * ===================================================== */
 
     useEffect(() => {
         if (!taskId || existingTask) {
@@ -762,7 +1093,7 @@ function EditTaskPage() {
 
                 const response =
                     await getTask(
-                        Number(taskId)
+                        Number(taskId),
                     );
 
                 if (cancelled) {
@@ -778,7 +1109,7 @@ function EditTaskPage() {
                 setError(
                     err instanceof Error
                         ? err.message
-                        : "Failed to load task."
+                        : "Failed to load task.",
                 );
             } finally {
                 if (!cancelled) {
@@ -796,6 +1127,10 @@ function EditTaskPage() {
         taskId,
         existingTask,
     ]);
+
+    /* =====================================================
+     * MISSING TASK ID
+     * ===================================================== */
 
     if (!taskId) {
         return (
@@ -822,7 +1157,7 @@ function EditTaskPage() {
                         type="button"
                         onClick={() =>
                             navigate(
-                                "/tasks"
+                                "/tasks",
                             )
                         }
                         className="
@@ -849,6 +1184,10 @@ function EditTaskPage() {
             </div>
         );
     }
+
+    /* =====================================================
+     * LOADING
+     * ===================================================== */
 
     if (loading) {
         return (
@@ -877,6 +1216,7 @@ function EditTaskPage() {
                             mt-3
                             text-sm
                             text-gray-500
+                            dark:text-gray-400
                         "
                     >
                         Loading task...
@@ -885,6 +1225,10 @@ function EditTaskPage() {
             </div>
         );
     }
+
+    /* =====================================================
+     * ERROR
+     * ===================================================== */
 
     if (error || !task) {
         return (
@@ -912,7 +1256,7 @@ function EditTaskPage() {
                         type="button"
                         onClick={() =>
                             navigate(
-                                "/tasks"
+                                "/tasks",
                             )
                         }
                         className="
@@ -940,6 +1284,10 @@ function EditTaskPage() {
         );
     }
 
+    /* =====================================================
+     * PAGE
+     * ===================================================== */
+
     return (
         <div
             className="
@@ -951,6 +1299,7 @@ function EditTaskPage() {
         >
             <div className="mx-auto">
                 {/* Header */}
+
                 <div
                     className="
                         mb-6
@@ -963,7 +1312,7 @@ function EditTaskPage() {
                         type="button"
                         onClick={() =>
                             navigate(
-                                "/tasks"
+                                "/tasks",
                             )
                         }
                         className="
@@ -1000,14 +1349,14 @@ function EditTaskPage() {
                                 dark:text-gray-400
                             "
                         >
-                            Update task
-                            information and
-                            manage its files.
+                            Update task information
+                            and manage its files.
                         </p>
                     </div>
                 </div>
 
-                {/* Unified Update Task Workspace */}
+                {/* Unified workspace */}
+
                 <div
                     className="
                         overflow-hidden
@@ -1029,6 +1378,7 @@ function EditTaskPage() {
                         "
                     >
                         {/* Task Information */}
+
                         <div className="min-w-0">
                             <div
                                 className="
@@ -1056,9 +1406,7 @@ function EditTaskPage() {
                                         "
                                     >
                                         <File
-                                            size={
-                                                19
-                                            }
+                                            size={19}
                                         />
                                     </div>
 
@@ -1071,8 +1419,7 @@ function EditTaskPage() {
                                                 dark:text-white
                                             "
                                         >
-                                            Task
-                                            Information
+                                            Task Information
                                         </h2>
 
                                         <p
@@ -1083,11 +1430,9 @@ function EditTaskPage() {
                                                 dark:text-gray-400
                                             "
                                         >
-                                            Update
-                                            the
-                                            details
-                                            of this
-                                            task.
+                                            Update the
+                                            details of
+                                            this task.
                                         </p>
                                     </div>
                                 </div>
@@ -1097,18 +1442,19 @@ function EditTaskPage() {
                                 task={task}
                                 onCancel={() =>
                                     navigate(
-                                        "/tasks"
+                                        "/tasks",
                                     )
                                 }
                                 onSuccess={() =>
                                     navigate(
-                                        "/tasks"
+                                        "/tasks",
                                     )
                                 }
                             />
                         </div>
 
                         {/* Task Files */}
+
                         <div
                             className="
                                 border-t

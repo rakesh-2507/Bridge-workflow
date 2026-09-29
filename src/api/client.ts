@@ -17,7 +17,6 @@ function getErrorMessage(data: unknown): string {
 
     const errorData = data as Record<string, unknown>;
 
-    // Simple message
     if (typeof errorData.message === "string") {
         return errorData.message;
     }
@@ -26,12 +25,10 @@ function getErrorMessage(data: unknown): string {
         return errorData.error;
     }
 
-    // FastAPI commonly uses `detail`
     if (typeof errorData.detail === "string") {
         return errorData.detail;
     }
 
-    // FastAPI/Pydantic validation errors
     if (Array.isArray(errorData.detail)) {
         return errorData.detail
             .map((item) => {
@@ -65,7 +62,6 @@ function getErrorMessage(data: unknown): string {
             .join(", ");
     }
 
-    // Fallback
     try {
         return JSON.stringify(data);
     } catch {
@@ -96,8 +92,13 @@ async function refreshAccessToken(): Promise<string> {
         }
     );
 
+    const contentType =
+        response.headers.get("content-type");
+
     const data: unknown =
-        await response.json();
+        contentType?.includes("application/json")
+            ? await response.json()
+            : await response.text();
 
     if (!response.ok) {
         localStorage.removeItem("access_token");
@@ -131,24 +132,26 @@ async function refreshAccessToken(): Promise<string> {
     return tokenData.access_token;
 }
 
+export interface ApiRequestOptions
+    extends RequestInit {
+    responseType?: "json" | "blob" | "text";
+}
+
 export async function apiRequest<T>(
     endpoint: string,
-    options: RequestInit = {},
+    options: ApiRequestOptions = {},
     retry = true
 ): Promise<T> {
     let accessToken =
         localStorage.getItem("access_token");
 
-    /*
-     * Detect FormData requests.
-     *
-     * FormData must NOT have a manually assigned
-     * Content-Type. The browser automatically adds:
-     *
-     * multipart/form-data; boundary=...
-     */
+    const {
+        responseType = "json",
+        ...fetchOptions
+    } = options;
+
     const isFormData =
-        options.body instanceof FormData;
+        fetchOptions.body instanceof FormData;
 
     const headers: HeadersInit = {
         ...(isFormData
@@ -165,22 +168,16 @@ export async function apiRequest<T>(
               }
             : {}),
 
-        ...options.headers,
+        ...fetchOptions.headers,
     };
 
     let response = await fetch(
         `${API_BASE_URL}${endpoint}`,
         {
-            ...options,
+            ...fetchOptions,
             headers,
         }
     );
-
-    /*
-     * ----------------------------------------
-     * ACCESS TOKEN EXPIRED
-     * ----------------------------------------
-     */
 
     if (
         response.status === 401 &&
@@ -190,14 +187,6 @@ export async function apiRequest<T>(
             accessToken =
                 await refreshAccessToken();
 
-            /*
-             * Rebuild headers for retry.
-             *
-             * Important:
-             * Keep FormData requests without
-             * Content-Type so the browser can
-             * generate the multipart boundary.
-             */
             const retryHeaders: HeadersInit = {
                 ...(isFormData
                     ? {}
@@ -209,13 +198,13 @@ export async function apiRequest<T>(
                 Authorization:
                     `Bearer ${accessToken}`,
 
-                ...options.headers,
+                ...fetchOptions.headers,
             };
 
             response = await fetch(
                 `${API_BASE_URL}${endpoint}`,
                 {
-                    ...options,
+                    ...fetchOptions,
                     headers: retryHeaders,
                 }
             );
@@ -241,50 +230,61 @@ export async function apiRequest<T>(
         }
     }
 
-    /*
-     * ----------------------------------------
-     * READ RESPONSE
-     * ----------------------------------------
-     */
-
-    const contentType =
-        response.headers.get(
-            "content-type"
-        );
-
-    let data: unknown;
-
-    if (
-        contentType?.includes(
-            "application/json"
-        )
-    ) {
-        data = await response.json();
-    } else {
-        data = await response.text();
-    }
-
-    /*
-     * ----------------------------------------
-     * ERROR
-     * ----------------------------------------
-     */
-
     if (!response.ok) {
+        const contentType =
+            response.headers.get(
+                "content-type"
+            );
+
+        let errorData: unknown;
+
+        if (
+            contentType?.includes(
+                "application/json"
+            )
+        ) {
+            errorData =
+                await response.json();
+        } else {
+            errorData =
+                await response.text();
+        }
+
         const message =
-            getErrorMessage(data);
+            getErrorMessage(errorData);
 
         console.error(
             `API Error ${response.status}:`,
             {
                 endpoint,
                 status: response.status,
-                response: data,
+                response: errorData,
             }
         );
 
         throw new Error(message);
     }
 
-    return data as T;
+    if (responseType === "blob") {
+        return (await response.blob()) as T;
+    }
+
+    if (responseType === "text") {
+        return (await response.text()) as T;
+    }
+
+    const contentType =
+        response.headers.get(
+            "content-type"
+        );
+
+    if (
+        contentType?.includes(
+            "application/json"
+        )
+    ) {
+        return (await response.json()) as T;
+    }
+
+    return (await response.text()) as T;
 }
