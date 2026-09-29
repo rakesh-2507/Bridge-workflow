@@ -14,6 +14,7 @@ import {
     Trash2,
     X,
     XCircle,
+    Undo2,
 } from "lucide-react";
 
 import {
@@ -130,7 +131,9 @@ function TaskDetails({
         useState("");
 
     const [actionLoading, setActionLoading] =
-        useState<"approve" | "reject" | null>(null);
+        useState<
+            "approve" | "reject" | "backward" | null
+        >(null);
 
     const [actionMessage, setActionMessage] =
         useState("");
@@ -216,6 +219,12 @@ function TaskDetails({
         workflowActions.some(
             (action) =>
                 action.toLowerCase() === "reject",
+        );
+
+    const hasBackwardAction =
+        workflowActions.some(
+            (action) =>
+                action.toLowerCase() === "backward",
         );
 
     const canTakeAction =
@@ -309,7 +318,7 @@ function TaskDetails({
      * ===================================================== */
 
     async function handleTaskAction(
-        action: "approve" | "reject",
+        action: "approve" | "reject" | "backward",
     ) {
         if (!task || !canTakeAction) {
             return;
@@ -333,7 +342,9 @@ function TaskDetails({
                 response?.message ||
                 (action === "approve"
                     ? "Task approved successfully."
-                    : "Task rejected successfully."),
+                    : action === "reject"
+                        ? "Task rejected successfully."
+                        : "Task sent backward successfully."),
             );
 
             setActionComment("");
@@ -803,7 +814,8 @@ function TaskDetails({
                         {/* Workflow Actions */}
 
                         {(hasApproveAction ||
-                            hasRejectAction) && (
+                            hasRejectAction ||
+                            hasBackwardAction) && (
                                 <section>
                                     <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">
                                         Actions
@@ -904,6 +916,31 @@ function TaskDetails({
                                                 )}
 
                                                 Reject
+                                            </button>
+                                        )}
+
+                                        {hasBackwardAction && (
+                                            <button
+                                                type="button"
+                                                disabled={
+                                                    !canTakeAction ||
+                                                    actionLoading !== null
+                                                }
+                                                onClick={() =>
+                                                    void handleTaskAction(
+                                                        "backward",
+                                                    )
+                                                }
+                                                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                {actionLoading ===
+                                                    "backward" ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <Undo2 className="h-4 w-4" />
+                                                )}
+
+                                                Backward
                                             </button>
                                         )}
                                     </div>
