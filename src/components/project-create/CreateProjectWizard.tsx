@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import ProjectDetailsForm from "./ProjectDetailsForm";
 import FolderScheduleForm from "./FolderScheduleForm";
 import FolderAssignmentForm from "./FolderAssignmentForm";
-import { useNavigate } from "react-router-dom";
 
 import {
   getTemplateFolders,
@@ -43,22 +43,13 @@ const initialProject: CreateProjectFromTemplateDetails = {
   coordinator: 0,
 
   is_project_manage: 0,
-
-  po: "",
-  costhead: "",
-  projectno: "",
-
   projecttype: 0,
-  department: "",
 };
 
 export default function CreateProjectWizard() {
-
   const navigate = useNavigate();
 
-  const [step, setStep] =
-    useState<Step>(1);
-
+  const [step, setStep] = useState<Step>(1);
 
   const [project, setProject] =
     useState<CreateProjectFromTemplateDetails>(
@@ -69,9 +60,7 @@ export default function CreateProjectWizard() {
     useState<Folder[]>([]);
 
   const [folderRoles, setFolderRoles] =
-    useState<FolderRolesResponse | null>(
-      null
-    );
+    useState<FolderRolesResponse | null>(null);
 
   const [folderSchedules, setFolderSchedules] =
     useState<FolderSchedule[]>([]);
@@ -91,6 +80,10 @@ export default function CreateProjectWizard() {
   const [error, setError] =
     useState<string | null>(null);
 
+  /* ----------------------------------------
+   * Step 1
+   * ---------------------------------------- */
+
   const handleProjectSubmit = async (
     data: CreateProjectFromTemplateDetails
   ) => {
@@ -109,13 +102,11 @@ export default function CreateProjectWizard() {
       setFolders(response.folders);
 
       const schedules: FolderSchedule[] =
-        response.folders.map(
-          (folder) => ({
-            folder_id: folder.fid,
-            start_date: "",
-            end_date: "",
-          })
-        );
+        response.folders.map((folder) => ({
+          folder_id: folder.fid,
+          start_date: "",
+          end_date: "",
+        }));
 
       setFolderSchedules(schedules);
 
@@ -134,6 +125,9 @@ export default function CreateProjectWizard() {
     }
   };
 
+  /* ----------------------------------------
+   * Step 2
+   * ---------------------------------------- */
 
   const handleFolderScheduleSubmit = async (
     schedules: FolderSchedule[]
@@ -145,7 +139,6 @@ export default function CreateProjectWizard() {
     try {
       setIsLoadingRoles(true);
 
-
       const response =
         await getTemplateFolderRoles(
           project.template_id
@@ -153,26 +146,15 @@ export default function CreateProjectWizard() {
 
       setFolderRoles(response);
 
-
       const assignments: FolderAssignment[] =
-        schedules.map(
-          (schedule) => ({
-            folder_id:
-              schedule.folder_id,
+        schedules.map((schedule) => ({
+          folder_id: schedule.folder_id,
+          start_date: schedule.start_date,
+          end_date: schedule.end_date,
+          role_assignments: [],
+        }));
 
-            start_date:
-              schedule.start_date,
-
-            end_date:
-              schedule.end_date,
-
-            role_assignments: [],
-          })
-        );
-
-      setFolderAssignments(
-        assignments
-      );
+      setFolderAssignments(assignments);
 
       setStep(3);
     } catch (err) {
@@ -189,6 +171,10 @@ export default function CreateProjectWizard() {
     }
   };
 
+  /* ----------------------------------------
+   * Step 3
+   * ---------------------------------------- */
+
   const handleCreateProject = async (
     assignments: FolderAssignment[]
   ) => {
@@ -196,20 +182,71 @@ export default function CreateProjectWizard() {
 
     setFolderAssignments(assignments);
 
-    const payload: CreateProjectFromTemplatePayload =
-    {
-      project,
-      folder_assignments:
-        assignments,
+    /*
+     * Build a clean API payload.
+     *
+     * This prevents wizard-only fields from
+     * accidentally being sent to the backend.
+     */
+    const payload: CreateProjectFromTemplatePayload = {
+      project: {
+        template_id: project.template_id,
+        company_id: project.company_id,
+
+        project_name: project.project_name,
+        project_description:
+          project.project_description ?? "",
+
+        start_date: project.start_date,
+        end_date: project.end_date,
+
+        member_ids: project.member_ids,
+
+        coordinator: project.coordinator,
+        is_project_manage:
+          project.is_project_manage,
+
+        projecttype: project.projecttype,
+      },
+
+      folder_assignments: assignments.map(
+        (assignment) => ({
+          folder_id: assignment.folder_id,
+          start_date: assignment.start_date,
+          end_date: assignment.end_date,
+
+          role_assignments:
+            assignment.role_assignments.map(
+              (roleAssignment) => ({
+                role: roleAssignment.role,
+                user_id: roleAssignment.user_id,
+                workflow_level:
+                  roleAssignment.workflow_level,
+              })
+            ),
+        })
+      ),
     };
+
+    /*
+     * Debug the EXACT payload being sent.
+     */
+    console.log(
+      "CREATE PROJECT PAYLOAD:",
+      JSON.stringify(payload, null, 2)
+    );
 
     try {
       setIsSubmitting(true);
 
       await createProjectFromTemplate(payload);
 
-      console.log("Project created successfully");
+      console.log(
+        "Project created successfully"
+      );
+
       alert("Project created successfully!");
+
       navigate("/projects");
     } catch (err) {
       console.error(
@@ -224,6 +261,10 @@ export default function CreateProjectWizard() {
       setIsSubmitting(false);
     }
   };
+
+  /* ----------------------------------------
+   * Back
+   * ---------------------------------------- */
 
   const handleBack = () => {
     setError(null);
@@ -256,7 +297,6 @@ export default function CreateProjectWizard() {
   return (
     <div className="mx-auto w-full max-w-6xl">
 
-
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-gray-900">
           Create Project
@@ -271,85 +311,81 @@ export default function CreateProjectWizard() {
       <div className="mb-8">
         <div className="flex items-center">
 
-          {steps.map(
-            (item, index) => {
-              const completed =
-                step > item.number;
+          {steps.map((item, index) => {
+            const completed =
+              step > item.number;
 
-              const active =
-                step === item.number;
+            const active =
+              step === item.number;
 
-              return (
-                <div
-                  key={item.number}
-                  className="flex flex-1 items-center"
-                >
+            return (
+              <div
+                key={item.number}
+                className="flex flex-1 items-center"
+              >
+                <div className="flex items-center gap-3">
 
-                  <div className="flex items-center gap-3">
-
-                    <div
-                      className={`
-                        flex
-                        h-9
-                        w-9
-                        items-center
-                        justify-center
-                        rounded-full
-                        border
-                        text-sm
-                        font-medium
-                        ${completed
+                  <div
+                    className={`
+                      flex
+                      h-9
+                      w-9
+                      items-center
+                      justify-center
+                      rounded-full
+                      border
+                      text-sm
+                      font-medium
+                      ${
+                        completed
                           ? "border-green-600 bg-green-600 text-white"
                           : active
                             ? "border-blue-600 bg-blue-600 text-white"
                             : "border-gray-300 bg-white text-gray-500"
+                      }
+                    `}
+                  >
+                    {completed ? (
+                      <Check size={18} />
+                    ) : (
+                      item.number
+                    )}
+                  </div>
+
+                  <div className="hidden sm:block">
+                    <p
+                      className={`
+                        text-sm
+                        font-medium
+                        ${
+                          active
+                            ? "text-gray-900"
+                            : "text-gray-500"
                         }
                       `}
                     >
-                      {completed ? (
-                        <Check size={18} />
-                      ) : (
-                        item.number
-                      )}
-                    </div>
-
-                    <div className="hidden sm:block">
-                      <p
-                        className={`
-                          text-sm
-                          font-medium
-                          ${active
-                            ? "text-gray-900"
-                            : "text-gray-500"
-                          }
-                        `}
-                      >
-                        {item.title}
-                      </p>
-                    </div>
-
+                      {item.title}
+                    </p>
                   </div>
-
-                  {index <
-                    steps.length - 1 && (
-                      <div
-                        className={`
-                        mx-4
-                        h-px
-                        flex-1
-                        ${step >
-                            item.number
-                            ? "bg-green-600"
-                            : "bg-gray-200"
-                          }
-                      `}
-                      />
-                    )}
-
                 </div>
-              );
-            }
-          )}
+
+                {index < steps.length - 1 && (
+                  <div
+                    className={`
+                      mx-4
+                      h-px
+                      flex-1
+                      ${
+                        step > item.number
+                          ? "bg-green-600"
+                          : "bg-gray-200"
+                      }
+                    `}
+                  />
+                )}
+              </div>
+            );
+          })}
 
         </div>
       </div>
@@ -365,9 +401,7 @@ export default function CreateProjectWizard() {
         {step === 1 && (
           <ProjectDetailsForm
             initialData={project}
-            onSubmit={
-              handleProjectSubmit
-            }
+            onSubmit={handleProjectSubmit}
           />
         )}
 

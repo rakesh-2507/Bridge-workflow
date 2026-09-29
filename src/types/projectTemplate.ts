@@ -88,12 +88,8 @@ export interface CreateProjectFromTemplateDetails {
 
   is_project_manage: number;
 
-  po: string;
-  costhead: string;
-  projectno: string;
 
   projecttype: number;
-  department: string;
 }
 
 /* ----------------------------------------
@@ -134,6 +130,7 @@ export interface TemplateFolderRolesResponse {
 export interface RoleAssignment {
   role: string;
   user_id: number;
+  workflow_level: string;
 }
 
 export interface FolderAssignment {

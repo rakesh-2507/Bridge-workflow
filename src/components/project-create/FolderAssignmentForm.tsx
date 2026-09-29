@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import FolderTree, {
-  type FolderNode,
+    type FolderNode,
 } from "../project-create/FolderTree";
 
 import {
@@ -352,6 +352,7 @@ export default function FolderAssignmentForm({
                         {
                             role,
                             user_id: userId,
+                            workflow_level: role,
                         },
                     ],
                 };
@@ -412,6 +413,7 @@ export default function FolderAssignmentForm({
                             {
                                 role,
                                 user_id: userId,
+                                workflow_level: role,
                             },
                         ],
                     };
@@ -443,12 +445,6 @@ export default function FolderAssignmentForm({
         });
     }
 
-    /*
-     * ----------------------------------------
-     * Remove selected user
-     * ----------------------------------------
-     */
-
     function removeUser(
         folderId: number,
         role: string,
@@ -460,12 +456,6 @@ export default function FolderAssignmentForm({
             userId
         );
     }
-
-    /*
-     * ----------------------------------------
-     * Filter users
-     * ----------------------------------------
-     */
 
     function getFilteredUsers(
         folderId: number,
@@ -492,12 +482,6 @@ export default function FolderAssignmentForm({
         );
     }
 
-    /*
-     * ----------------------------------------
-     * Update search
-     * ----------------------------------------
-     */
-
     function updateSearch(
         folderId: number,
         role: string,
@@ -513,12 +497,6 @@ export default function FolderAssignmentForm({
             [key]: value,
         }));
     }
-
-    /*
-     * ----------------------------------------
-     * Validate
-     * ----------------------------------------
-     */
 
     function validate(): boolean {
         const errors: Record<
@@ -551,29 +529,20 @@ export default function FolderAssignmentForm({
         );
     }
 
-    /*
-     * ----------------------------------------
-     * Submit
-     * ----------------------------------------
-     */
-
     async function handleSubmit() {
         if (!validate()) {
             return;
         }
 
-        const completeAssignments =
+        const completeAssignments: FolderAssignment[] =
             folders.map((folder) => {
                 const existing =
-                    getFolderAssignment(
-                        folder.fid
-                    );
+                    getFolderAssignment(folder.fid);
 
                 const schedule =
                     schedules.find(
                         (item) =>
-                            item.folder_id ===
-                            folder.fid
+                            item.folder_id === folder.fid
                     );
 
                 return {
@@ -588,20 +557,32 @@ export default function FolderAssignmentForm({
                         existing.end_date,
 
                     role_assignments:
-                        existing.role_assignments,
+                        existing.role_assignments.map(
+                            (assignment) => ({
+                                role: assignment.role,
+                                user_id: assignment.user_id,
+
+                                workflow_level:
+                                    assignment.workflow_level ||
+                                    assignment.role,
+                            })
+                        ),
                 };
             });
+
+        console.log(
+            "FINAL PROJECT ASSIGNMENTS:",
+            JSON.stringify(
+                completeAssignments,
+                null,
+                2
+            )
+        );
 
         await onSubmit(
             completeAssignments
         );
     }
-
-    /*
-     * ----------------------------------------
-     * Role selector
-     * ----------------------------------------
-     */
 
     function renderRoleSelector(
         folderId: number,
