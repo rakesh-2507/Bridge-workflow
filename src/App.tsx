@@ -28,7 +28,9 @@ import TasksPage from "./pages/tasks/TasksPage";
 import TodayTasksPage from "./pages/tasks/TodayTasksPage";
 import CreateTaskPage from "./pages/tasks/CreateTaskPage";
 import EditTaskPage from "./pages/tasks/EditTaskPage";
-import StoriesWorkflowDiagram from "./pages/StoriesWorkflowDiagram";
+import WorkflowProcessList from "./pages/workflow-process/WorkflowProcessList";
+import CreateProcess from "./pages/workflow-process/CreateProcess";
+import ViewProcess from "./pages/workflow-process/ViewProcess";
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
@@ -109,11 +111,19 @@ function App() {
               element={<FileUploadPage />}
             />
             <Route
-              path="/stories-workflow"
-              element={<StoriesWorkflowDiagram />}
+              path="/workflow-process"
+              element={<WorkflowProcessList />}
             />
 
+            <Route
+              path="/workflow-process/create"
+              element={<CreateProcess />}
+            />
 
+            <Route
+              path="/workflow-process/:id"
+              element={<ViewProcess />}
+            />
             <Route
               path="/tasks/:taskId/edit"
               element={<EditTaskPage />}

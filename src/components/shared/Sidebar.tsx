@@ -57,8 +57,8 @@ function Sidebar({
         to: "/",
       },
       {
-        label: "Stories Workflow",
-        to: "/stories-workflow",
+        label: "Workflow Process",
+        to: "/workflow-process",
         icon: Workflow,
       }
     ]
