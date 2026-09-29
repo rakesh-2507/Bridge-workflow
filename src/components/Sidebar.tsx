@@ -56,6 +56,11 @@ function Sidebar({
         icon: LayoutDashboard,
         to: "/",
       },
+      {
+        label: "Stories Workflow",
+        to: "/stories-workflow",
+        icon: Workflow,
+      }
     ]
     : [
 
@@ -74,11 +79,7 @@ function Sidebar({
         icon: File,
         to: "/files",
       },
-      {
-        label: "Stories Workflow",
-        to: "/stories-workflow",
-        icon: Workflow,
-      }
+
     ];
 
   return (

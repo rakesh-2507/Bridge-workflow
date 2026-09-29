@@ -227,7 +227,7 @@ function TodayTasksPage() {
             )}
 
             <div className="min-h-0 flex-1">
-                <div className="grid h-full grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)]">
+                <div className="grid h-full grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
                     <TaskList
                         tasks={
                             dateTasks

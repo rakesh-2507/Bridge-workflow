@@ -4,9 +4,7 @@ import {
 } from "react";
 
 import {
-    CalendarDays,
     Loader2,
-    Plus,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
@@ -118,47 +116,14 @@ function TasksPage() {
                     <div>
                         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
                             Tasks
+                        <span className="rounded-full bg-gray-100 p-2 m-2 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                {tasks.length}
+                            </span>
                         </h1>
 
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                             Manage and track your pending tasks.
                         </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-
-                        <button
-                            type="button"
-                            onClick={() =>
-                                navigate(
-                                    "/tasks/today"
-                                )
-                            }
-                            className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-                        >
-                            <CalendarDays
-                                size={16}
-                            />
-
-                            Today Tasks
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() =>
-                                navigate(
-                                    "/tasks/create"
-                                )
-                            }
-                            className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-                        >
-                            <Plus
-                                size={16}
-                            />
-
-                            Create Task
-                        </button>
-
                     </div>
                 </div>
             </div>
@@ -171,7 +136,7 @@ function TasksPage() {
 
             <div className="min-h-0 flex-1">
 
-                <div className="grid h-full grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)]">
+                <div className="grid h-full grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
 
                     <TaskList
                         tasks={pendingTasks}

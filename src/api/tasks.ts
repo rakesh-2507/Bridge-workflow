@@ -229,15 +229,18 @@ export async function deleteTask(taskId: number): Promise<unknown> {
   });
 }
 
-/* =========================================================
- * Task Files
- * ========================================================= */
+export async function approveTask(taskId: number): Promise<unknown> {
+  return apiRequest(`/api/tasks/${taskId}/approve`, {
+    method: "POST",
+  });
+}
 
-/**
- * GET /api/gettask/{task_id}
- *
- * Returns files associated with a task.
- */
+export async function rejectTask(taskId: number): Promise<unknown> {
+  return apiRequest(`/api/tasks/${taskId}/reject`, {
+    method: "POST",
+  });
+}
+
 export async function getTaskFiles(taskId: number): Promise<TaskFile[]> {
   const response = await apiRequest<unknown>(`/api/gettask/${taskId}`, {
     method: "GET",
@@ -246,14 +249,8 @@ export async function getTaskFiles(taskId: number): Promise<TaskFile[]> {
   return normalizeFilesResponse(response);
 }
 
-/**
- * GET /api/getfolder/{folder_id}
- *
- * Returns files associated with a folder.
- */
-export async function getFolderFiles(
-  folderId: number,
-): Promise<TaskFile[]> {
+
+export async function getFolderFiles(folderId: number): Promise<TaskFile[]> {
   const response = await apiRequest<unknown>(
     `/api/getfolderfiles/${folderId}`,
     {
@@ -261,10 +258,7 @@ export async function getFolderFiles(
     },
   );
 
-  console.log(
-    `GET /api/getfolderfiles/${folderId} response:`,
-    response,
-  );
+  console.log(`GET /api/getfolderfiles/${folderId} response:`, response);
 
   return normalizeFilesResponse(response);
 }

@@ -57,7 +57,7 @@ function TaskDateStrip({
                     onClick={() =>
                         moveDate("prev")
                     }
-                    className="flex h-20 w-12 shrink-0 items-center justify-center border-r border-gray-200 text-gray-500 transition hover:bg-gray-50 active:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800"
+                    className="flex h-10 w-12 shrink-0 items-center justify-center border-r border-gray-200 text-gray-500 transition hover:bg-gray-50 active:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800"
                     aria-label="Previous day"
                 >
                     <ChevronLeft size={14} />
@@ -79,7 +79,7 @@ function TaskDateStrip({
                                     onDateChange(item.dateKey)
                                 }
                                 className={[
-                                    "grid h-20 min-w-0 grid-cols-[auto_auto]",
+                                    "grid h-15 min-w-0 grid-cols-[auto_auto]",
                                     "items-center justify-center gap-8",
                                     "border-r border-gray-100 px-2 transition",
                                     "dark:border-gray-800",
@@ -138,7 +138,7 @@ function TaskDateStrip({
                     onClick={() =>
                         moveDate("next")
                     }
-                    className="flex h-20 w-12 shrink-0 items-center justify-center border-l border-gray-200 text-gray-500 transition hover:bg-gray-50 active:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800"
+                    className="flex h-15 w-12 shrink-0 items-center justify-center border-l border-gray-200 text-gray-500 transition hover:bg-gray-50 active:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800"
                     aria-label="Next day"
                 >
                     <ChevronRight size={18} />
