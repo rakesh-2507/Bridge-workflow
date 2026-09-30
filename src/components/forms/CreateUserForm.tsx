@@ -158,19 +158,15 @@ const CreateUserForm = ({
               User Type / Role
             </label>
 
-            <select
+            <input
+              type="text"
               id="mtype"
               name="mtype"
               value={formData.mtype}
               onChange={handleChange}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-            >
-              <option value="">Select user type</option>
-              <option value="Admin">Admin</option>
-              <option value="User">User</option>
-              <option value="Member">Member</option>
-              <option value="Manager">Manager</option>
-            </select>
+              placeholder="Enter user type or role"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500"
+            />
           </div>
 
           <div>
