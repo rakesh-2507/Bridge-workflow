@@ -1,9 +1,12 @@
+
 import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 
 import CreateUserForm from "../components/forms/CreateUserForm";
 
 import {
   getUsers,
+  deleteUser,
   type User,
 } from "../api/users";
 
@@ -11,17 +14,16 @@ function MembersList() {
   const [users, setUsers] = useState<User[]>([]);
 
   const [search, setSearch] = useState("");
-  const [showCreateForm, setShowCreateForm] =
-    useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
-  const [currentPage, setCurrentPage] =
-    useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [error, setError] =
-    useState("");
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(
+    null
+  );
 
   const itemsPerPage = 10;
 
@@ -35,32 +37,19 @@ function MembersList() {
 
       const response = await getUsers();
 
-      /*
-       * API returns:
-       *
-       * {
-       *   users: [],
-       *   total: number
-       * }
-       */
       setUsers(
         Array.isArray(response.users)
           ? response.users
           : []
       );
-
     } catch (err) {
-      console.error(
-        "Failed to load users:",
-        err
-      );
+      console.error("Failed to load users:", err);
 
       setError(
         err instanceof Error
           ? err.message
           : "Failed to load users."
       );
-
     } finally {
       setLoading(false);
     }
@@ -68,9 +57,6 @@ function MembersList() {
 
   /*
    * Initial API request
-   *
-   * We intentionally define the async
-   * function inside the effect.
    */
   useEffect(() => {
     let cancelled = false;
@@ -89,12 +75,8 @@ function MembersList() {
               : []
           );
         }
-
       } catch (err) {
-        console.error(
-          "Failed to load users:",
-          err
-        );
+        console.error("Failed to load users:", err);
 
         if (!cancelled) {
           setError(
@@ -103,7 +85,6 @@ function MembersList() {
               : "Failed to load users."
           );
         }
-
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -121,70 +102,102 @@ function MembersList() {
   /*
    * Search
    */
-  const normalizedSearch =
-    search.toLowerCase().trim();
+  const normalizedSearch = search.toLowerCase().trim();
 
-  const filteredUsers = users.filter(
-    (user) => {
-      const fullName =
-        `${user.firstname} ${user.lastname}`
-          .trim()
-          .toLowerCase();
+  const filteredUsers = users.filter((user) => {
+    const fullName =
+      `${user.firstname} ${user.lastname}`
+        .trim()
+        .toLowerCase();
 
-      const email =
-        user.email?.toLowerCase() ?? "";
+    const email = user.email?.toLowerCase() ?? "";
 
-      const username =
-        user.loginname?.toLowerCase() ?? "";
+    const username = user.loginname?.toLowerCase() ?? "";
 
-      const userType =
-        user.mtype?.toLowerCase() ?? "";
+    const userType = user.mtype?.toLowerCase() ?? "";
 
-      return (
-        fullName.includes(normalizedSearch) ||
-        email.includes(normalizedSearch) ||
-        username.includes(normalizedSearch) ||
-        userType.includes(normalizedSearch) ||
-        String(user.uid).includes(
-          normalizedSearch
-        )
-      );
-    }
-  );
+    return (
+      fullName.includes(normalizedSearch) ||
+      email.includes(normalizedSearch) ||
+      username.includes(normalizedSearch) ||
+      userType.includes(normalizedSearch) ||
+      String(user.uid).includes(normalizedSearch)
+    );
+  });
 
   /*
    * Pagination
    */
   const totalPages = Math.max(
     1,
-    Math.ceil(
-      filteredUsers.length /
-        itemsPerPage
-    )
+    Math.ceil(filteredUsers.length / itemsPerPage)
   );
 
-  const startIndex =
-    (currentPage - 1) *
-    itemsPerPage;
+  const startIndex = (currentPage - 1) * itemsPerPage;
 
-  const currentUsers =
-    filteredUsers.slice(
-      startIndex,
-      startIndex + itemsPerPage
+  const currentUsers = filteredUsers.slice(
+    startIndex,
+    startIndex + itemsPerPage
+  );
+
+  /*
+   * Delete user with confirmation
+   */
+  const handleDeleteUser = async (user: User) => {
+    const fullName =
+      `${user.firstname} ${user.lastname}`.trim();
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${fullName} (User #${user.uid})?\n\nThis action cannot be undone.`
     );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingUserId(user.uid);
+
+      await deleteUser(user.uid);
+
+      // Remove deleted user from the list
+      setUsers((prev) =>
+        prev.filter((item) => item.uid !== user.uid)
+      );
+
+      // Adjust pagination if the current page becomes empty
+      const remainingUsers = filteredUsers.length - 1;
+
+      const newTotalPages = Math.max(
+        1,
+        Math.ceil(remainingUsers / itemsPerPage)
+      );
+
+      setCurrentPage((prev) =>
+        Math.min(prev, newTotalPages)
+      );
+
+    } catch (err) {
+      console.error("Failed to delete user:", err);
+
+      window.alert(
+        err instanceof Error
+          ? `Failed to delete user: ${err.message}`
+          : "Failed to delete user. Please try again."
+      );
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
 
   /*
    * Search handler
    */
-  const handleSearch = (
-    value: string
-  ) => {
+  const handleSearch = (value: string) => {
     setSearch(value);
     setCurrentPage(1);
   };
 
   /*
-   * Previous
+   * Previous page
    */
   const handlePrevious = () => {
     setCurrentPage((prev) =>
@@ -193,14 +206,11 @@ function MembersList() {
   };
 
   /*
-   * Next
+   * Next page
    */
   const handleNext = () => {
     setCurrentPage((prev) =>
-      Math.min(
-        prev + 1,
-        totalPages
-      )
+      Math.min(prev + 1, totalPages)
     );
   };
 
@@ -210,8 +220,7 @@ function MembersList() {
   const handleGoToPage = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const value =
-      e.target.value;
+    const value = e.target.value;
 
     if (value === "") {
       return;
@@ -232,13 +241,8 @@ function MembersList() {
   /*
    * User created
    */
-  const handleUserCreated = async (
-    data: unknown
-  ) => {
-    console.log(
-      "User created:",
-      data
-    );
+  const handleUserCreated = async (data: unknown) => {
+    console.log("User created:", data);
 
     setShowCreateForm(false);
     setCurrentPage(1);
@@ -252,16 +256,10 @@ function MembersList() {
   if (showCreateForm) {
     return (
       <div className="mx-auto text-gray-900 dark:text-white">
-
         <CreateUserForm
-          onCancel={() =>
-            setShowCreateForm(false)
-          }
-          onSuccess={
-            handleUserCreated
-          }
+          onCancel={() => setShowCreateForm(false)}
+          onSuccess={handleUserCreated}
         />
-
       </div>
     );
   }
@@ -272,38 +270,29 @@ function MembersList() {
       {/* Header */}
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
         <div>
-
           <h1 className="text-xl font-bold tracking-tight">
             Users
           </h1>
 
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-300">
-            Manage all users and their access
-            to the system.
+            Manage all users and their access to the system.
           </p>
-
         </div>
 
         <button
           type="button"
-          onClick={() =>
-            setShowCreateForm(true)
-          }
+          onClick={() => setShowCreateForm(true)}
           className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
         >
           Add User
         </button>
-
       </div>
 
       {/* Search */}
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-
         <div className="relative w-full sm:max-w-md">
-
           <svg
             className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
             fill="none"
@@ -322,29 +311,21 @@ function MembersList() {
             type="text"
             placeholder="Search users..."
             value={search}
-            onChange={(e) =>
-              handleSearch(
-                e.target.value
-              )
-            }
+            onChange={(e) => handleSearch(e.target.value)}
             className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500"
           />
-
         </div>
 
         <button
           type="button"
-          onClick={() =>
-            setCurrentPage(1)
-          }
+          onClick={() => setCurrentPage(1)}
           className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800"
         >
           Search
         </button>
-
       </div>
 
-      {/* Table */}
+      {/* Users Table */}
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950">
 
@@ -362,7 +343,6 @@ function MembersList() {
 
         {!loading && error && (
           <div className="p-6">
-
             <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
               {error}
             </div>
@@ -374,7 +354,6 @@ function MembersList() {
             >
               Try Again
             </button>
-
           </div>
         )}
 
@@ -382,17 +361,13 @@ function MembersList() {
 
         {!loading && !error && (
           <>
-
-            {/* Desktop */}
+            {/* Desktop Table */}
 
             <div className="hidden overflow-x-auto md:block">
-
               <table className="w-full text-left text-sm">
 
                 <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-200">
-
                   <tr>
-
                     <th className="px-6 py-4 font-semibold">
                       User ID
                     </th>
@@ -417,189 +392,186 @@ function MembersList() {
                       Status
                     </th>
 
+                    <th className="px-6 py-4 text-center font-semibold">
+                      Actions
+                    </th>
                   </tr>
-
                 </thead>
 
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-
-                  {currentUsers.length ===
-                  0 ? (
-
+                  {currentUsers.length === 0 ? (
                     <tr>
-
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
                       >
                         No users found.
                       </td>
-
                     </tr>
-
                   ) : (
+                    currentUsers.map((user) => {
+                      const fullName =
+                        `${user.title ? user.title + " " : ""}${user.firstname} ${user.lastname}`
+                          .trim();
 
-                    currentUsers.map(
-                      (user) => {
+                      return (
+                        <tr
+                          key={user.uid}
+                          className="transition hover:bg-gray-50 dark:hover:bg-gray-800"
+                        >
+                          <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
+                            #{user.uid}
+                          </td>
 
-                        const fullName =
-                          `${user.title ? user.title + " " : ""}${user.firstname} ${user.lastname}`
-                            .trim();
+                          <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
+                            {fullName || "—"}
+                          </td>
 
-                        return (
-                          <tr
-                            key={user.uid}
-                            className="transition hover:bg-gray-50 dark:hover:bg-gray-800"
-                          >
+                          <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                            {user.email || "—"}
+                          </td>
 
-                            <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                              #{user.uid}
-                            </td>
+                          <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                            {user.loginname || "—"}
+                          </td>
 
-                            <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                              {fullName || "—"}
-                            </td>
+                          <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                            {user.mtype || "—"}
+                          </td>
 
-                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                              {user.email || "—"}
-                            </td>
+                          <td className="px-6 py-4">
+                            <StatusBadge status={user.status} />
+                          </td>
 
-                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                              {user.loginname || "—"}
-                            </td>
+                          {/* Delete Action */}
 
-                            <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                              {user.mtype || "—"}
-                            </td>
-
-                            <td className="px-6 py-4">
-                              <StatusBadge
-                                status={
-                                  user.status
-                                }
-                              />
-                            </td>
-
-                          </tr>
-                        );
-                      }
-                    )
-
+                          <td className="px-6 py-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(user)}
+                              disabled={deletingUserId === user.uid}
+                              title="Delete user"
+                              aria-label={`Delete ${fullName}`}
+                              className="inline-flex items-center justify-center rounded-lg p-2 text-red-600 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                            >
+                              {deletingUserId === user.uid ? (
+                                <span className="text-xs">
+                                  ...
+                                </span>
+                              ) : (
+                                <Trash2 size={18} />
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
-
                 </tbody>
-
               </table>
-
             </div>
 
-            {/* Mobile */}
+            {/* Mobile Cards */}
 
             <div className="divide-y divide-gray-200 md:hidden dark:divide-gray-700">
-
-              {currentUsers.length ===
-              0 ? (
-
+              {currentUsers.length === 0 ? (
                 <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
                   No users found.
                 </div>
-
               ) : (
+                currentUsers.map((user) => {
+                  const fullName =
+                    `${user.title ? user.title + " " : ""}${user.firstname} ${user.lastname}`
+                      .trim();
 
-                currentUsers.map(
-                  (user) => {
+                  return (
+                    <div
+                      key={user.uid}
+                      className="p-4 hover:bg-gray-50 dark:hover:bg-gray-900"
+                    >
+                      <div className="flex items-start justify-between gap-3">
 
-                    const fullName =
-                      `${user.title ? user.title + " " : ""}${user.firstname} ${user.lastname}`
-                        .trim();
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            User #{user.uid}
+                          </p>
 
-                    return (
-                      <div
-                        key={user.uid}
-                        className="p-4 hover:bg-gray-50 dark:hover:bg-gray-900"
-                      >
-
-                        <div className="flex items-start justify-between gap-3">
-
-                          <div className="min-w-0">
-
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                              User #{user.uid}
-                            </p>
-
-                            <h3 className="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white">
-                              {fullName || "—"}
-                            </h3>
-
-                          </div>
-
-                          <StatusBadge
-                            status={
-                              user.status
-                            }
-                          />
-
+                          <h3 className="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white">
+                            {fullName || "—"}
+                          </h3>
                         </div>
 
-                        <div className="mt-4 grid grid-cols-2 gap-4">
+                        <div className="flex shrink-0 items-center gap-2">
+                          <StatusBadge status={user.status} />
 
-                          <div>
+                          {/* Mobile Delete Button */}
 
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Email
-                            </p>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUser(user)}
+                            disabled={deletingUserId === user.uid}
+                            title="Delete user"
+                            aria-label={`Delete ${fullName}`}
+                            className="rounded-lg p-2 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                          >
+                            {deletingUserId === user.uid ? (
+                              <span className="text-xs">
+                                ...
+                              </span>
+                            ) : (
+                              <Trash2 size={18} />
+                            )}
+                          </button>
+                        </div>
+                      </div>
 
-                            <p className="mt-1 truncate text-sm font-medium text-gray-700 dark:text-gray-200">
-                              {user.email || "—"}
-                            </p>
+                      <div className="mt-4 grid grid-cols-2 gap-4">
 
-                          </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Email
+                          </p>
 
-                          <div>
+                          <p className="mt-1 truncate text-sm font-medium text-gray-700 dark:text-gray-200">
+                            {user.email || "—"}
+                          </p>
+                        </div>
 
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Username
-                            </p>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Username
+                          </p>
 
-                            <p className="mt-1 truncate text-sm font-medium text-gray-700 dark:text-gray-200">
-                              {user.loginname || "—"}
-                            </p>
+                          <p className="mt-1 truncate text-sm font-medium text-gray-700 dark:text-gray-200">
+                            {user.loginname || "—"}
+                          </p>
+                        </div>
 
-                          </div>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            User Type
+                          </p>
 
-                          <div>
+                          <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+                            {user.mtype || "—"}
+                          </p>
+                        </div>
 
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              User Type
-                            </p>
+                        <div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Mobile
+                          </p>
 
-                            <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                              {user.mtype || "—"}
-                            </p>
-
-                          </div>
-
-                          <div>
-
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Mobile
-                            </p>
-
-                            <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                              {user.mobile || "—"}
-                            </p>
-
-                          </div>
-
+                          <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+                            {user.mobile || "—"}
+                          </p>
                         </div>
 
                       </div>
-                    );
-                  }
-                )
-
+                    </div>
+                  );
+                })
               )}
-
             </div>
 
             {/* Pagination */}
@@ -607,71 +579,49 @@ function MembersList() {
             <div className="flex flex-col gap-4 border-t border-gray-200 px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between dark:border-gray-700">
 
               <div className="flex items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-
-                <span>
-                  Go to page
-                </span>
+                <span>Go to page</span>
 
                 <input
                   type="number"
                   min={1}
                   max={totalPages}
                   value={currentPage}
-                  onChange={
-                    handleGoToPage
-                  }
+                  onChange={handleGoToPage}
                   className="w-14 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-center text-sm text-gray-900 outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 />
 
-                <span>
-                  of {totalPages}
-                </span>
-
+                <span>of {totalPages}</span>
               </div>
 
               <div className="flex items-center justify-center gap-2">
 
                 <button
                   type="button"
-                  onClick={
-                    handlePrevious
-                  }
-                  disabled={
-                    currentPage === 1
-                  }
+                  onClick={handlePrevious}
+                  disabled={currentPage === 1}
                   className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:text-gray-300"
                 >
                   Previous
                 </button>
 
                 <span className="px-2 text-sm text-gray-600 dark:text-gray-300">
-                  Page {currentPage} of{" "}
-                  {totalPages}
+                  Page {currentPage} of {totalPages}
                 </span>
 
                 <button
                   type="button"
-                  onClick={
-                    handleNext
-                  }
-                  disabled={
-                    currentPage ===
-                    totalPages
-                  }
+                  onClick={handleNext}
+                  disabled={currentPage === totalPages}
                   className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:text-gray-300"
                 >
                   Next
                 </button>
 
               </div>
-
             </div>
-
           </>
         )}
-
       </div>
-
     </div>
   );
 }
@@ -684,14 +634,12 @@ function StatusBadge({
 }: {
   status: string;
 }) {
-  const normalizedStatus =
-    status?.toLowerCase();
+  const normalizedStatus = status?.toLowerCase();
 
   const styles =
     normalizedStatus === "active"
       ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
-      : normalizedStatus ===
-          "inactive"
+      : normalizedStatus === "inactive"
         ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
         : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
 
