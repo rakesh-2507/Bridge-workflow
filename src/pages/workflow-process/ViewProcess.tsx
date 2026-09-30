@@ -34,7 +34,6 @@ import {
     type ProcessTask,
 } from "../../api/process";
 
-// React Flow node data
 type WorkflowNodeData = {
     label: string;
     taskType: string;
@@ -52,27 +51,29 @@ export default function ViewProcess() {
 
     const processId = Number(id);
 
-    // Process data
     const [process, setProcess] =
         useState<ProcessJson | null>(null);
 
-    // React Flow state
     const [nodes, setNodes] =
         useState<WorkflowNode[]>([]);
 
     const [edges, setEdges] =
         useState<Edge[]>([]);
 
-    // UI state
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
-    // Fetch process when the route ID changes
+    /*
+     * Load process whenever the route process ID changes.
+     */
     useEffect(() => {
         let cancelled = false;
 
         async function fetchProcess() {
+            setLoading(true);
+            setError("");
+
             try {
                 const response = await getProcess(processId);
 
@@ -84,9 +85,13 @@ export default function ViewProcess() {
 
                 setProcess(processData);
 
-                // Convert API tasks to React Flow nodes.
-                // Always use string IDs because React Flow
-                // connection source/target values are strings.
+                /*
+                 * Convert API tasks into React Flow nodes.
+                 *
+                 * The original ProcessTask remains in `process`.
+                 * React Flow only stores the information required
+                 * to display and edit the diagram.
+                 */
                 const flowNodes: WorkflowNode[] =
                     processData.Tasks.map(
                         (task: ProcessTask) => ({
@@ -100,9 +105,11 @@ export default function ViewProcess() {
                             data: {
                                 label:
                                     task.TaskDetails?.TaskName ||
-                                    task.TaskType,
+                                    task.TaskType ||
+                                    "Task",
 
-                                taskType: task.TaskType,
+                                taskType:
+                                    task.TaskType || "",
 
                                 role:
                                     task.TaskDetails?.Level?.role ||
@@ -121,12 +128,23 @@ export default function ViewProcess() {
                         })
                     );
 
-                // Convert API connections to React Flow edges.
+                /*
+                 * Convert saved API connections into React Flow edges.
+                 *
+                 * IMPORTANT:
+                 * We preserve source -> target exactly as returned
+                 * by the API. React Flow will therefore display the
+                 * same workflow direction that was saved.
+                 */
                 const flowEdges: Edge[] = (
                     processData.connections || []
                 ).map((connection, index) => ({
-                    id: `edge-${index}`,
+                    id: `edge-${index}-${String(
+                        connection.source
+                    )}-${String(connection.target)}`,
+
                     source: String(connection.source),
+
                     target: String(connection.target),
                 }));
 
@@ -138,10 +156,13 @@ export default function ViewProcess() {
                 }
 
                 console.error(
-                    "Failed to load process",
+                    "Failed to load process:",
                     err
                 );
 
+                setProcess(null);
+                setNodes([]);
+                setEdges([]);
                 setError("Failed to load process.");
             } finally {
                 if (!cancelled) {
@@ -159,28 +180,78 @@ export default function ViewProcess() {
         };
     }, [processId]);
 
-    // Handle node dragging, selection and removal
+    /*
+     * Handle React Flow node changes.
+     *
+     * This includes:
+     * - dragging
+     * - selecting
+     * - deleting
+     * - position changes
+     */
     const onNodesChange = useCallback(
         (changes: NodeChange<WorkflowNode>[]) => {
-            setNodes((current) =>
-                applyNodeChanges(changes, current)
+            setNodes((currentNodes) =>
+                applyNodeChanges(
+                    changes,
+                    currentNodes
+                )
             );
         },
         []
     );
 
-    // Handle connecting nodes
+    /*
+     * Handle a new React Flow connection.
+     *
+     * React Flow gives us:
+     *
+     * source = node where the connection starts
+     * target = node where the connection ends
+     *
+     * We preserve that direction when saving.
+     */
     const onConnect = useCallback(
         (connection: Connection) => {
+            if (
+                !connection.source ||
+                !connection.target
+            ) {
+                return;
+            }
+
+            if (
+                connection.source ===
+                connection.target
+            ) {
+                return;
+            }
+
             console.log(
                 "New workflow connection:",
                 connection
             );
 
-            setEdges((current) => {
+            setEdges((currentEdges) => {
+                /*
+                 * Prevent duplicate connections.
+                 */
+                const alreadyExists =
+                    currentEdges.some(
+                        (edge) =>
+                            edge.source ===
+                            connection.source &&
+                            edge.target ===
+                            connection.target
+                    );
+
+                if (alreadyExists) {
+                    return currentEdges;
+                }
+
                 const updatedEdges = addEdge(
                     connection,
-                    current
+                    currentEdges
                 );
 
                 console.log(
@@ -194,9 +265,16 @@ export default function ViewProcess() {
         []
     );
 
-    // Save designer changes
+    /*
+     * Save the current workflow designer state.
+     */
     async function handleSave() {
         if (!process) {
+            return;
+        }
+
+        if (!Number.isFinite(processId)) {
+            setError("Invalid process ID.");
             return;
         }
 
@@ -205,20 +283,25 @@ export default function ViewProcess() {
             setError("");
 
             /*
-             * Keep only tasks that still exist in React Flow.
+             * Keep only tasks whose nodes still exist in React Flow.
+             *
+             * The original ProcessTask is retained here so that the
+             * local process state does not lose TaskDetails.
              */
             const updatedTasks: ProcessTask[] =
                 process.Tasks
                     .filter((task) =>
                         nodes.some(
                             (node) =>
-                                node.id === String(task.TaskID)
+                                node.id ===
+                                String(task.TaskID)
                         )
                     )
                     .map((task) => {
                         const node = nodes.find(
                             (item) =>
-                                item.id === String(task.TaskID)
+                                item.id ===
+                                String(task.TaskID)
                         );
 
                         if (!node) {
@@ -228,33 +311,42 @@ export default function ViewProcess() {
                         return {
                             ...task,
 
-                            position: node.position,
-
-                            TaskDetails: {
-                                ...task.TaskDetails,
-                                position: node.position,
+                            position: {
+                                x: node.position.x,
+                                y: node.position.y,
                             },
+
+                            /*
+                             * Preserve existing TaskDetails.
+                             *
+                             * We only update position here if the
+                             * backend response contains this field.
+                             */
+                            TaskDetails: task.TaskDetails
+                                ? {
+                                    ...task.TaskDetails,
+                                }
+                                : task.TaskDetails,
                         };
                     });
 
             /*
-             * Create a set of valid React Flow node IDs.
+             * IDs of tasks that still exist.
              */
             const remainingNodeIds = new Set(
                 updatedTasks.map(
-                    (task) => String(task.TaskID)
+                    (task) =>
+                        String(task.TaskID)
                 )
             );
 
             /*
-             * Keep every connection where both source
-             * and target nodes still exist.
+             * Keep only connections whose source and target
+             * nodes still exist.
              *
-             * This supports multiple connections:
+             * Direction is NOT changed:
              *
-             * task-1-0 -> task-2-1
-             * task-2-1 -> task-3-2
-             * task-1-0 -> task-3-2
+             * source -> target
              */
             const updatedConnections =
                 edges
@@ -268,37 +360,57 @@ export default function ViewProcess() {
                             )
                     )
                     .map((edge) => ({
-                        source: String(edge.source),
-                        target: String(edge.target),
+                        source: String(
+                            edge.source
+                        ),
+
+                        target: String(
+                            edge.target
+                        ),
                     }));
 
             /*
-             * The PUT /designer API does NOT expect:
+             * IMPORTANT:
              *
-             * {
-             *     ProcessJson: {...}
-             * }
-             *
-             * It expects:
+             * The designer endpoint currently expects:
              *
              * {
              *     process_name,
-             *     tasks,
-             *     connections
+             *     tasks: [
+             *         {
+             *             task_config_id,
+             *             position
+             *         }
+             *     ],
+             *     connections: [
+             *         {
+             *             source,
+             *             target
+             *         }
+             *     ]
              * }
+             *
+             * Do not send ProcessJson here.
              */
             const designerPayload: ProcessDesignerPayload = {
-                process_name: process.ProcessName,
+                process_name:
+                    process.ProcessName,
 
-                tasks: updatedTasks.map((task) => ({
-                    task_config_id: task.task_config_id,
-                    position: task.position || {
-                        x: 100,
-                        y: 100,
-                    },
-                })),
+                tasks: updatedTasks.map(
+                    (task) => ({
+                        task_config_id:
+                            task.task_config_id,
 
-                connections: updatedConnections,
+                        position:
+                            task.position || {
+                                x: 100,
+                                y: 100,
+                            },
+                    })
+                ),
+
+                connections:
+                    updatedConnections,
             };
 
             console.log(
@@ -311,7 +423,8 @@ export default function ViewProcess() {
             );
 
             /*
-             * Send the exact payload expected by
+             * Save to:
+             *
              * PUT /api/process/{process_id}/designer
              */
             await saveProcessDesigner(
@@ -321,7 +434,7 @@ export default function ViewProcess() {
 
             /*
              * Update local process state after
-             * successful API save.
+             * successful save.
              */
             const updatedProcess: ProcessJson = {
                 ...process,
@@ -342,28 +455,47 @@ export default function ViewProcess() {
             );
         } catch (err) {
             console.error(
-                "Failed to save process",
+                "Failed to save process:",
                 err
             );
 
-            setError("Failed to save process.");
+            setError(
+                "Failed to save process."
+            );
         } finally {
             setSaving(false);
         }
     }
 
-    // Invalid route ID
+    /*
+     * Invalid route ID.
+     */
     if (!Number.isFinite(processId)) {
         return (
             <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950">
                 <div className="rounded-lg bg-red-50 p-4 text-red-600 dark:bg-red-950/30">
                     Invalid process ID.
                 </div>
+
+                <button
+                    type="button"
+                    onClick={() =>
+                        navigate(
+                            "/workflow-process"
+                        )
+                    }
+                    className="mt-4 flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to Processes
+                </button>
             </div>
         );
     }
 
-    // Loading state
+    /*
+     * Loading state.
+     */
     if (loading) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
@@ -372,18 +504,23 @@ export default function ViewProcess() {
         );
     }
 
-    // Process not found or API error
+    /*
+     * Process not found or API error.
+     */
     if (!process) {
         return (
             <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950">
                 <div className="rounded-lg bg-red-50 p-4 text-red-600 dark:bg-red-950/30">
-                    {error || "Process not found."}
+                    {error ||
+                        "Process not found."}
                 </div>
 
                 <button
                     type="button"
                     onClick={() =>
-                        navigate("/workflow-process")
+                        navigate(
+                            "/workflow-process"
+                        )
                     }
                     className="mt-4 flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
@@ -402,7 +539,9 @@ export default function ViewProcess() {
                     <button
                         type="button"
                         onClick={() =>
-                            navigate("/workflow-process")
+                            navigate(
+                                "/workflow-process"
+                            )
                         }
                         className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
                         aria-label="Back to processes"
@@ -415,8 +554,9 @@ export default function ViewProcess() {
                             {process.ProcessName}
                         </h1>
 
-                        <p className="text-xs text-gray-500">
-                            Process ID: {process.Processid}
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Process ID:{" "}
+                            {process.Processid}
                             {" · "}
                             {nodes.length} tasks
                         </p>
