@@ -1,9 +1,15 @@
 import {
+    ArrowLeft,
     CheckCircle2,
     Download,
     ExternalLink,
-    File as FileIcon,
+    File,
+    FileAudio,
+    FileImage,
+    FileText,
+    FileVideo,
     Folder,
+    FolderOpen,
     Loader2,
     Upload,
     X,
@@ -16,7 +22,11 @@ import {
     useState,
 } from "react";
 
-import type { ChangeEvent } from "react";
+import type {
+    ChangeEvent,
+    ReactNode,
+    RefObject,
+} from "react";
 
 import {
     getProjects,
@@ -33,8 +43,33 @@ import {
     uploadFileToFolder,
     downloadFolderFile,
     saveFolderFile,
+    getTasks,
     type TaskFile,
 } from "../api/tasks";
+
+import type { Task } from "../types/task";
+
+/* =========================================================
+   Navigation
+========================================================= */
+
+type ViewLevel =
+    | "tasks"
+    | "project"
+    | "folder"
+    | "files";
+
+/* =========================================================
+   Helpers
+========================================================= */
+
+function toNumberId(value: unknown): number | null {
+    const id = Number(value);
+
+    return Number.isFinite(id) && id > 0
+        ? id
+        : null;
+}
 
 /* =========================================================
    Component
@@ -48,6 +83,9 @@ function FileUploadPage() {
        Data
     ========================================================= */
 
+    const [tasks, setTasks] =
+        useState<Task[]>([]);
+
     const [projects, setProjects] =
         useState<Project[]>([]);
 
@@ -58,18 +96,33 @@ function FileUploadPage() {
         useState<TaskFile[]>([]);
 
     /* =========================================================
+       Navigation
+    ========================================================= */
+
+    const [currentView, setCurrentView] =
+        useState<ViewLevel>("tasks");
+
+    const [selectedTask, setSelectedTask] =
+        useState<Task | null>(null);
+
+    const [selectedProject, setSelectedProject] =
+        useState<Project | null>(null);
+
+    const [selectedFolder, setSelectedFolder] =
+        useState<ProjectFolder | null>(null);
+
+    /* =========================================================
        Loading
     ========================================================= */
 
-    const [
-        isLoadingProjects,
-        setIsLoadingProjects,
-    ] = useState(false);
+    const [isLoadingTasks, setIsLoadingTasks] =
+        useState(false);
 
-    const [
-        isLoadingFolders,
-        setIsLoadingFolders,
-    ] = useState(false);
+    const [isLoadingProjects, setIsLoadingProjects] =
+        useState(false);
+
+    const [isLoadingFolders, setIsLoadingFolders] =
+        useState(false);
 
     const [
         isLoadingFolderFiles,
@@ -80,24 +133,25 @@ function FileUploadPage() {
         useState(false);
 
     /* =========================================================
-       Selection
+       Errors / Upload
     ========================================================= */
+
+    const [error, setError] =
+        useState("");
+
+    const [
+        folderFilesError,
+        setFolderFilesError,
+    ] = useState("");
 
     const [selectedFile, setSelectedFile] =
         useState<File | null>(null);
 
-    const [
-        selectedProjectId,
-        setSelectedProjectId,
-    ] = useState<number | "">("");
-
-    const [
-        selectedFolderId,
-        setSelectedFolderId,
-    ] = useState<number | "">("");
+    const [uploadSuccess, setUploadSuccess] =
+        useState(false);
 
     /* =========================================================
-       File Viewer
+       Viewer
     ========================================================= */
 
     const [viewingFile, setViewingFile] =
@@ -110,204 +164,627 @@ function FileUploadPage() {
         useState(false);
 
     /* =========================================================
-       Messages
+       Logged In User
+       
+       JWT sub is preferred.
+       login_user is fallback.
     ========================================================= */
 
-    const [uploadSuccess, setUploadSuccess] =
-        useState(false);
+    const loggedInUserId = useMemo(() => {
+        const token =
+            localStorage.getItem("access_token");
 
-    const [error, setError] =
-        useState("");
+        if (token) {
+            try {
+                const parts =
+                    token.split(".");
 
-    const [
-        folderFilesError,
-        setFolderFilesError,
-    ] = useState("");
+                if (parts.length === 3) {
+                    const payload =
+                        JSON.parse(
+                            atob(parts[1]),
+                        );
+
+                    const id =
+                        toNumberId(
+                            payload?.sub,
+                        );
+
+                    if (id !== null) {
+                        return id;
+                    }
+                }
+            } catch (err) {
+                console.warn(
+                    "Unable to read user ID from access token:",
+                    err,
+                );
+            }
+        }
+
+        const loginUser =
+            localStorage.getItem(
+                "login_user",
+            );
+
+        if (loginUser) {
+            try {
+                const user =
+                    JSON.parse(loginUser);
+
+                const id =
+                    toNumberId(
+                        user?.uid ??
+                        user?.user_id ??
+                        user?.id,
+                    );
+
+                if (id !== null) {
+                    return id;
+                }
+            } catch (err) {
+                console.warn(
+                    "Unable to read login_user:",
+                    err,
+                );
+            }
+        }
+
+        return null;
+    }, []);
 
     /* =========================================================
-       Load Projects + Folders
+       Load Tasks
     ========================================================= */
 
     useEffect(() => {
-        let isMounted = true;
+        let cancelled = false;
 
-        const fetchData = async () => {
-            setIsLoadingProjects(true);
-            setIsLoadingFolders(true);
-            setError("");
+        const loadTasks = async () => {
+            setIsLoadingTasks(true);
 
             try {
-                const [
-                    projectsResponse,
-                    foldersResponse,
-                ] = await Promise.all([
-                    getProjects(),
-                    getFolders(),
-                ]);
+                const response =
+                    await getTasks();
 
-                if (!isMounted) {
+                if (cancelled) {
                     return;
                 }
 
-                setProjects(
-                    projectsResponse?.projects ?? [],
-                );
+                const loadedTasks =
+                    Array.isArray(response)
+                        ? response
+                        : [];
 
-                setFolders(
-                    foldersResponse?.folders ?? [],
+                setTasks(loadedTasks);
+
+                console.log(
+                    "FileUploadPage - Tasks:",
+                    loadedTasks,
                 );
             } catch (err) {
-                if (!isMounted) {
-                    return;
+                if (!cancelled) {
+                    console.error(
+                        "Failed to load tasks:",
+                        err,
+                    );
+
+                    setTasks([]);
+
+                    setError(
+                        err instanceof Error
+                            ? err.message
+                            : "Failed to load tasks.",
+                    );
                 }
-
-                console.error(
-                    "Failed to load projects and folders:",
-                    err,
-                );
-
-                setError(
-                    err instanceof Error
-                        ? err.message
-                        : "Failed to load projects and folders.",
-                );
             } finally {
-                if (isMounted) {
-                    setIsLoadingProjects(false);
-                    setIsLoadingFolders(false);
+                if (!cancelled) {
+                    setIsLoadingTasks(false);
                 }
             }
         };
 
-        void fetchData();
+        void loadTasks();
 
         return () => {
-            isMounted = false;
+            cancelled = true;
         };
     }, []);
+
+    /* =========================================================
+       Load Projects
+    ========================================================= */
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadProjects = async () => {
+            setIsLoadingProjects(true);
+
+            try {
+                const response =
+                    await getProjects();
+
+                if (cancelled) {
+                    return;
+                }
+
+                const loadedProjects =
+                    Array.isArray(
+                        response?.projects,
+                    )
+                        ? response.projects
+                        : [];
+
+                setProjects(
+                    loadedProjects,
+                );
+
+                console.log(
+                    "FileUploadPage - Projects:",
+                    loadedProjects,
+                );
+            } catch (err) {
+                if (!cancelled) {
+                    console.error(
+                        "Failed to load projects:",
+                        err,
+                    );
+
+                    setProjects([]);
+
+                    /*
+                     * Functional state update avoids
+                     * reading `error` inside the effect,
+                     * so exhaustive-deps does not require
+                     * `error` as a dependency.
+                     */
+                    setError(
+                        (currentError) =>
+                            currentError ||
+                            (
+                                err instanceof Error
+                                    ? err.message
+                                    : "Failed to load projects."
+                            ),
+                    );
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsLoadingProjects(
+                        false,
+                    );
+                }
+            }
+        };
+
+        void loadProjects();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    /* =========================================================
+       Load Folders
+    ========================================================= */
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadFolders = async () => {
+            setIsLoadingFolders(true);
+
+            try {
+                const response =
+                    await getFolders();
+
+                if (cancelled) {
+                    return;
+                }
+
+                const loadedFolders =
+                    Array.isArray(
+                        response?.folders,
+                    )
+                        ? response.folders
+                        : [];
+
+                setFolders(
+                    loadedFolders,
+                );
+
+                console.log(
+                    "FileUploadPage - Folders:",
+                    loadedFolders,
+                );
+            } catch (err) {
+                if (!cancelled) {
+                    console.error(
+                        "Failed to load folders:",
+                        err,
+                    );
+
+                    setFolders([]);
+
+                    /*
+                     * Functional state update avoids
+                     * reading `error` inside the effect.
+                     */
+                    setError(
+                        (currentError) =>
+                            currentError ||
+                            (
+                                err instanceof Error
+                                    ? err.message
+                                    : "Failed to load folders."
+                            ),
+                    );
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsLoadingFolders(
+                        false,
+                    );
+                }
+            }
+        };
+
+        void loadFolders();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    /* =========================================================
+       User Tasks
+    ========================================================= */
+
+    const userTasks = useMemo(() => {
+        if (loggedInUserId === null) {
+            return [];
+        }
+
+        return tasks.filter(
+            (task) =>
+                toNumberId(
+                    task.assigned_to,
+                ) === loggedInUserId,
+        );
+    }, [
+        tasks,
+        loggedInUserId,
+    ]);
 
     /* =========================================================
        Selected Project
     ========================================================= */
 
-    const selectedProject = useMemo(() => {
-        if (selectedProjectId === "") {
-            return undefined;
+    const taskProject = useMemo(() => {
+        if (!selectedTask) {
+            return null;
         }
 
-        return projects.find(
-            (project) =>
-                Number(project.project_id) ===
-                Number(selectedProjectId),
+        const taskProjectId =
+            toNumberId(
+                selectedTask.project_id,
+            );
+
+        if (taskProjectId === null) {
+            return null;
+        }
+
+        return (
+            projects.find(
+                (project) =>
+                    toNumberId(
+                        project.project_id,
+                    ) === taskProjectId,
+            ) ?? null
         );
     }, [
         projects,
-        selectedProjectId,
-    ]);
-
-    /* =========================================================
-       Available Folders
-    ========================================================= */
-
-    const availableFolders = useMemo(() => {
-        if (!selectedProject) {
-            return [];
-        }
-
-        const projectTid = Number(
-            selectedProject.tid,
-        );
-
-        if (!Number.isInteger(projectTid)) {
-            return [];
-        }
-
-        return folders.filter(
-            (folder) =>
-                Number(folder.tid) ===
-                    projectTid &&
-                (
-                    folder.pid === null ||
-                    folder.pid === undefined
-                ),
-        );
-    }, [
-        folders,
-        selectedProject,
+        selectedTask,
     ]);
 
     /* =========================================================
        Selected Folder
     ========================================================= */
 
-    const selectedFolder = useMemo(() => {
-        if (selectedFolderId === "") {
-            return undefined;
+    const taskFolder = useMemo(() => {
+        if (!selectedTask) {
+            return null;
         }
 
-        return availableFolders.find(
-            (folder) =>
-                Number(folder.fid) ===
-                Number(selectedFolderId),
+        const taskFolderId =
+            toNumberId(
+                selectedTask.folder_id,
+            );
+
+        if (taskFolderId === null) {
+            return null;
+        }
+
+        return (
+            folders.find(
+                (folder) =>
+                    toNumberId(
+                        folder.fid,
+                    ) === taskFolderId,
+            ) ?? null
         );
     }, [
-        availableFolders,
-        selectedFolderId,
+        folders,
+        selectedTask,
     ]);
 
     /* =========================================================
-       Load Files For Selected Folder
+       Project Name
+    ========================================================= */
+
+    const projectName =
+        taskProject?.projectname ||
+        `Project ${
+            selectedTask?.project_id ?? ""
+        }`;
+
+    /* =========================================================
+       Folder Name
+    ========================================================= */
+
+    const folderName =
+        selectedFolder?.fname ||
+        taskFolder?.fname ||
+        `Folder ${
+            selectedTask?.folder_id ?? ""
+        }`;
+
+    /* =========================================================
+       Open Task
+    ========================================================= */
+
+    const handleOpenTask = (
+        task: Task,
+    ) => {
+        setError("");
+        setUploadSuccess(false);
+
+        setSelectedTask(task);
+
+        const taskProjectId =
+            toNumberId(
+                task.project_id,
+            );
+
+        const project =
+            taskProjectId === null
+                ? null
+                : (
+                    projects.find(
+                        (item) =>
+                            toNumberId(
+                                item.project_id,
+                            ) ===
+                            taskProjectId,
+                    ) ?? null
+                );
+
+        setSelectedProject(project);
+
+        setSelectedFolder(null);
+
+        setFolderFiles([]);
+        setFolderFilesError("");
+
+        setCurrentView("project");
+    };
+
+    /* =========================================================
+       Open Project
+    ========================================================= */
+
+    const handleOpenProject = () => {
+        if (!selectedTask) {
+            return;
+        }
+
+        setError("");
+        setUploadSuccess(false);
+
+        const taskFolderId =
+            toNumberId(
+                selectedTask.folder_id,
+            );
+
+        const folder =
+            taskFolderId === null
+                ? null
+                : (
+                    folders.find(
+                        (item) =>
+                            toNumberId(
+                                item.fid,
+                            ) ===
+                            taskFolderId,
+                    ) ?? null
+                );
+
+        if (!folder) {
+            setSelectedFolder(null);
+
+            setError(
+                "The folder associated with this task could not be found.",
+            );
+
+            setCurrentView("folder");
+
+            return;
+        }
+
+        /*
+         * Validate folder -> project relationship.
+         */
+        const taskProjectId =
+            toNumberId(
+                selectedTask.project_id,
+            );
+
+        const folderProjectId =
+            toNumberId(folder.tid);
+
+        if (
+            taskProjectId !== null &&
+            folderProjectId !== null &&
+            taskProjectId !==
+            folderProjectId
+        ) {
+            console.warn(
+                "Folder/project relationship mismatch:",
+                {
+                    taskProjectId,
+                    folderProjectId,
+                    folder,
+                },
+            );
+        }
+
+        setSelectedFolder(folder);
+        setFolderFiles([]);
+        setFolderFilesError("");
+
+        setCurrentView("folder");
+    };
+
+    /* =========================================================
+       Open Folder
+    ========================================================= */
+
+    const handleOpenFolder = () => {
+        if (
+            !selectedTask ||
+            !selectedFolder
+        ) {
+            return;
+        }
+
+        setError("");
+        setUploadSuccess(false);
+
+        setFolderFiles([]);
+        setFolderFilesError("");
+
+        setCurrentView("files");
+    };
+
+    /* =========================================================
+       Filter Folder Files
+    ========================================================= */
+
+    const filterFilesForTaskProject = (
+        files: TaskFile[],
+        projectId: number | null,
+    ): TaskFile[] => {
+        /*
+         * The folder endpoint already scopes files
+         * to the selected folder.
+         *
+         * If the backend does not return a project
+         * ID on a file, keep it because it came from
+         * the selected folder.
+         */
+        return files.filter(
+            (file) => {
+                const fileProjectId =
+                    toNumberId(
+                        file.projectid ??
+                        file.project_id,
+                    );
+
+                if (
+                    fileProjectId === null
+                ) {
+                    return true;
+                }
+
+                if (
+                    projectId === null
+                ) {
+                    return true;
+                }
+
+                return (
+                    fileProjectId ===
+                    projectId
+                );
+            },
+        );
+    };
+
+    /* =========================================================
+       Load Folder Files
     ========================================================= */
 
     useEffect(() => {
-        if (selectedFolderId === "") {
+        if (
+            currentView !== "files" ||
+            !selectedFolder
+        ) {
             return;
         }
 
         let cancelled = false;
 
-        const loadFolderFiles = async () => {
+        const loadFiles = async () => {
             setIsLoadingFolderFiles(true);
             setFolderFilesError("");
 
             try {
-                const files =
-                    await getFolderFiles(
-                        Number(selectedFolderId),
+                const folderId =
+                    toNumberId(
+                        selectedFolder.fid,
                     );
 
-                if (!cancelled) {
-                    /*
-                     * The backend returns:
-                     *
-                     * pffid
-                     * projectid
-                     * fid
-                     * filename
-                     * filesize
-                     * MIME
-                     *
-                     * Only display files belonging
-                     * to the currently selected project.
-                     */
-                    const projectFiles =
-                        selectedProjectId === ""
-                            ? files
-                            : files.filter(
-                                  (file) =>
-                                      Number(
-                                          file.projectid ??
-                                              file.project_id,
-                                      ) ===
-                                      Number(
-                                          selectedProjectId,
-                                      ),
-                              );
-
-                    setFolderFiles(
-                        projectFiles,
+                if (folderId === null) {
+                    throw new Error(
+                        "Invalid folder ID.",
                     );
                 }
+
+                const files =
+                    await getFolderFiles(
+                        folderId,
+                    );
+
+                if (cancelled) {
+                    return;
+                }
+
+                const projectId =
+                    toNumberId(
+                        selectedTask?.project_id,
+                    );
+
+                const projectFiles =
+                    filterFilesForTaskProject(
+                        files,
+                        projectId,
+                    );
+
+                setFolderFiles(
+                    projectFiles,
+                );
+
+                console.log(
+                    "Folder files:",
+                    {
+                        folderId:
+                            selectedFolder.fid,
+                        projectId,
+                        files:
+                            projectFiles,
+                    },
+                );
             } catch (err) {
                 if (!cancelled) {
                     console.error(
@@ -325,20 +802,154 @@ function FileUploadPage() {
                 }
             } finally {
                 if (!cancelled) {
-                    setIsLoadingFolderFiles(false);
+                    setIsLoadingFolderFiles(
+                        false,
+                    );
                 }
             }
         };
 
-        void loadFolderFiles();
+        void loadFiles();
 
         return () => {
             cancelled = true;
         };
     }, [
-        selectedFolderId,
-        selectedProjectId,
+        currentView,
+        selectedFolder,
+        selectedTask,
     ]);
+
+    /* =========================================================
+       Back Navigation
+    ========================================================= */
+
+    const handleBack = () => {
+        setError("");
+        setUploadSuccess(false);
+
+        if (
+            currentView === "files"
+        ) {
+            setFolderFiles([]);
+            setFolderFilesError("");
+
+            setSelectedFolder(
+                taskFolder,
+            );
+
+            setCurrentView("folder");
+
+            return;
+        }
+
+        if (
+            currentView === "folder"
+        ) {
+            setSelectedFolder(null);
+
+            setCurrentView("project");
+
+            return;
+        }
+
+        if (
+            currentView === "project"
+        ) {
+            setSelectedTask(null);
+            setSelectedProject(null);
+            setSelectedFolder(null);
+            setFolderFiles([]);
+            setFolderFilesError("");
+
+            setCurrentView("tasks");
+        }
+    };
+
+    /* =========================================================
+       Breadcrumb - Tasks
+    ========================================================= */
+
+    const goToTasks = () => {
+        setSelectedTask(null);
+        setSelectedProject(null);
+        setSelectedFolder(null);
+        setFolderFiles([]);
+        setFolderFilesError("");
+
+        setError("");
+        setUploadSuccess(false);
+
+        setCurrentView("tasks");
+    };
+
+    /* =========================================================
+       Breadcrumb - Project
+    ========================================================= */
+
+    const goToProject = () => {
+        if (!selectedTask) {
+            return;
+        }
+
+        setSelectedProject(
+            taskProject,
+        );
+
+        setSelectedFolder(null);
+        setFolderFiles([]);
+        setFolderFilesError("");
+
+        setError("");
+        setUploadSuccess(false);
+
+        setCurrentView("project");
+    };
+
+    /* =========================================================
+       Breadcrumb - Folder
+    ========================================================= */
+
+    const goToFolder = () => {
+        if (!selectedTask) {
+            return;
+        }
+
+        const taskFolderId =
+            toNumberId(
+                selectedTask.folder_id,
+            );
+
+        const folder =
+            taskFolderId === null
+                ? null
+                : (
+                    folders.find(
+                        (item) =>
+                            toNumberId(
+                                item.fid,
+                            ) ===
+                            taskFolderId,
+                    ) ?? null
+                );
+
+        if (!folder) {
+            setError(
+                "The folder associated with this task could not be found.",
+            );
+
+            return;
+        }
+
+        setSelectedFolder(folder);
+        setFolderFiles([]);
+        setFolderFilesError("");
+
+        setError("");
+        setUploadSuccess(false);
+
+        setCurrentView("folder");
+    };
 
     /* =========================================================
        File Selection
@@ -360,95 +971,69 @@ function FileUploadPage() {
     };
 
     /* =========================================================
-       Remove Selected File
+       Remove File
     ========================================================= */
 
     const handleRemoveFile = () => {
         setSelectedFile(null);
 
         if (fileInputRef.current) {
-            fileInputRef.current.value = "";
+            fileInputRef.current.value =
+                "";
         }
     };
 
     /* =========================================================
-       Project Selection
-    ========================================================= */
-
-    const handleProjectChange = (
-        event: ChangeEvent<HTMLSelectElement>,
-    ) => {
-        const value =
-            event.target.value;
-
-        const projectId =
-            value === ""
-                ? ""
-                : Number(value);
-
-        setSelectedProjectId(projectId);
-        setSelectedFolderId("");
-
-        setFolderFiles([]);
-        setFolderFilesError("");
-        setUploadSuccess(false);
-        setError("");
-    };
-
-    /* =========================================================
-       Folder Selection
-    ========================================================= */
-
-    const handleFolderChange = (
-        event: ChangeEvent<HTMLSelectElement>,
-    ) => {
-        const value =
-            event.target.value;
-
-        const folderId =
-            value === ""
-                ? ""
-                : Number(value);
-
-        setSelectedFolderId(folderId);
-
-        setFolderFiles([]);
-        setFolderFilesError("");
-        setUploadSuccess(false);
-        setError("");
-    };
-
-    /* =========================================================
-       Get Actual File Project ID
+       File Project ID
        
-       IMPORTANT:
-       The API returns `projectid`.
-       Do NOT blindly use selectedProjectId.
+       Prefer file's own project ID.
+       Fall back to selected task project.
     ========================================================= */
 
     const getFileProjectId = (
         file: TaskFile,
     ): number => {
-        return Number(
-            file.projectid ??
-                file.project_id ??
-                selectedProjectId,
+        const fileProjectId =
+            toNumberId(
+                file.projectid ??
+                file.project_id,
+            );
+
+        if (fileProjectId !== null) {
+            return fileProjectId;
+        }
+
+        return (
+            toNumberId(
+                selectedTask?.project_id,
+            ) ?? 0
         );
     };
 
     /* =========================================================
-       Get Actual File Folder ID
+       File Folder ID
        
-       Backend returns `fid`.
+       Prefer file's own folder ID.
+       Fall back to selected folder.
     ========================================================= */
 
     const getFileFolderId = (
         file: TaskFile,
     ): number => {
-        return Number(
-            file.fid ??
-                file.folder_id ??
-                selectedFolderId,
+        const fileFolderId =
+            toNumberId(
+                file.fid ??
+                file.folder_id,
+            );
+
+        if (fileFolderId !== null) {
+            return fileFolderId;
+        }
+
+        return (
+            toNumberId(
+                selectedFolder?.fid,
+            ) ?? 0
         );
     };
 
@@ -466,70 +1051,51 @@ function FileUploadPage() {
             getFileFolderId(file);
 
         const fileId =
-            Number(file.pffid);
+            toNumberId(file.pffid);
 
         if (
-            !Number.isInteger(projectId) ||
             projectId <= 0
         ) {
             setError(
                 "Invalid project ID for this file.",
             );
+
             return;
         }
 
         if (
-            !Number.isInteger(folderId) ||
             folderId <= 0
         ) {
             setError(
                 "Invalid folder ID for this file.",
             );
+
             return;
         }
 
         if (
-            !Number.isInteger(fileId) ||
-            fileId <= 0
+            fileId === null
         ) {
             setError(
                 "Invalid file ID.",
             );
+
             return;
         }
 
         try {
             setError("");
+            setIsViewingFile(true);
+            setViewingFile(file);
 
-            /*
-             * Release previous blob URL.
-             */
             if (viewingFileUrl) {
                 URL.revokeObjectURL(
                     viewingFileUrl,
                 );
             }
 
-            setViewingFile(file);
             setViewingFileUrl(null);
-            setIsViewingFile(true);
 
-            /*
-             * IMPORTANT:
-             *
-             * Use the project's ID belonging
-             * to the file.
-             *
-             * Example:
-             *
-             * projectid = 59
-             * fid       = 237
-             * pffid     = 63
-             *
-             * Request:
-             *
-             * /api/59/folders/237/files/63/download
-             */
             const blob =
                 await downloadFolderFile(
                     projectId,
@@ -563,7 +1129,7 @@ function FileUploadPage() {
     };
 
     /* =========================================================
-       Close File Viewer
+       Close Viewer
     ========================================================= */
 
     const handleCloseViewer = () => {
@@ -579,7 +1145,21 @@ function FileUploadPage() {
     };
 
     /* =========================================================
-       Download File
+       Cleanup Viewer URL
+    ========================================================= */
+
+    useEffect(() => {
+        return () => {
+            if (viewingFileUrl) {
+                URL.revokeObjectURL(
+                    viewingFileUrl,
+                );
+            }
+        };
+    }, [viewingFileUrl]);
+
+    /* =========================================================
+       Download
     ========================================================= */
 
     const handleDownloadFile = async (
@@ -592,35 +1172,35 @@ function FileUploadPage() {
             getFileFolderId(file);
 
         const fileId =
-            Number(file.pffid);
+            toNumberId(file.pffid);
 
         if (
-            !Number.isInteger(projectId) ||
             projectId <= 0
         ) {
             setError(
                 "Invalid project ID for this file.",
             );
+
             return;
         }
 
         if (
-            !Number.isInteger(folderId) ||
             folderId <= 0
         ) {
             setError(
                 "Invalid folder ID for this file.",
             );
+
             return;
         }
 
         if (
-            !Number.isInteger(fileId) ||
-            fileId <= 0
+            fileId === null
         ) {
             setError(
                 "Invalid file ID.",
             );
+
             return;
         }
 
@@ -632,7 +1212,7 @@ function FileUploadPage() {
                 folderId,
                 fileId,
                 file.filename ||
-                    "download",
+                "download",
             );
         } catch (err) {
             console.error(
@@ -649,6 +1229,74 @@ function FileUploadPage() {
     };
 
     /* =========================================================
+       Refresh Files
+    ========================================================= */
+
+    const refreshFolderFiles =
+        async () => {
+            if (
+                !selectedFolder ||
+                !selectedTask
+            ) {
+                return;
+            }
+
+            try {
+                setIsLoadingFolderFiles(
+                    true,
+                );
+
+                setFolderFilesError("");
+
+                const folderId =
+                    toNumberId(
+                        selectedFolder.fid,
+                    );
+
+                if (folderId === null) {
+                    throw new Error(
+                        "Invalid folder ID.",
+                    );
+                }
+
+                const files =
+                    await getFolderFiles(
+                        folderId,
+                    );
+
+                const projectId =
+                    toNumberId(
+                        selectedTask.project_id,
+                    );
+
+                const projectFiles =
+                    filterFilesForTaskProject(
+                        files,
+                        projectId,
+                    );
+
+                setFolderFiles(
+                    projectFiles,
+                );
+            } catch (err) {
+                console.error(
+                    "Failed to refresh files:",
+                    err,
+                );
+
+                setFolderFilesError(
+                    err instanceof Error
+                        ? err.message
+                        : "Failed to refresh files.",
+                );
+            } finally {
+                setIsLoadingFolderFiles(
+                    false,
+                );
+            }
+        };
+
+    /* =========================================================
        Upload
     ========================================================= */
 
@@ -656,77 +1304,58 @@ function FileUploadPage() {
         setError("");
         setUploadSuccess(false);
 
+        if (
+            !selectedTask ||
+            !selectedFolder
+        ) {
+            setError(
+                "Please open a folder first.",
+            );
+
+            return;
+        }
+
         if (!selectedFile) {
             setError(
                 "Please select a file.",
             );
-            return;
-        }
 
-        if (selectedProjectId === "") {
-            setError(
-                "Please select a project.",
-            );
-            return;
-        }
-
-        if (selectedFolderId === "") {
-            setError(
-                "Please select a folder.",
-            );
             return;
         }
 
         const projectId =
-            Number(selectedProjectId);
+            toNumberId(
+                selectedTask.project_id,
+            );
 
         const folderId =
-            Number(selectedFolderId);
+            toNumberId(
+                selectedFolder.fid,
+            );
 
         if (
-            !Number.isInteger(projectId) ||
-            projectId <= 0
+            projectId === null
         ) {
             setError(
-                "Invalid project selected.",
+                "Invalid project ID.",
             );
+
             return;
         }
 
         if (
-            !Number.isInteger(folderId) ||
-            folderId <= 0
+            folderId === null
         ) {
             setError(
-                "Invalid folder selected.",
-            );
-            return;
-        }
-
-        const folderExists =
-            availableFolders.some(
-                (folder) =>
-                    Number(folder.fid) ===
-                    folderId,
+                "Invalid folder ID.",
             );
 
-        if (!folderExists) {
-            setError(
-                "The selected folder does not belong to the selected project.",
-            );
             return;
         }
 
         try {
             setIsUploading(true);
 
-            /*
-             * POST
-             * /api/{projectId}/folders/{folderId}/files
-             *
-             * FormData:
-             * files = selectedFile
-             */
             await uploadFileToFolder(
                 projectId,
                 folderId,
@@ -734,7 +1363,6 @@ function FileUploadPage() {
             );
 
             setUploadSuccess(true);
-
             setSelectedFile(null);
 
             if (fileInputRef.current) {
@@ -742,46 +1370,7 @@ function FileUploadPage() {
                     "";
             }
 
-            /*
-             * Refresh files after upload.
-             */
-            setIsLoadingFolderFiles(true);
-
-            try {
-                const files =
-                    await getFolderFiles(
-                        folderId,
-                    );
-
-                /*
-                 * Again, only show files belonging
-                 * to the selected project.
-                 */
-                const projectFiles =
-                    files.filter(
-                        (file) =>
-                            Number(
-                                file.projectid ??
-                                    file.project_id,
-                            ) ===
-                            projectId,
-                    );
-
-                setFolderFiles(
-                    projectFiles,
-                );
-
-                setFolderFilesError("");
-            } catch (refreshError) {
-                console.error(
-                    "Failed to refresh folder files:",
-                    refreshError,
-                );
-            } finally {
-                setIsLoadingFolderFiles(
-                    false,
-                );
-            }
+            await refreshFolderFiles();
         } catch (err) {
             console.error(
                 "File upload failed:",
@@ -814,39 +1403,7 @@ function FileUploadPage() {
         >
             <div className="mx-auto max-w-[1600px]">
 
-                {/* =================================================
-                    Header
-                ================================================= */}
-
-                <div className="mb-6">
-                    <h1
-                        className="
-                            text-2xl
-                            font-bold
-                            text-gray-900
-                            dark:text-white
-                        "
-                    >
-                        Files
-                    </h1>
-
-                    <p
-                        className="
-                            mt-1
-                            text-sm
-                            text-gray-500
-                            dark:text-gray-400
-                        "
-                    >
-                        Upload files to a project folder
-                        and manage the files already
-                        stored in that folder.
-                    </p>
-                </div>
-
-                {/* =================================================
-                    Success
-                ================================================= */}
+                {/* Success */}
 
                 {uploadSuccess && (
                     <div
@@ -869,26 +1426,24 @@ function FileUploadPage() {
                         "
                     >
                         <CheckCircle2
-                            size={20}
-                            className="shrink-0"
+                            size={19}
                         />
 
                         <div>
                             <p className="font-semibold">
-                                File uploaded successfully.
+                                File uploaded
+                                successfully.
                             </p>
 
-                            <p className="mt-0.5 text-xs">
-                                The folder files have been
-                                refreshed.
+                            <p className="text-xs">
+                                The folder files have
+                                been refreshed.
                             </p>
                         </div>
                     </div>
                 )}
 
-                {/* =================================================
-                    Error
-                ================================================= */}
+                {/* Error */}
 
                 {error && (
                     <div
@@ -912,413 +1467,233 @@ function FileUploadPage() {
                     </div>
                 )}
 
-                {/* =================================================
-                    ROW 1
-                ================================================= */}
+                {/* Breadcrumb */}
 
                 <div
                     className="
+                        mb-5
+                        flex
+                        min-h-[42px]
+                        flex-wrap
+                        items-center
+                        gap-2
+                        rounded-xl
+                        border
+                        border-gray-200
+                        bg-white
+                        px-4
+                        py-2
+                        dark:border-gray-800
+                        dark:bg-gray-900
+                    "
+                >
+                    {currentView !==
+                        "tasks" && (
+                        <button
+                            type="button"
+                            onClick={
+                                handleBack
+                            }
+                            className="
+                                flex
+                                items-center
+                                gap-1.5
+                                rounded-lg
+                                px-2
+                                py-1.5
+                                text-sm
+                                font-medium
+                                text-gray-600
+                                transition
+                                hover:bg-gray-100
+                                hover:text-gray-900
+                                dark:text-gray-400
+                                dark:hover:bg-gray-800
+                                dark:hover:text-white
+                            "
+                        >
+                            <ArrowLeft
+                                size={16}
+                            />
+                            Back
+                        </button>
+                    )}
+
+                    {/* Tasks */}
+
+                    <button
+                        type="button"
+                        onClick={
+                            goToTasks
+                        }
+                        className={`
+                            text-sm
+                            font-medium
+                            transition
+                            ${
+                                currentView ===
+                                "tasks"
+                                    ? "text-sky-600 dark:text-sky-400"
+                                    : "text-gray-600 hover:text-sky-600 dark:text-gray-400 dark:hover:text-sky-400"
+                            }
+                        `}
+                    >
+                        My Tasks
+                    </button>
+
+                    {/* Task */}
+
+                    {selectedTask && (
+                        <>
+                            <span className="text-gray-300 dark:text-gray-700">
+                                /
+                            </span>
+
+                            <button
+                                type="button"
+                                onClick={
+                                    goToProject
+                                }
+                                className={`
+                                    max-w-[220px]
+                                    truncate
+                                    text-sm
+                                    font-medium
+                                    ${
+                                        currentView ===
+                                        "project"
+                                            ? "text-sky-600 dark:text-sky-400"
+                                            : "text-gray-600 hover:text-sky-600 dark:text-gray-400 dark:hover:text-sky-400"
+                                    }
+                                `}
+                                title={
+                                    selectedTask.task_description ||
+                                    selectedTask.task_type
+                                }
+                            >
+                                {selectedTask.task_description ||
+                                    selectedTask.task_type ||
+                                    `Task ${selectedTask.task_id}`}
+                            </button>
+                        </>
+                    )}
+
+                    {/* Project */}
+
+                    {selectedTask &&
+                        currentView !==
+                            "tasks" &&
+                        currentView !==
+                            "project" && (
+                            <>
+                                <span className="text-gray-300 dark:text-gray-700">
+                                    /
+                                </span>
+
+                                <button
+                                    type="button"
+                                    onClick={
+                                        goToProject
+                                    }
+                                    className="
+                                        max-w-[220px]
+                                        truncate
+                                        text-sm
+                                        font-medium
+                                        text-gray-600
+                                        hover:text-sky-600
+                                        dark:text-gray-400
+                                        dark:hover:text-sky-400
+                                    "
+                                    title={
+                                        projectName
+                                    }
+                                >
+                                    {projectName}
+                                </button>
+                            </>
+                        )}
+
+                    {/* Folder */}
+
+                    {selectedFolder &&
+                        currentView ===
+                            "files" && (
+                            <>
+                                <span className="text-gray-300 dark:text-gray-700">
+                                    /
+                                </span>
+
+                                <button
+                                    type="button"
+                                    onClick={
+                                        goToFolder
+                                    }
+                                    className="
+                                        max-w-[220px]
+                                        truncate
+                                        text-sm
+                                        font-semibold
+                                        text-sky-600
+                                        hover:text-sky-700
+                                        dark:text-sky-400
+                                        dark:hover:text-sky-300
+                                    "
+                                    title={
+                                        folderName
+                                    }
+                                >
+                                    {
+                                        folderName
+                                    }
+                                </button>
+                            </>
+                        )}
+                </div>
+
+                {/* Main Workspace */}
+
+                <div
+                    className={`
                         grid
                         grid-cols-1
                         gap-6
-                        lg:grid-cols-3
-                    "
+                        ${
+                            currentView ===
+                                "files" &&
+                            selectedFolder
+                                ? "lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]"
+                                : ""
+                        }
+                    `}
                 >
-
-                    {/* =================================================
-                        FILE DESTINATION
-                    ================================================= */}
-
-                    <div
-                        className="
-                            h-fit
-                            rounded-2xl
-                            border
-                            border-gray-200
-                            bg-white
-                            p-6
-                            shadow-sm
-                            dark:border-gray-800
-                            dark:bg-gray-900
-                        "
-                    >
-                        <div className="mb-5">
-                            <h2
-                                className="
-                                    text-base
-                                    font-semibold
-                                    text-gray-900
-                                    dark:text-white
-                                "
-                            >
-                                File Destination
-                            </h2>
-
-                            <p
-                                className="
-                                    mt-1
-                                    text-sm
-                                    text-gray-500
-                                    dark:text-gray-400
-                                "
-                            >
-                                Select the project and folder.
-                            </p>
-                        </div>
-
-                        {/* Project */}
-
-                        <div>
-                            <label
-                                htmlFor="project"
-                                className="
-                                    mb-2
-                                    block
-                                    text-sm
-                                    font-medium
-                                    text-gray-700
-                                    dark:text-gray-300
-                                "
-                            >
-                                Project
-                            </label>
-
-                            <div className="relative">
-                                <select
-                                    id="project"
-                                    value={
-                                        selectedProjectId
-                                    }
-                                    onChange={
-                                        handleProjectChange
-                                    }
-                                    disabled={
-                                        isLoadingProjects ||
-                                        isUploading
-                                    }
-                                    className="
-                                        w-full
-                                        appearance-none
-                                        rounded-lg
-                                        border
-                                        border-gray-300
-                                        bg-white
-                                        px-3
-                                        py-2.5
-                                        text-sm
-                                        text-gray-900
-                                        outline-none
-                                        transition
-                                        focus:border-sky-500
-                                        focus:ring-2
-                                        focus:ring-sky-500/20
-                                        disabled:cursor-not-allowed
-                                        disabled:opacity-60
-                                        dark:border-gray-700
-                                        dark:bg-gray-950
-                                        dark:text-white
-                                    "
-                                >
-                                    <option value="">
-                                        {isLoadingProjects
-                                            ? "Loading projects..."
-                                            : "Select project"}
-                                    </option>
-
-                                    {projects.map(
-                                        (
-                                            project,
-                                        ) => (
-                                            <option
-                                                key={
-                                                    project.project_id
-                                                }
-                                                value={
-                                                    project.project_id
-                                                }
-                                            >
-                                                {
-                                                    project.projectname
-                                                }
-                                            </option>
-                                        ),
-                                    )}
-                                </select>
-
-                                {isLoadingProjects && (
-                                    <Loader2
-                                        size={16}
-                                        className="
-                                            absolute
-                                            right-3
-                                            top-3
-                                            animate-spin
-                                            text-gray-400
-                                        "
-                                    />
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Folder */}
-
-                        <div className="mt-5">
-                            <label
-                                htmlFor="folder"
-                                className="
-                                    mb-2
-                                    block
-                                    text-sm
-                                    font-medium
-                                    text-gray-700
-                                    dark:text-gray-300
-                                "
-                            >
-                                Folder
-                            </label>
-
-                            <div className="relative">
-                                <select
-                                    id="folder"
-                                    value={
-                                        selectedFolderId
-                                    }
-                                    onChange={
-                                        handleFolderChange
-                                    }
-                                    disabled={
-                                        selectedProjectId ===
-                                            "" ||
-                                        isLoadingFolders ||
-                                        isUploading
-                                    }
-                                    className="
-                                        w-full
-                                        appearance-none
-                                        rounded-lg
-                                        border
-                                        border-gray-300
-                                        bg-white
-                                        px-3
-                                        py-2.5
-                                        text-sm
-                                        text-gray-900
-                                        outline-none
-                                        transition
-                                        focus:border-sky-500
-                                        focus:ring-2
-                                        focus:ring-sky-500/20
-                                        disabled:cursor-not-allowed
-                                        disabled:bg-gray-100
-                                        disabled:opacity-60
-                                        dark:border-gray-700
-                                        dark:bg-gray-950
-                                        dark:text-white
-                                        dark:disabled:bg-gray-800
-                                    "
-                                >
-                                    <option value="">
-                                        {selectedProjectId ===
-                                        ""
-                                            ? "Select a project first"
-                                            : isLoadingFolders
-                                                ? "Loading folders..."
-                                                : availableFolders.length ===
-                                                    0
-                                                    ? "No folders found"
-                                                    : "Select folder"}
-                                    </option>
-
-                                    {availableFolders.map(
-                                        (
-                                            folder,
-                                        ) => (
-                                            <option
-                                                key={
-                                                    folder.fid
-                                                }
-                                                value={
-                                                    folder.fid
-                                                }
-                                            >
-                                                {
-                                                    folder.fname
-                                                }
-                                            </option>
-                                        ),
-                                    )}
-                                </select>
-
-                                {isLoadingFolders &&
-                                    selectedProjectId !==
-                                        "" && (
-                                        <Loader2
-                                            size={16}
-                                            className="
-                                                absolute
-                                                right-3
-                                                top-3
-                                                animate-spin
-                                                text-gray-400
-                                            "
-                                        />
-                                    )}
-                            </div>
-
-                            {selectedProjectId !==
-                                "" &&
-                                !isLoadingFolders &&
-                                availableFolders.length ===
-                                    0 && (
-                                    <p
-                                        className="
-                                            mt-2
-                                            text-xs
-                                            text-amber-600
-                                            dark:text-amber-400
-                                        "
-                                    >
-                                        No top-level folders
-                                        are associated with
-                                        this project.
-                                    </p>
-                                )}
-                        </div>
-
-                        {/* Destination Preview */}
-
-                        {(selectedProject ||
-                            selectedFolder) && (
-                            <div
-                                className="
-                                    mt-6
-                                    rounded-xl
-                                    border
-                                    border-sky-100
-                                    bg-sky-50
-                                    p-4
-                                    dark:border-sky-900
-                                    dark:bg-sky-950
-                                "
-                            >
-                                <p
-                                    className="
-                                        mb-4
-                                        text-xs
-                                        font-semibold
-                                        uppercase
-                                        tracking-wider
-                                        text-sky-700
-                                        dark:text-sky-300
-                                    "
-                                >
-                                    Upload Destination
-                                </p>
-
-                                {selectedProject && (
-                                    <div className="flex items-start gap-3">
-                                        <FileIcon
-                                            size={17}
-                                            className="
-                                                mt-0.5
-                                                shrink-0
-                                                text-sky-700
-                                                dark:text-sky-300
-                                            "
-                                        />
-
-                                        <div className="min-w-0">
-                                            <p
-                                                className="
-                                                    text-xs
-                                                    text-gray-500
-                                                    dark:text-gray-400
-                                                "
-                                            >
-                                                Project
-                                            </p>
-
-                                            <p
-                                                className="
-                                                    mt-0.5
-                                                    break-words
-                                                    text-sm
-                                                    font-medium
-                                                    text-gray-900
-                                                    dark:text-white
-                                                "
-                                            >
-                                                {
-                                                    selectedProject.projectname
-                                                }
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {selectedFolder && (
-                                    <div className="mt-4 flex items-start gap-3">
-                                        <Folder
-                                            size={17}
-                                            className="
-                                                mt-0.5
-                                                shrink-0
-                                                text-sky-700
-                                                dark:text-sky-300
-                                            "
-                                        />
-
-                                        <div className="min-w-0">
-                                            <p
-                                                className="
-                                                    text-xs
-                                                    text-gray-500
-                                                    dark:text-gray-400
-                                                "
-                                            >
-                                                Folder
-                                            </p>
-
-                                            <p
-                                                className="
-                                                    mt-0.5
-                                                    break-words
-                                                    text-sm
-                                                    font-medium
-                                                    text-gray-900
-                                                    dark:text-white
-                                                "
-                                            >
-                                                {
-                                                    selectedFolder.fname
-                                                }
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* =================================================
-                        FOLDER FILES
-                    ================================================= */}
+                    {/* Main */}
 
                     <div
                         className="
                             min-w-0
+                            
                             rounded-2xl
                             border
                             border-gray-200
                             bg-white
                             p-6
                             shadow-sm
-                            lg:col-span-2
                             dark:border-gray-800
                             dark:bg-gray-900
                         "
                     >
-                        <div className="flex items-start justify-between gap-4">
+                        {/* Header */}
+
+                        <div
+                            className="
+                                mb-6
+                                flex
+                                items-start
+                                justify-between
+                                gap-4
+                            "
+                        >
                             <div>
                                 <h2
                                     className="
@@ -1328,7 +1703,21 @@ function FileUploadPage() {
                                         dark:text-white
                                     "
                                 >
-                                    Folder Files
+                                    {currentView ===
+                                        "tasks" &&
+                                        "My Tasks"}
+
+                                    {currentView ===
+                                        "project" &&
+                                        projectName}
+
+                                    {currentView ===
+                                        "folder" &&
+                                        folderName}
+
+                                    {currentView ===
+                                        "files" &&
+                                        folderName}
                                 </h2>
 
                                 <p
@@ -1339,549 +1728,322 @@ function FileUploadPage() {
                                         dark:text-gray-400
                                     "
                                 >
-                                    {selectedFolder
-                                        ? `Files in ${selectedFolder.fname}`
-                                        : "Select a folder to view its files."}
+                                    {currentView ===
+                                        "tasks"}
+
+                                    {currentView ===
+                                        "project"}
+
+                                    {currentView ===
+                                        "folder"}
+
+                                    {currentView ===
+                                        "files" &&
+                                        `${folderFiles.length} ${
+                                            folderFiles.length ===
+                                            1
+                                                ? "file"
+                                                : "files"
+                                        }`}
                                 </p>
                             </div>
 
-                            {selectedFolderId !==
-                                "" &&
-                                !isLoadingFolderFiles &&
-                                !folderFilesError && (
-                                    <span
+                            {currentView ===
+                                "files" &&
+                                !isLoadingFolderFiles && (
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            void refreshFolderFiles()
+                                        }
                                         className="
-                                            shrink-0
-                                            rounded-full
-                                            bg-gray-100
-                                            px-2.5
-                                            py-1
+                                            rounded-lg
+                                            border
+                                            border-gray-200
+                                            px-3
+                                            py-2
                                             text-xs
                                             font-medium
                                             text-gray-600
-                                            dark:bg-gray-800
+                                            hover:bg-gray-50
+                                            dark:border-gray-700
                                             dark:text-gray-300
+                                            dark:hover:bg-gray-800
                                         "
                                     >
-                                        {
-                                            folderFiles.length
-                                        }{" "}
-                                        {folderFiles.length ===
-                                        1
-                                            ? "file"
-                                            : "files"}
-                                    </span>
+                                        Refresh
+                                    </button>
                                 )}
                         </div>
 
-                        <div className="mt-5">
+                        {/* TASKS */}
 
-                            {/* No folder */}
-
-                            {selectedFolderId ===
-                                "" && (
-                                <div
-                                    className="
-                                        flex
-                                        min-h-[300px]
-                                        flex-col
-                                        items-center
-                                        justify-center
-                                        rounded-xl
-                                        border
-                                        border-dashed
-                                        border-gray-300
-                                        bg-gray-50
-                                        text-center
-                                        dark:border-gray-700
-                                        dark:bg-gray-950
-                                    "
-                                >
-                                    <Folder
-                                        size={32}
-                                        className="
-                                            text-gray-400
-                                            dark:text-gray-500
-                                        "
-                                    />
-
-                                    <p
-                                        className="
-                                            mt-3
-                                            text-sm
-                                            font-medium
-                                            text-gray-600
-                                            dark:text-gray-400
-                                        "
-                                    >
-                                        No folder selected
-                                    </p>
-
-                                    <p
-                                        className="
-                                            mt-1
-                                            text-xs
-                                            text-gray-400
-                                            dark:text-gray-500
-                                        "
-                                    >
-                                        Select a folder on
-                                        the left to view its
-                                        files.
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Loading */}
-
-                            {selectedFolderId !==
-                                "" &&
-                                isLoadingFolderFiles && (
-                                <div
-                                    className="
-                                        flex
-                                        min-h-[300px]
-                                        items-center
-                                        justify-center
-                                        rounded-xl
-                                        border
-                                        border-gray-200
-                                        bg-gray-50
-                                        dark:border-gray-800
-                                        dark:bg-gray-950
-                                    "
-                                >
-                                    <div
-                                        className="
-                                            flex
-                                            items-center
-                                            gap-2
-                                            text-sm
-                                            text-gray-500
-                                            dark:text-gray-400
-                                        "
-                                    >
-                                        <Loader2
-                                            size={18}
-                                            className="animate-spin"
-                                        />
-
-                                        Loading folder
-                                        files...
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Error */}
-
-                            {selectedFolderId !==
-                                "" &&
-                                !isLoadingFolderFiles &&
-                                folderFilesError && (
-                                <div
-                                    className="
-                                        rounded-xl
-                                        border
-                                        border-red-200
-                                        bg-red-50
-                                        px-4
-                                        py-3
-                                        text-sm
-                                        text-red-700
-                                        dark:border-red-900
-                                        dark:bg-red-950
-                                        dark:text-red-300
-                                    "
-                                >
-                                    {
-                                        folderFilesError
-                                    }
-                                </div>
-                            )}
-
-                            {/* Empty */}
-
-                            {selectedFolderId !==
-                                "" &&
-                                !isLoadingFolderFiles &&
-                                !folderFilesError &&
-                                folderFiles.length ===
-                                    0 && (
-                                <div
-                                    className="
-                                        flex
-                                        min-h-[300px]
-                                        flex-col
-                                        items-center
-                                        justify-center
-                                        rounded-xl
-                                        border
-                                        border-dashed
-                                        border-gray-300
-                                        bg-gray-50
-                                        text-center
-                                        dark:border-gray-700
-                                        dark:bg-gray-950
-                                    "
-                                >
-                                    <FileIcon
-                                        size={32}
-                                        className="
-                                            text-gray-400
-                                            dark:text-gray-500
-                                        "
-                                    />
-
-                                    <p
-                                        className="
-                                            mt-3
-                                            text-sm
-                                            font-medium
-                                            text-gray-600
-                                            dark:text-gray-400
-                                        "
-                                    >
-                                        No files in this
-                                        folder
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Files */}
-
-                            {selectedFolderId !==
-                                "" &&
-                                !isLoadingFolderFiles &&
-                                !folderFilesError &&
-                                folderFiles.length >
-                                    0 && (
-                                <div
-                                    className="
-                                        grid
-                                        grid-cols-1
-                                        gap-2
-                                        xl:grid-cols-2
-                                    "
-                                >
-                                    {folderFiles.map(
-                                        (
-                                            file,
-                                        ) => (
-                                            <FolderFileRow
-                                                key={
-                                                    file.pffid
-                                                }
-                                                file={
-                                                    file
-                                                }
-                                                onView={
-                                                    handleViewFile
-                                                }
-                                                onDownload={
-                                                    handleDownloadFile
+                        {currentView ===
+                            "tasks" && (
+                            <>
+                                {isLoadingTasks ? (
+                                    <LoadingState text="Loading your tasks..." />
+                                ) : loggedInUserId ===
+                                    null ? (
+                                    <EmptyState
+                                        icon={
+                                            <FileText
+                                                size={
+                                                    36
                                                 }
                                             />
-                                        ),
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* =================================================
-                    ROW 2 - SELECT FILE + UPLOAD
-                ================================================= */}
-
-                <div
-                    className="
-                        mt-6
-                        rounded-2xl
-                        border
-                        border-gray-200
-                        bg-white
-                        p-6
-                        shadow-sm
-                        dark:border-gray-800
-                        dark:bg-gray-900
-                    "
-                >
-                    <div className="mb-5">
-                        <h2
-                            className="
-                                text-base
-                                font-semibold
-                                text-gray-900
-                                dark:text-white
-                            "
-                        >
-                            Select File
-                        </h2>
-
-                        <p
-                            className="
-                                mt-1
-                                text-sm
-                                text-gray-500
-                                dark:text-gray-400
-                            "
-                        >
-                            Choose the file you want to
-                            upload.
-                        </p>
-                    </div>
-
-                    {/* File Selection */}
-
-                    {!selectedFile ? (
-                        <>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    fileInputRef.current?.click()
-                                }
-                                disabled={
-                                    isUploading
-                                }
-                                className="
-                                    flex
-                                    min-h-[220px]
-                                    w-full
-                                    flex-col
-                                    items-center
-                                    justify-center
-                                    rounded-xl
-                                    border-2
-                                    border-dashed
-                                    border-gray-300
-                                    bg-gray-50
-                                    px-6
-                                    transition
-                                    hover:border-sky-400
-                                    hover:bg-sky-50
-                                    disabled:cursor-not-allowed
-                                    disabled:opacity-60
-                                    dark:border-gray-700
-                                    dark:bg-gray-950
-                                    dark:hover:border-sky-700
-                                    dark:hover:bg-sky-950
-                                "
-                            >
-                                <div
-                                    className="
-                                        flex
-                                        h-14
-                                        w-14
-                                        items-center
-                                        justify-center
-                                        rounded-full
-                                        bg-sky-100
-                                        text-sky-700
-                                        dark:bg-sky-950
-                                        dark:text-sky-300
-                                    "
-                                >
-                                    <Upload
-                                        size={25}
+                                        }
+                                        title="User not found"
+                                        description="The logged-in user ID could not be determined."
                                     />
-                                </div>
-
-                                <p
-                                    className="
-                                        mt-4
-                                        text-sm
-                                        font-semibold
-                                        text-gray-800
-                                        dark:text-gray-200
-                                    "
-                                >
-                                    Click to select a file
-                                </p>
-
-                                <p
-                                    className="
-                                        mt-1
-                                        text-xs
-                                        text-gray-500
-                                        dark:text-gray-400
-                                    "
-                                >
-                                    Select a file from
-                                    your computer
-                                </p>
-                            </button>
-
-                            <input
-                                ref={
-                                    fileInputRef
-                                }
-                                type="file"
-                                className="hidden"
-                                onChange={
-                                    handleFileChange
-                                }
-                            />
-                        </>
-                    ) : (
-                        <div
-                            className="
-                                rounded-xl
-                                border
-                                border-gray-200
-                                bg-gray-50
-                                p-4
-                                dark:border-gray-700
-                                dark:bg-gray-950
-                            "
-                        >
-                            <div className="flex items-center gap-4">
-                                <div
-                                    className="
-                                        flex
-                                        h-12
-                                        w-12
-                                        shrink-0
-                                        items-center
-                                        justify-center
-                                        rounded-lg
-                                        bg-sky-100
-                                        text-sky-700
-                                        dark:bg-sky-950
-                                        dark:text-sky-300
-                                    "
-                                >
-                                    <FileIcon
-                                        size={22}
+                                ) : userTasks.length ===
+                                    0 ? (
+                                    <EmptyState
+                                        icon={
+                                            <FileText
+                                                size={
+                                                    36
+                                                }
+                                            />
+                                        }
+                                        title="No tasks found"
+                                        description={`No tasks are assigned to user ${loggedInUserId}.`}
                                     />
-                                </div>
-
-                                <div className="min-w-0 flex-1">
-                                    <p
+                                ) : (
+                                    <div
                                         className="
-                                            truncate
+                                            grid
+                                            grid-cols-2
+                                            gap-4
+                                            sm:grid-cols-3
+                                            md:grid-cols-6
+                                            xl:grid-cols-8
+                                        "
+                                    >
+                                        {userTasks.map(
+                                            (
+                                                task,
+                                            ) => (
+                                                <TaskCard
+                                                    key={
+                                                        task.task_id
+                                                    }
+                                                    task={
+                                                        task
+                                                    }
+                                                    onClick={() =>
+                                                        handleOpenTask(
+                                                            task,
+                                                        )
+                                                    }
+                                                />
+                                            ),
+                                        )}
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* PROJECT */}
+
+                        {currentView ===
+                            "project" && (
+                            <>
+                                {isLoadingProjects ? (
+                                    <LoadingState text="Loading project..." />
+                                ) : (
+                                    <div
+                                        className="
+                                            grid
+                                            grid-cols-2
+                                            gap-4
+                                            sm:grid-cols-3
+                                            md:grid-cols-4
+                                            xl:grid-cols-5
+                                        "
+                                    >
+                                        <ProjectCard
+                                            project={
+                                                selectedProject ??
+                                                taskProject
+                                            }
+                                            projectName={
+                                                projectName
+                                            }
+                                            onClick={
+                                                handleOpenProject
+                                            }
+                                        />
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* FOLDER */}
+
+                        {currentView ===
+                            "folder" && (
+                            <>
+                                {isLoadingFolders ? (
+                                    <LoadingState text="Loading folder..." />
+                                ) : taskFolder ? (
+                                    <div
+                                        className="
+                                            grid
+                                            grid-cols-2
+                                            gap-4
+                                            sm:grid-cols-3
+                                            md:grid-cols-4
+                                            xl:grid-cols-5
+                                        "
+                                    >
+                                        <FolderCard
+                                            folder={
+                                                taskFolder
+                                            }
+                                            onClick={
+                                                handleOpenFolder
+                                            }
+                                        />
+                                    </div>
+                                ) : (
+                                    <EmptyState
+                                        icon={
+                                            <Folder
+                                                size={
+                                                    36
+                                                }
+                                            />
+                                        }
+                                        title="Folder not found"
+                                        description="The folder associated with this task could not be found."
+                                    />
+                                )}
+                            </>
+                        )}
+
+                        {/* FILES */}
+
+                        {currentView ===
+                            "files" && (
+                            <>
+                                {isLoadingFolderFiles ? (
+                                    <LoadingState text="Loading files..." />
+                                ) : folderFilesError ? (
+                                    <div
+                                        className="
+                                            rounded-xl
+                                            border
+                                            border-red-200
+                                            bg-red-50
+                                            px-4
+                                            py-3
                                             text-sm
-                                            font-semibold
-                                            text-gray-900
-                                            dark:text-white
+                                            text-red-700
+                                            dark:border-red-900
+                                            dark:bg-red-950
+                                            dark:text-red-300
                                         "
                                     >
                                         {
-                                            selectedFile.name
+                                            folderFilesError
                                         }
-                                    </p>
-
-                                    <p
+                                    </div>
+                                ) : folderFiles.length ===
+                                    0 ? (
+                                    <EmptyState
+                                        icon={
+                                            <File
+                                                size={
+                                                    36
+                                                }
+                                            />
+                                        }
+                                        title="This folder is empty"
+                                        description="Upload a file using the panel on the right."
+                                    />
+                                ) : (
+                                    <div
                                         className="
-                                            mt-1
-                                            text-xs
-                                            text-gray-500
-                                            dark:text-gray-400
+                                            grid
+                                            grid-cols-2
+                                            gap-4
+                                            sm:grid-cols-3
+                                            md:grid-cols-4
+                                            xl:grid-cols-5
                                         "
                                     >
-                                        {formatFileSize(
-                                            selectedFile.size,
+                                        {folderFiles.map(
+                                            (
+                                                file,
+                                            ) => (
+                                                <FileCard
+                                                    key={
+                                                        file.pffid
+                                                    }
+                                                    file={
+                                                        file
+                                                    }
+                                                    onView={
+                                                        handleViewFile
+                                                    }
+                                                    onDownload={
+                                                        handleDownloadFile
+                                                    }
+                                                />
+                                            ),
                                         )}
-                                    </p>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={
-                                        handleRemoveFile
-                                    }
-                                    disabled={
-                                        isUploading
-                                    }
-                                    className="
-                                        rounded-lg
-                                        p-2
-                                        text-gray-400
-                                        transition
-                                        hover:bg-red-50
-                                        hover:text-red-600
-                                        disabled:opacity-50
-                                        dark:hover:bg-red-950
-                                        dark:hover:text-red-400
-                                    "
-                                    aria-label="Remove file"
-                                >
-                                    <X
-                                        size={18}
-                                    />
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Upload Button */}
-
-                    <button
-                        type="button"
-                        onClick={
-                            handleUpload
-                        }
-                        disabled={
-                            isUploading ||
-                            isLoadingProjects ||
-                            isLoadingFolders ||
-                            !selectedFile ||
-                            selectedProjectId ===
-                                "" ||
-                            selectedFolderId ===
-                                ""
-                        }
-                        className="
-                            mt-5
-                            flex
-                            w-full
-                            items-center
-                            justify-center
-                            gap-2
-                            rounded-lg
-                            bg-sky-900
-                            px-4
-                            py-3
-                            text-sm
-                            font-semibold
-                            text-white
-                            shadow-sm
-                            transition
-                            hover:bg-sky-800
-                            disabled:cursor-not-allowed
-                            disabled:opacity-50
-                            dark:bg-sky-200
-                            dark:text-sky-950
-                            dark:hover:bg-sky-300
-                        "
-                    >
-                        {isUploading ? (
-                            <>
-                                <Loader2
-                                    size={17}
-                                    className="animate-spin"
-                                />
-                                Uploading...
-                            </>
-                        ) : (
-                            <>
-                                <Upload
-                                    size={17}
-                                />
-                                Upload File
+                                    </div>
+                                )}
                             </>
                         )}
-                    </button>
+                    </div>
+
+                    {/* Upload Panel */}
+
+                    {currentView ===
+                        "files" &&
+                        selectedFolder && (
+                            <UploadPanel
+                                selectedFile={
+                                    selectedFile
+                                }
+                                fileInputRef={
+                                    fileInputRef
+                                }
+                                isUploading={
+                                    isUploading
+                                }
+                                folderName={
+                                    folderName
+                                }
+                                projectName={
+                                    projectName
+                                }
+                                onFileChange={
+                                    handleFileChange
+                                }
+                                onRemoveFile={
+                                    handleRemoveFile
+                                }
+                                onUpload={
+                                    handleUpload
+                                }
+                            />
+                        )}
                 </div>
             </div>
 
-            {/* =================================================
-                File Viewer
-            ================================================= */}
+            {/* Viewer */}
 
             {viewingFile && (
                 <FileViewerModal
-                    file={viewingFile}
-                    fileUrl={viewingFileUrl}
+                    file={
+                        viewingFile
+                    }
+                    fileUrl={
+                        viewingFileUrl
+                    }
                     isLoading={
                         isViewingFile
                     }
@@ -1889,7 +2051,7 @@ function FileUploadPage() {
                         handleCloseViewer
                     }
                     onDownload={() =>
-                        handleDownloadFile(
+                        void handleDownloadFile(
                             viewingFile,
                         )
                     }
@@ -1900,143 +2062,476 @@ function FileUploadPage() {
 }
 
 /* =========================================================
-   Folder File Row
+   Task Card
 ========================================================= */
 
-interface FolderFileRowProps {
-    file: TaskFile;
-    onView: (file: TaskFile) => void;
-    onDownload: (file: TaskFile) => void;
+interface TaskCardProps {
+    task: Task;
+    onClick: () => void;
 }
 
-function FolderFileRow({
-    file,
-    onView,
-    onDownload,
-}: FolderFileRowProps) {
-    const hasFileId =
-        Number.isInteger(
-            Number(file.pffid),
-        ) &&
-        Number(file.pffid) > 0;
-
-    const hasProjectId =
-        Number.isInteger(
-            Number(
-                file.projectid ??
-                    file.project_id,
-            ),
-        ) &&
-        Number(
-            file.projectid ??
-                file.project_id,
-        ) > 0;
-
-    const hasFolderId =
-        Number.isInteger(
-            Number(
-                file.fid ??
-                    file.folder_id,
-            ),
-        ) &&
-        Number(
-            file.fid ??
-                file.folder_id,
-        ) > 0;
-
-    const canAccessFile =
-        hasFileId &&
-        hasProjectId &&
-        hasFolderId;
+function TaskCard({
+    task,
+    onClick,
+}: TaskCardProps) {
+    const taskName =
+        task.task_description ||
+        task.task_type ||
+        `Task ${task.task_id}`;
 
     return (
-        <div
+        <button
+            type="button"
+            onClick={onClick}
             className="
-                flex
+                group
                 min-w-0
-                items-center
-                gap-3
-                rounded-xl
+                rounded-2xl
                 border
                 border-gray-200
                 bg-gray-50
-                px-4
-                py-3
+                p-2
+                text-left
                 transition
-                hover:border-gray-300
-                hover:bg-gray-100
+                hover:-translate-y-0.5
+                hover:border-sky-300
+                hover:bg-sky-50
+                hover:shadow-md
                 dark:border-gray-800
                 dark:bg-gray-950
-                dark:hover:border-gray-700
-                dark:hover:bg-gray-900
+                dark:hover:border-sky-800
+                dark:hover:bg-sky-950
             "
         >
             <div
                 className="
                     flex
-                    h-10
-                    w-10
-                    shrink-0
+                    h-24
                     items-center
                     justify-center
-                    rounded-lg
-                    bg-white
-                    dark:bg-gray-900
                 "
             >
-                <FileIcon
-                    size={18}
+                <div
                     className="
-                        text-gray-500
-                        dark:text-gray-400
+                        flex
+                        h-14
+                        w-14
+                        items-center
+                        justify-center
+                        rounded-2xl
+                        bg-sky-100
+                        text-sky-700
+                        transition
+                        group-hover:scale-105
+                        dark:bg-sky-950
+                        dark:text-sky-300
                     "
-                />
+                >
+                    <FileText
+                        size={36}
+                        strokeWidth={1.6}
+                    />
+                </div>
             </div>
 
-            <div className="min-w-0 flex-1">
+            <div className="mt-3">
                 <p
                     className="
                         truncate
                         text-sm
-                        font-medium
+                        font-semibold
                         text-gray-900
                         dark:text-white
                     "
-                    title={
-                        file.filename
-                    }
+                    title={taskName}
                 >
-                    {file.filename}
+                    {taskName}
                 </p>
 
-                <div
+                <p
                     className="
                         mt-1
-                        flex
-                        items-center
-                        gap-2
+                        truncate
+                        text-xs
+                        text-gray-500
+                        dark:text-gray-400
                     "
                 >
-                    <span
+                    {task.task_type ||
+                        "Task"}
+                </p>
+                 
+            </div>
+        </button>
+    );
+}
+
+/* =========================================================
+   Project Card
+========================================================= */
+
+interface ProjectCardProps {
+    project: Project | null;
+    projectName: string;
+    onClick: () => void;
+}
+
+function ProjectCard({
+    project,
+    projectName,
+    onClick,
+}: ProjectCardProps) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="
+                group
+                min-w-0
+                rounded-2xl
+                border
+                border-gray-200
+                bg-gray-50
+                p-4
+                text-left
+                transition
+                hover:-translate-y-0.5
+                hover:border-sky-300
+                hover:bg-sky-50
+                hover:shadow-md
+                dark:border-gray-800
+                dark:bg-gray-950
+                dark:hover:border-sky-800
+                dark:hover:bg-sky-950
+            "
+        >
+            <div
+                className="
+                    flex
+                    h-28
+                    items-center
+                    justify-center
+                "
+            >
+                <div
+                    className="
+                        flex
+                        h-20
+                        w-20
+                        items-center
+                        justify-center
+                        rounded-2xl
+                        bg-amber-100
+                        text-amber-600
+                        transition
+                        group-hover:scale-105
+                        dark:bg-amber-950
+                        dark:text-amber-300
+                    "
+                >
+                    <Folder
+                        size={48}
+                        strokeWidth={1.5}
+                    />
+                </div>
+            </div>
+
+            <div className="mt-3">
+                <p
+                    className="
+                        truncate
+                        text-sm
+                        font-semibold
+                        text-gray-900
+                        dark:text-white
+                    "
+                    title={projectName}
+                >
+                    {projectName}
+                </p>
+
+                <p
+                    className="
+                        mt-1
+                        text-xs
+                        text-gray-500
+                        dark:text-gray-400
+                    "
+                >
+                    {project
+                        ? `Project ${project.project_id}`
+                        : "Project"}
+                </p>
+            </div>
+        </button>
+    );
+}
+
+/* =========================================================
+   Folder Card
+========================================================= */
+
+interface FolderCardProps {
+    folder: ProjectFolder;
+    onClick: () => void;
+}
+
+function FolderCard({
+    folder,
+    onClick,
+}: FolderCardProps) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="
+                group
+                min-w-0
+                rounded-2xl
+                border
+                border-gray-200
+                bg-gray-50
+                p-4
+                text-left
+                transition
+                hover:-translate-y-0.5
+                hover:border-sky-300
+                hover:bg-sky-50
+                hover:shadow-md
+                dark:border-gray-800
+                dark:bg-gray-950
+                dark:hover:border-sky-800
+                dark:hover:bg-sky-950
+            "
+        >
+            <div
+                className="
+                    flex
+                    h-28
+                    items-center
+                    justify-center
+                "
+            >
+                <div
+                    className="
+                        flex
+                        h-20
+                        w-20
+                        items-center
+                        justify-center
+                        rounded-2xl
+                        bg-amber-100
+                        text-amber-600
+                        transition
+                        group-hover:scale-105
+                        dark:bg-amber-950
+                        dark:text-amber-300
+                    "
+                >
+                    <FolderOpen
+                        size={48}
+                        strokeWidth={1.5}
+                    />
+                </div>
+            </div>
+
+            <div className="mt-3">
+                <p
+                    className="
+                        truncate
+                        text-sm
+                        font-semibold
+                        text-gray-900
+                        dark:text-white
+                    "
+                    title={folder.fname}
+                >
+                    {folder.fname}
+                </p>
+
+                <p
+                    className="
+                        mt-1
+                        text-xs
+                        text-gray-500
+                        dark:text-gray-400
+                    "
+                >
+                    Folder
+                </p>
+            </div>
+        </button>
+    );
+}
+
+/* =========================================================
+   File Card
+========================================================= */
+
+interface FileCardProps {
+    file: TaskFile;
+    onView: (
+        file: TaskFile,
+    ) => void;
+    onDownload: (
+        file: TaskFile,
+    ) => void;
+}
+
+function FileCard({
+    file,
+    onView,
+    onDownload,
+}: FileCardProps) {
+    const mimeType =
+        file.MIME?.toLowerCase() ||
+        "";
+
+    const filename =
+        file.filename?.toLowerCase() ||
+        "";
+
+    const isImage =
+        mimeType.startsWith(
+            "image/",
+        ) ||
+        /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(
+            filename,
+        );
+
+    const isPdf =
+        mimeType.includes(
+            "application/pdf",
+        ) ||
+        filename.endsWith(".pdf");
+
+    const isVideo =
+        mimeType.startsWith(
+            "video/",
+        );
+
+    const isAudio =
+        mimeType.startsWith(
+            "audio/",
+        );
+
+    let Icon = File;
+
+    if (isImage) {
+        Icon = FileImage;
+    } else if (isPdf) {
+        Icon = FileText;
+    } else if (isVideo) {
+        Icon = FileVideo;
+    } else if (isAudio) {
+        Icon = FileAudio;
+    } else if (
+        mimeType.includes("word") ||
+        /\.(doc|docx|txt|rtf)$/i.test(
+            filename,
+        )
+    ) {
+        Icon = FileText;
+    }
+
+    /*
+     * File API may omit project/folder IDs.
+     * The parent page already knows the selected
+     * task and folder, so only pffid is required
+     * for enabling the buttons.
+     */
+    const fileId =
+        toNumberId(file.pffid);
+
+    const canAccess =
+        fileId !== null;
+
+    return (
+        <div
+            className="
+                group
+                min-w-0
+                rounded-2xl
+                border
+                border-gray-200
+                bg-gray-50
+                p-4
+                transition
+                hover:-translate-y-0.5
+                hover:border-gray-300
+                hover:shadow-md
+                dark:border-gray-800
+                dark:bg-gray-950
+                dark:hover:border-gray-700
+            "
+        >
+            <button
+                type="button"
+                onClick={() =>
+                    canAccess &&
+                    onView(file)
+                }
+                disabled={!canAccess}
+                className="
+                    block
+                    w-full
+                    text-left
+                    disabled:cursor-not-allowed
+                "
+            >
+                <div
+                    className="
+                        flex
+                        h-28
+                        items-center
+                        justify-center
+                    "
+                >
+                    <div
                         className="
-                            truncate
-                            text-[11px]
+                            flex
+                            h-20
+                            w-20
+                            items-center
+                            justify-center
+                            rounded-2xl
+                            bg-white
                             text-gray-500
+                            transition
+                            group-hover:scale-105
+                            dark:bg-gray-900
                             dark:text-gray-400
                         "
                     >
-                        {file.MIME ||
-                            "Unknown type"}
-                    </span>
+                        <Icon
+                            size={42}
+                            strokeWidth={1.5}
+                        />
+                    </div>
+                </div>
 
-                    <span className="text-gray-300 dark:text-gray-700">
-                        •
-                    </span>
-
-                    <span
+                <div className="mt-3">
+                    <p
                         className="
-                            shrink-0
-                            text-[11px]
+                            truncate
+                            text-sm
+                            font-semibold
+                            text-gray-900
+                            dark:text-white
+                        "
+                        title={
+                            file.filename
+                        }
+                    >
+                        {file.filename ||
+                            "Unnamed file"}
+                    </p>
+
+                    <p
+                        className="
+                            mt-1
+                            truncate
+                            text-xs
                             text-gray-500
                             dark:text-gray-400
                         "
@@ -2046,42 +2541,40 @@ function FolderFileRow({
                                 file.filesize,
                             ),
                         )}
-                    </span>
+                    </p>
                 </div>
-            </div>
+            </button>
 
-            <div className="flex shrink-0 items-center gap-1.5">
-
-                {/* View */}
-
+            <div
+                className="
+                    mt-3
+                    flex
+                    items-center
+                    gap-2
+                "
+            >
                 <button
                     type="button"
                     onClick={() =>
                         onView(file)
                     }
-                    disabled={
-                        !canAccessFile
-                    }
-                    title={
-                        canAccessFile
-                            ? "View file"
-                            : "File information unavailable"
-                    }
+                    disabled={!canAccess}
                     className="
                         flex
+                        flex-1
                         items-center
+                        justify-center
                         gap-1.5
                         rounded-lg
                         border
-                        border-gray-300
+                        border-gray-200
                         bg-white
-                        px-3
+                        px-2
                         py-2
                         text-xs
                         font-medium
                         text-gray-700
-                        transition
-                        hover:bg-gray-50
+                        hover:bg-gray-100
                         disabled:cursor-not-allowed
                         disabled:opacity-40
                         dark:border-gray-700
@@ -2091,27 +2584,18 @@ function FolderFileRow({
                     "
                 >
                     <ExternalLink
-                        size={14}
+                        size={13}
                     />
 
                     View
                 </button>
-
-                {/* Download */}
 
                 <button
                     type="button"
                     onClick={() =>
                         onDownload(file)
                     }
-                    disabled={
-                        !canAccessFile
-                    }
-                    title={
-                        canAccessFile
-                            ? "Download file"
-                            : "File information unavailable"
-                    }
+                    disabled={!canAccess}
                     className="
                         flex
                         items-center
@@ -2120,7 +2604,6 @@ function FolderFileRow({
                         bg-sky-900
                         p-2
                         text-white
-                        transition
                         hover:bg-sky-800
                         disabled:cursor-not-allowed
                         disabled:opacity-40
@@ -2128,9 +2611,10 @@ function FolderFileRow({
                         dark:text-sky-950
                         dark:hover:bg-sky-300
                     "
+                    title="Download"
                 >
                     <Download
-                        size={15}
+                        size={14}
                     />
                 </button>
             </div>
@@ -2139,7 +2623,521 @@ function FolderFileRow({
 }
 
 /* =========================================================
-   File Viewer Modal
+   Upload Panel
+========================================================= */
+
+interface UploadPanelProps {
+    selectedFile: File | null;
+    fileInputRef: RefObject<
+        HTMLInputElement | null
+    >;
+    isUploading: boolean;
+    folderName: string;
+    projectName: string;
+    onFileChange: (
+        event: ChangeEvent<HTMLInputElement>,
+    ) => void;
+    onRemoveFile: () => void;
+    onUpload: () => void;
+}
+
+function UploadPanel({
+    selectedFile,
+    fileInputRef,
+    isUploading,
+    folderName,
+    projectName,
+    onFileChange,
+    onRemoveFile,
+    onUpload,
+}: UploadPanelProps) {
+    return (
+        <div
+            className="
+                h-fit
+                rounded-2xl
+                border
+                border-gray-200
+                bg-white
+                p-6
+                shadow-sm
+                dark:border-gray-800
+                dark:bg-gray-900
+            "
+        >
+            <div className="mb-6">
+                <div
+                    className="
+                        flex
+                        h-12
+                        w-12
+                        items-center
+                        justify-center
+                        rounded-xl
+                        bg-sky-100
+                        text-sky-700
+                        dark:bg-sky-950
+                        dark:text-sky-300
+                    "
+                >
+                    <Upload
+                        size={23}
+                    />
+                </div>
+
+                <h2
+                    className="
+                        mt-4
+                        text-base
+                        font-semibold
+                        text-gray-900
+                        dark:text-white
+                    "
+                >
+                    Upload Files
+                </h2>
+
+                <p
+                    className="
+                        mt-1
+                        text-sm
+                        text-gray-500
+                        dark:text-gray-400
+                    "
+                >
+                    Upload directly to the
+                    folder you opened.
+                </p>
+            </div>
+
+            {/* Destination */}
+
+            <div
+                className="
+                    mb-5
+                    rounded-xl
+                    border
+                    border-sky-100
+                    bg-sky-50
+                    p-4
+                    dark:border-sky-900
+                    dark:bg-sky-950
+                "
+            >
+                <p
+                    className="
+                        text-[10px]
+                        font-bold
+                        uppercase
+                        tracking-wider
+                        text-sky-600
+                        dark:text-sky-400
+                    "
+                >
+                    Upload destination
+                </p>
+
+                <div
+                    className="
+                        mt-3
+                        flex
+                        items-center
+                        gap-3
+                    "
+                >
+                    <Folder
+                        size={24}
+                        className="
+                            shrink-0
+                            text-amber-500
+                        "
+                    />
+
+                    <div className="min-w-0">
+                        <p
+                            className="
+                                truncate
+                                text-sm
+                                font-semibold
+                                text-gray-900
+                                dark:text-white
+                            "
+                            title={
+                                folderName
+                            }
+                        >
+                            {folderName}
+                        </p>
+
+                        <p
+                            className="
+                                mt-0.5
+                                truncate
+                                text-xs
+                                text-gray-500
+                                dark:text-gray-400
+                            "
+                            title={
+                                projectName
+                            }
+                        >
+                            {projectName}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Select File */}
+
+            {!selectedFile ? (
+                <>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            fileInputRef.current?.click()
+                        }
+                        disabled={
+                            isUploading
+                        }
+                        className="
+                            flex
+                            min-h-[190px]
+                            w-full
+                            flex-col
+                            items-center
+                            justify-center
+                            rounded-xl
+                            border-2
+                            border-dashed
+                            border-gray-300
+                            bg-gray-50
+                            px-5
+                            transition
+                            hover:border-sky-400
+                            hover:bg-sky-50
+                            disabled:cursor-not-allowed
+                            disabled:opacity-50
+                            dark:border-gray-700
+                            dark:bg-gray-950
+                            dark:hover:border-sky-700
+                            dark:hover:bg-sky-950
+                        "
+                    >
+                        <Upload
+                            size={28}
+                            className="
+                                text-gray-400
+                                dark:text-gray-500
+                            "
+                        />
+
+                        <p
+                            className="
+                                mt-3
+                                text-sm
+                                font-semibold
+                                text-gray-800
+                                dark:text-gray-200
+                            "
+                        >
+                            Select a file
+                        </p>
+
+                        <p
+                            className="
+                                mt-1
+                                text-center
+                                text-xs
+                                text-gray-500
+                                dark:text-gray-400
+                            "
+                        >
+                            Click here to browse
+                            your computer
+                        </p>
+                    </button>
+
+                    <input
+                        ref={
+                            fileInputRef
+                        }
+                        type="file"
+                        className="hidden"
+                        onChange={
+                            onFileChange
+                        }
+                    />
+                </>
+            ) : (
+                <div
+                    className="
+                        rounded-xl
+                        border
+                        border-gray-200
+                        bg-gray-50
+                        p-4
+                        dark:border-gray-700
+                        dark:bg-gray-950
+                    "
+                >
+                    <div
+                        className="
+                            flex
+                            items-center
+                            gap-3
+                        "
+                    >
+                        <div
+                            className="
+                                flex
+                                h-11
+                                w-11
+                                shrink-0
+                                items-center
+                                justify-center
+                                rounded-lg
+                                bg-sky-100
+                                text-sky-700
+                                dark:bg-sky-950
+                                dark:text-sky-300
+                            "
+                        >
+                            <FileText
+                                size={21}
+                            />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                            <p
+                                className="
+                                    truncate
+                                    text-sm
+                                    font-semibold
+                                    text-gray-900
+                                    dark:text-white
+                                "
+                                title={
+                                    selectedFile.name
+                                }
+                            >
+                                {
+                                    selectedFile.name
+                                }
+                            </p>
+
+                            <p
+                                className="
+                                    mt-1
+                                    text-xs
+                                    text-gray-500
+                                    dark:text-gray-400
+                                "
+                            >
+                                {formatFileSize(
+                                    selectedFile.size,
+                                )}
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={
+                                onRemoveFile
+                            }
+                            disabled={
+                                isUploading
+                            }
+                            className="
+                                rounded-lg
+                                p-2
+                                text-gray-400
+                                hover:bg-red-50
+                                hover:text-red-600
+                                disabled:opacity-50
+                                dark:hover:bg-red-950
+                                dark:hover:text-red-400
+                            "
+                        >
+                            <X
+                                size={17}
+                            />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Upload */}
+
+            <button
+                type="button"
+                onClick={onUpload}
+                disabled={
+                    isUploading ||
+                    !selectedFile
+                }
+                className="
+                    mt-5
+                    flex
+                    w-full
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded-lg
+                    bg-sky-900
+                    px-4
+                    py-3
+                    text-sm
+                    font-semibold
+                    text-white
+                    transition
+                    hover:bg-sky-800
+                    disabled:cursor-not-allowed
+                    disabled:opacity-50
+                    dark:bg-sky-200
+                    dark:text-sky-950
+                    dark:hover:bg-sky-300
+                "
+            >
+                {isUploading ? (
+                    <>
+                        <Loader2
+                            size={17}
+                            className="animate-spin"
+                        />
+                        Uploading...
+                    </>
+                ) : (
+                    <>
+                        <Upload
+                            size={17}
+                        />
+                        Upload File
+                    </>
+                )}
+            </button>
+        </div>
+    );
+}
+
+/* =========================================================
+   Loading
+========================================================= */
+
+function LoadingState({
+    text,
+}: {
+    text: string;
+}) {
+    return (
+        <div
+            className="
+                flex
+                min-h-[360px]
+                flex-col
+                items-center
+                justify-center
+                rounded-xl
+                border
+                border-dashed
+                border-gray-300
+                bg-gray-50
+                dark:border-gray-700
+                dark:bg-gray-950
+            "
+        >
+            <Loader2
+                size={30}
+                className="
+                    animate-spin
+                    text-gray-400
+                    dark:text-gray-500
+                "
+            />
+
+            <p
+                className="
+                    mt-3
+                    text-sm
+                    text-gray-500
+                    dark:text-gray-400
+                "
+            >
+                {text}
+            </p>
+        </div>
+    );
+}
+
+/* =========================================================
+   Empty
+========================================================= */
+
+function EmptyState({
+    icon,
+    title,
+    description,
+}: {
+    icon: ReactNode;
+    title: string;
+    description: string;
+}) {
+    return (
+        <div
+            className="
+                flex
+                min-h-[360px]
+                flex-col
+                items-center
+                justify-center
+                rounded-xl
+                border
+                border-dashed
+                border-gray-300
+                bg-gray-50
+                px-6
+                text-center
+                dark:border-gray-700
+                dark:bg-gray-950
+            "
+        >
+            <div
+                className="
+                    text-gray-400
+                    dark:text-gray-500
+                "
+            >
+                {icon}
+            </div>
+
+            <p
+                className="
+                    mt-4
+                    text-sm
+                    font-semibold
+                    text-gray-700
+                    dark:text-gray-300
+                "
+            >
+                {title}
+            </p>
+
+            <p
+                className="
+                    mt-1
+                    max-w-sm
+                    text-xs
+                    text-gray-500
+                    dark:text-gray-400
+                "
+            >
+                {description}
+            </p>
+        </div>
+    );
+}
+
+/* =========================================================
+   File Viewer
 ========================================================= */
 
 interface FileViewerModalProps {
@@ -2227,7 +3225,6 @@ function FileViewerModal({
                     dark:bg-gray-900
                 "
             >
-
                 {/* Header */}
 
                 <div
@@ -2275,10 +3272,14 @@ function FileViewerModal({
                         </p>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-2">
-
-                        {/* Download */}
-
+                    <div
+                        className="
+                            flex
+                            shrink-0
+                            items-center
+                            gap-2
+                        "
+                    >
                         <button
                             type="button"
                             onClick={
@@ -2298,23 +3299,17 @@ function FileViewerModal({
                                 text-xs
                                 font-semibold
                                 text-white
-                                transition
                                 hover:bg-sky-800
-                                disabled:cursor-not-allowed
                                 disabled:opacity-40
                                 dark:bg-sky-200
                                 dark:text-sky-950
-                                dark:hover:bg-sky-300
                             "
                         >
                             <Download
                                 size={14}
                             />
-
                             Download
                         </button>
-
-                        {/* Close */}
 
                         <button
                             type="button"
@@ -2325,15 +3320,15 @@ function FileViewerModal({
                                 rounded-lg
                                 p-2
                                 text-gray-400
-                                transition
                                 hover:bg-gray-100
                                 hover:text-gray-700
                                 dark:hover:bg-gray-800
                                 dark:hover:text-gray-200
                             "
-                            aria-label="Close"
                         >
-                            <X size={19} />
+                            <X
+                                size={19}
+                            />
                         </button>
                     </div>
                 </div>
@@ -2350,9 +3345,6 @@ function FileViewerModal({
                         dark:bg-gray-950
                     "
                 >
-
-                    {/* Loading */}
-
                     {isLoading ? (
                         <div
                             className="
@@ -2376,85 +3368,15 @@ function FileViewerModal({
                                     size={20}
                                     className="animate-spin"
                                 />
-
                                 Loading file...
                             </div>
                         </div>
                     ) : !fileUrl ? (
-                        <div
-                            className="
-                                flex
-                                h-full
-                                items-center
-                                justify-center
-                                text-center
-                            "
-                        >
-                            <div>
-                                <FileIcon
-                                    size={40}
-                                    className="
-                                        mx-auto
-                                        text-gray-400
-                                    "
-                                />
-
-                                <p
-                                    className="
-                                        mt-4
-                                        text-sm
-                                        font-medium
-                                        text-gray-700
-                                        dark:text-gray-300
-                                    "
-                                >
-                                    File preview unavailable
-                                </p>
-
-                                <p
-                                    className="
-                                        mt-1
-                                        text-xs
-                                        text-gray-500
-                                        dark:text-gray-400
-                                    "
-                                >
-                                    The file could not
-                                    be loaded from the
-                                    server.
-                                </p>
-
-                                <button
-                                    type="button"
-                                    onClick={
-                                        onDownload
-                                    }
-                                    className="
-                                        mt-4
-                                        inline-flex
-                                        items-center
-                                        gap-2
-                                        rounded-lg
-                                        bg-sky-900
-                                        px-4
-                                        py-2.5
-                                        text-xs
-                                        font-semibold
-                                        text-white
-                                        hover:bg-sky-800
-                                        dark:bg-sky-200
-                                        dark:text-sky-950
-                                        dark:hover:bg-sky-300
-                                    "
-                                >
-                                    <Download
-                                        size={14}
-                                    />
-
-                                    Download File
-                                </button>
-                            </div>
-                        </div>
+                        <PreviewUnavailable
+                            onDownload={
+                                onDownload
+                            }
+                        />
                     ) : isPdf ? (
                         <iframe
                             src={fileUrl}
@@ -2512,10 +3434,7 @@ function FileViewerModal({
                                     max-w-full
                                     rounded-lg
                                 "
-                            >
-                                Your browser does not
-                                support video playback.
-                            </video>
+                            />
                         </div>
                     ) : isAudio ? (
                         <div
@@ -2529,77 +3448,88 @@ function FileViewerModal({
                             <audio
                                 src={fileUrl}
                                 controls
-                            >
-                                Your browser does not
-                                support audio playback.
-                            </audio>
+                            />
                         </div>
                     ) : (
-                        <div
-                            className="
-                                flex
-                                h-full
-                                items-center
-                                justify-center
-                                text-center
-                            "
-                        >
-                            <div>
-                                <FileIcon
-                                    size={40}
-                                    className="
-                                        mx-auto
-                                        text-gray-400
-                                    "
-                                />
-
-                                <p
-                                    className="
-                                        mt-4
-                                        text-sm
-                                        font-medium
-                                        text-gray-700
-                                        dark:text-gray-300
-                                    "
-                                >
-                                    Preview is not
-                                    available for
-                                    this file type.
-                                </p>
-
-                                <button
-                                    type="button"
-                                    onClick={
-                                        onDownload
-                                    }
-                                    className="
-                                        mt-4
-                                        inline-flex
-                                        items-center
-                                        gap-2
-                                        rounded-lg
-                                        bg-sky-900
-                                        px-4
-                                        py-2.5
-                                        text-xs
-                                        font-semibold
-                                        text-white
-                                        hover:bg-sky-800
-                                        dark:bg-sky-200
-                                        dark:text-sky-950
-                                        dark:hover:bg-sky-300
-                                    "
-                                >
-                                    <Download
-                                        size={14}
-                                    />
-
-                                    Download File
-                                </button>
-                            </div>
-                        </div>
+                        <PreviewUnavailable
+                            onDownload={
+                                onDownload
+                            }
+                        />
                     )}
                 </div>
+            </div>
+        </div>
+    );
+}
+
+/* =========================================================
+   Preview Unavailable
+========================================================= */
+
+function PreviewUnavailable({
+    onDownload,
+}: {
+    onDownload: () => void;
+}) {
+    return (
+        <div
+            className="
+                flex
+                h-full
+                items-center
+                justify-center
+                text-center
+            "
+        >
+            <div>
+                <File
+                    size={40}
+                    className="
+                        mx-auto
+                        text-gray-400
+                    "
+                />
+
+                <p
+                    className="
+                        mt-4
+                        text-sm
+                        font-medium
+                        text-gray-700
+                        dark:text-gray-300
+                    "
+                >
+                    Preview is not available
+                </p>
+
+                <button
+                    type="button"
+                    onClick={
+                        onDownload
+                    }
+                    className="
+                        mt-4
+                        inline-flex
+                        items-center
+                        gap-2
+                        rounded-lg
+                        bg-sky-900
+                        px-4
+                        py-2.5
+                        text-xs
+                        font-semibold
+                        text-white
+                        hover:bg-sky-800
+                        dark:bg-sky-200
+                        dark:text-sky-950
+                    "
+                >
+                    <Download
+                        size={14}
+                    />
+                    Download File
+                </button>
             </div>
         </div>
     );

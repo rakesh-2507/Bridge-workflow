@@ -16,29 +16,6 @@ import type { Task } from "../../types/task";
 import TaskList from "../../components/tasks/TaskList";
 import TaskDetails from "../../components/tasks/TaskDetails";
 
-function getLoggedInUserId(): number | null {
-    try {
-        const loginUser = localStorage.getItem("login_user");
-
-        if (!loginUser) {
-            return null;
-        }
-
-        const user = JSON.parse(loginUser);
-
-        const userId =
-            user.uid ??
-            user.user_id ??
-            user.id;
-
-        return userId != null
-            ? Number(userId)
-            : null;
-    } catch {
-        return null;
-    }
-}
-
 function TasksPage() {
     const navigate = useNavigate();
 
@@ -92,17 +69,11 @@ function TasksPage() {
         };
     }, []);
 
-    const loggedInUserId = getLoggedInUserId();
-
-    const userTasks = tasks.filter(
-        (task) =>
-            Number(task.assigned_to) === loggedInUserId
-    );
-
-    const pendingTasks = userTasks.filter(
-        (task) =>
-            task.status !== 3
-    );
+    const pendingTasks =
+        tasks.filter(
+            (task) =>
+                task.status !== 3
+        );
 
     const handleDeleted = (
         taskId: number
@@ -145,9 +116,9 @@ function TasksPage() {
                     <div>
                         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
                             Tasks
-                            <span className="rounded-full bg-gray-100 p-2 m-2 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                               {userTasks.length}
-                            </span>
+                        {/* <span className="rounded-full bg-gray-100 p-2 m-2 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                {tasks.length}
+                            </span> */}
                         </h1>
 
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
