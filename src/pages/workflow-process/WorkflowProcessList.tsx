@@ -1,11 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-    Eye,
-    Loader2,
-    Plus,
-    RefreshCw,
-    Workflow,
-} from "lucide-react";
+import { Eye, FileText, Loader2, Plus, RefreshCw, Workflow, } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -77,18 +71,16 @@ export default function WorkflowProcessList() {
                         </div>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={() =>
-                            navigate(
-                                "/projecttemplate"
-                            )
-                        }
-                        className="flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-cyan-700"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Add Template
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => navigate("/create-markdown")} className="flex items-center gap-2 rounded-lg border border-cyan-600 px-4 py-2.5 text-sm font-medium text-cyan-600 shadow-sm hover:bg-cyan-50 dark:border-cyan-500 dark:text-cyan-400 dark:hover:bg-cyan-950/40" >
+                            <FileText className="h-4 w-4" /> Markdown Template
+                        </button>
+
+                        <button type="button" onClick={() => navigate("/projecttemplate")}
+                            className="flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-cyan-700" >
+                            <Plus className="h-4 w-4" /> Add Template
+                        </button>
+                    </div>
                 </div>
 
                 {/* Content */}
@@ -119,8 +111,8 @@ export default function WorkflowProcessList() {
                         >
                             <RefreshCw
                                 className={`h-4 w-4 ${loading
-                                        ? "animate-spin"
-                                        : ""
+                                    ? "animate-spin"
+                                    : ""
                                     }`}
                             />
                         </button>

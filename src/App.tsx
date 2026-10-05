@@ -38,6 +38,7 @@ import CreateProcess from "./pages/workflow-process/CreateProcess";
 import ViewProcess from "./pages/workflow-process/ViewProcess";
 
 import EditProjectTemplate from "./pages/EditProjectTemplate";
+import MarkdownTemplatePage from "./pages/MarkdownTemplatePage";
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
@@ -242,6 +243,11 @@ function App() {
             <Route
               path="/companies"
               element={<Companies />}
+            />
+
+            <Route
+              path="/create-markdown"
+              element={<MarkdownTemplatePage />}
             />
 
           </Route>

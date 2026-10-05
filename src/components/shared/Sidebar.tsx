@@ -55,7 +55,6 @@ function Sidebar({
         icon: LayoutDashboard,
         to: "/",
       },
-
     ]
     : [
       {
