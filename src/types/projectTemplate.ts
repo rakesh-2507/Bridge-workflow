@@ -3,18 +3,28 @@ export interface ProjectType {
   projecttype: string;
 }
 
+/* ----------------------------------------
+ * Project Template
+ * ---------------------------------------- */
+
 export interface ProjectTemplate {
   tid: number;
   name: string;
   name_desc: string;
   projecttype: number;
   workflow_config_id?: string;
+  workflow_scope?: string;
+  process_id?: number | null;
 }
 
 export interface ProjectTemplateListResponse {
   templates: ProjectTemplate[];
   total: number;
 }
+
+/* ----------------------------------------
+ * Project Template Details
+ * ---------------------------------------- */
 
 export interface ProjectTemplateDetails {
   name: string;
@@ -24,6 +34,12 @@ export interface ProjectTemplateDetails {
   workflow_scope: string;
 }
 
+/* ----------------------------------------
+ * Project Template Folder
+ *
+ * Used by the existing create wizard.
+ * ---------------------------------------- */
+
 export interface ProjectTemplateFolder {
   id: string;
   name: string;
@@ -31,6 +47,10 @@ export interface ProjectTemplateFolder {
   parentFolderId: string | null;
   roles: string[];
 }
+
+/* ----------------------------------------
+ * Create Project Template
+ * ---------------------------------------- */
 
 export interface CreateProjectTemplateFolder {
   name: string;
@@ -42,6 +62,129 @@ export interface CreateProjectTemplateFolder {
 export interface CreateProjectTemplatePayload {
   project_template: ProjectTemplateDetails;
   folders: CreateProjectTemplateFolder[];
+}
+
+/* ----------------------------------------
+ * Get Project Template API
+ * ---------------------------------------- */
+
+export interface GetProjectTemplateTemplate {
+  tid: number;
+  name: string;
+  name_desc: string;
+  projecttype: number;
+  workflow_config_id: string;
+  process_id: number | null;
+  workflow_scope: string;
+}
+
+export interface GetProjectTemplateProcess {
+  process_id: number | null;
+  process_name: string | null;
+  number_of_tasks: number;
+  connections: unknown[];
+  tasks: unknown[];
+}
+
+export interface GetProjectTemplateWorkflowConfig {
+  id: string;
+  name: string;
+  icon: string;
+  configType: string;
+  itemParams: unknown[];
+  keyParam: string | null;
+  status: string;
+  version: number;
+  levels: number;
+  hasSubWorkflow: boolean;
+}
+
+export interface GetProjectTemplateFolder {
+  fid: number;
+  fname: string;
+  pid: number | null;
+  tid: number;
+  fnamedesc: string;
+  roles: string[];
+}
+
+export interface GetProjectTemplateResponse {
+  success: boolean;
+  code: string;
+  message: string;
+  data: {
+    template: GetProjectTemplateTemplate;
+    process: GetProjectTemplateProcess;
+    workflow_config: GetProjectTemplateWorkflowConfig;
+    folders: GetProjectTemplateFolder[];
+  };
+}
+
+/* ----------------------------------------
+ * Edit Project Template API
+ * ---------------------------------------- */
+
+export interface EditProjectTemplateFolder {
+  fid: number;
+  name: string;
+  description: string;
+  parent_folder_index: number | null;
+  roles: string[];
+}
+
+export interface EditProjectTemplatePayload {
+  project_template: ProjectTemplateDetails;
+  folders: EditProjectTemplateFolder[];
+}
+
+/* ----------------------------------------
+ * Workflow Process API
+ * ---------------------------------------- */
+
+export interface WorkflowProcessPosition {
+  x: number;
+  y: number;
+}
+
+export interface WorkflowProcessTask {
+  TaskID: string | number;
+  task_config_id: number | string;
+  TaskTypeID?: number;
+  TaskType?: string;
+  position?: WorkflowProcessPosition;
+  TaskDetails?: unknown;
+}
+
+export interface WorkflowProcessConnection {
+  source: string;
+  target: string;
+}
+
+export interface WorkflowProcessJson {
+  Processid: number;
+  ProcessName: string;
+  NumberofTasks: number;
+  Tasks: WorkflowProcessTask[];
+  connections: WorkflowProcessConnection[];
+}
+
+export interface GetWorkflowProcessResponse {
+  ProcessJson: WorkflowProcessJson;
+}
+
+/* ----------------------------------------
+ * Update Workflow Process
+ * ---------------------------------------- */
+
+export interface UpdateWorkflowProcessTask {
+  task_config_id: number | string;
+  position: WorkflowProcessPosition;
+}
+
+export interface UpdateWorkflowProcessPayload {
+  process_name: string;
+  tasks: UpdateWorkflowProcessTask[];
+  connections: WorkflowProcessConnection[];
 }
 
 /* ----------------------------------------
@@ -88,7 +231,6 @@ export interface CreateProjectFromTemplateDetails {
   coordinator: number;
 
   is_project_manage: number;
-
 
   projecttype: number;
 }

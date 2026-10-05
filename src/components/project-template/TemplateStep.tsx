@@ -20,6 +20,8 @@ interface TemplateStepProps {
   data: ProjectTemplateDetails;
   onChange: (data: ProjectTemplateDetails) => void;
   onNext: () => void;
+  editMode?: boolean;
+  originalName?: string;
 }
 
 type ValidationStatus =
@@ -32,6 +34,8 @@ function TemplateStep({
   data,
   onChange,
   onNext,
+  editMode = false,
+  originalName = "",
 }: TemplateStepProps) {
   /* =====================================================
      TEMPLATE NAME
@@ -188,16 +192,30 @@ function TemplateStep({
   /* =====================================================
      TEMPLATE NAME VALIDATION
 
-     Backend:
-     /api/checkprojecttemplatename?name=...
+     CREATE:
+       Check the name against backend.
 
-     Validation happens after 500ms.
+     EDIT:
+       If the current name is unchanged from the original
+       template name, it is automatically valid.
+
+       If the name has changed, check the backend.
   ===================================================== */
 
   useEffect(() => {
     const name = data.name.trim();
 
     if (!name) {
+      return;
+    }
+
+    const unchangedOriginalName =
+      editMode &&
+      originalName.trim() !== "" &&
+      name.toLowerCase() ===
+        originalName.trim().toLowerCase();
+
+    if (unchangedOriginalName) {
       return;
     }
 
@@ -223,7 +241,7 @@ function TemplateStep({
 
             setNameError(
               response.message ||
-              "Project template name already exists."
+                "Project template name already exists."
             );
 
             setValidatedName("");
@@ -259,12 +277,14 @@ function TemplateStep({
     return () => {
       clearTimeout(timer);
     };
-  }, [data.name]);
+  }, [
+    data.name,
+    editMode,
+    originalName,
+  ]);
 
   /* =====================================================
      PROJECT TYPE DUPLICATE VALIDATION
-
-     Uses GET /api/getprojecttypes
 
      Validation happens after 500ms.
   ===================================================== */
@@ -392,7 +412,6 @@ function TemplateStep({
 
       try {
         setCreatingProjectType(true);
-
         setCreateTypeError("");
 
         const created =
@@ -411,16 +430,10 @@ function TemplateStep({
         );
 
         setShowAddType(false);
-
         setNewProjectType("");
-
         setValidatedProjectType("");
-
         setCreateTypeError("");
-
-        setProjectTypeStatus(
-          "idle"
-        );
+        setProjectTypeStatus("idle");
       } catch (error) {
         console.error(
           "Failed to create project type:",
@@ -432,7 +445,7 @@ function TemplateStep({
         ) {
           setCreateTypeError(
             error.message ||
-            "Unable to create project type."
+              "Unable to create project type."
           );
         } else {
           setCreateTypeError(
@@ -474,16 +487,28 @@ function TemplateStep({
   const isTemplateNameEmpty =
     templateName === "";
 
+  const isOriginalName =
+    editMode &&
+    originalName.trim() !== "" &&
+    templateName.toLowerCase() ===
+      originalName.trim().toLowerCase();
+
   const isNameChecking =
     !isTemplateNameEmpty &&
+    !isOriginalName &&
     nameStatus === "checking";
 
   const isNameValid =
     !isTemplateNameEmpty &&
-    nameStatus === "valid" &&
-    validatedName ===
-    templateName &&
-    !nameError;
+    (
+      isOriginalName ||
+      (
+        nameStatus === "valid" &&
+        validatedName ===
+          templateName &&
+        !nameError
+      )
+    );
 
   /* =====================================================
      PROJECT TYPE STATUS
@@ -498,14 +523,14 @@ function TemplateStep({
   const isProjectTypeChecking =
     !isProjectTypeEmpty &&
     projectTypeStatus ===
-    "checking";
+      "checking";
 
   const isProjectTypeValid =
     !isProjectTypeEmpty &&
     projectTypeStatus ===
-    "valid" &&
+      "valid" &&
     validatedProjectType ===
-    projectTypeName &&
+      projectTypeName &&
     !createTypeError;
 
   /* =====================================================
@@ -608,24 +633,23 @@ function TemplateStep({
       onSubmit={handleSubmit}
       className="space-y-6"
     >
-      {/* ==========================================
-          HEADER
-      ========================================== */}
+      {/* HEADER */}
 
       <div>
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          Create Project Template
+          {editMode
+            ? "Edit Project Template"
+            : "Create Project Template"}
         </h2>
 
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Enter the basic details for
-          your project template.
+          {editMode
+            ? "Update the basic details for your project template."
+            : "Enter the basic details for your project template."}
         </p>
       </div>
 
-      {/* ==========================================
-          TEMPLATE NAME
-      ========================================== */}
+      {/* TEMPLATE NAME */}
 
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -642,10 +666,11 @@ function TemplateStep({
             )
           }
           placeholder="Enter template name"
-          className={`w-full rounded-lg px-4 py-2.5 border bg-white text-gray-900 dark:bg-gray-800 dark:text-white ${nameError
+          className={`w-full rounded-lg border bg-white px-4 py-2.5 text-gray-900 dark:bg-gray-800 dark:text-white ${
+            nameError
               ? "border-red-500"
               : "border-gray-300 dark:border-gray-600"
-            }`}
+          }`}
         />
 
         {isNameChecking && (
@@ -665,14 +690,15 @@ function TemplateStep({
 
         {isNameValid && (
           <p className="mt-2 text-sm text-green-600 dark:text-green-400">
-            ✓ Template name is available
+            ✓{" "}
+            {isOriginalName
+              ? "Current template name"
+              : "Template name is available"}
           </p>
         )}
       </div>
 
-      {/* ==========================================
-          DESCRIPTION
-      ========================================== */}
+      {/* DESCRIPTION */}
 
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -693,9 +719,7 @@ function TemplateStep({
         />
       </div>
 
-      {/* ==========================================
-          PROJECT TYPE
-      ========================================== */}
+      {/* PROJECT TYPE */}
 
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -755,9 +779,7 @@ function TemplateStep({
               setNewProjectType("");
               setCreateTypeError("");
               setValidatedProjectType("");
-              setProjectTypeStatus(
-                "idle"
-              );
+              setProjectTypeStatus("idle");
             }}
             className="mt-3 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           >
@@ -774,9 +796,7 @@ function TemplateStep({
             <div className="flex gap-2">
               <input
                 type="text"
-                value={
-                  newProjectType
-                }
+                value={newProjectType}
                 onChange={(e) =>
                   handleNewProjectTypeChange(
                     e.target.value
@@ -786,10 +806,11 @@ function TemplateStep({
                 disabled={
                   creatingProjectType
                 }
-                className={`flex-1 rounded-lg border bg-white px-3 py-2 text-gray-900 dark:bg-gray-900 dark:text-white ${createTypeError
+                className={`flex-1 rounded-lg border bg-white px-3 py-2 text-gray-900 dark:bg-gray-900 dark:text-white ${
+                  createTypeError
                     ? "border-red-500"
                     : "border-gray-300 dark:border-gray-600"
-                  }`}
+                }`}
               />
 
               <button
@@ -847,9 +868,7 @@ function TemplateStep({
         )}
       </div>
 
-      {/* ==========================================
-          WORKFLOW CONFIGURATION
-      ========================================== */}
+      {/* WORKFLOW CONFIGURATION */}
 
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -885,7 +904,8 @@ function TemplateStep({
                 key={config.id}
                 value={config.id}
               >
-                {config.icon} {config.name}
+                {config.icon}{" "}
+                {config.name}
               </option>
             )
           )}
@@ -908,10 +928,7 @@ function TemplateStep({
         )}
       </div>
 
-
-      {/* ==========================================
-          WORKFLOW SCOPE
-      ========================================== */}
+      {/* WORKFLOW SCOPE */}
 
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -919,14 +936,17 @@ function TemplateStep({
         </label>
 
         <select
-          value={data.workflow_scope || "FOLDER"}
+          value={
+            data.workflow_scope ||
+            "FOLDER"
+          }
           onChange={(e) =>
             handleChange(
               "workflow_scope",
               e.target.value
             )
           }
-          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 dark:bg-gray-800 dark:text-white"
           required
         >
           <option value="FOLDER">
@@ -944,9 +964,7 @@ function TemplateStep({
         </p>
       </div>
 
-      {/* ==========================================
-          NEXT
-      ========================================== */}
+      {/* NEXT */}
 
       <div className="flex justify-end pt-4">
         <button

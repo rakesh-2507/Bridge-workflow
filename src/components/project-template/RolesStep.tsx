@@ -1,6 +1,10 @@
 import { useState } from "react";
+
 import RoleSelector from "./RoleSelector";
-import type { ProjectTemplateFolder } from "../../types/projectTemplate";
+
+import type {
+  ProjectTemplateFolder,
+} from "../../types/projectTemplate";
 
 interface RolesStepProps {
   folders: ProjectTemplateFolder[];
@@ -10,6 +14,8 @@ interface RolesStepProps {
   onBack: () => void;
   onSubmit: () => void;
   loading: boolean;
+  editMode?: boolean;
+  initialRoles?: string[];
 }
 
 function RolesStep({
@@ -18,9 +24,39 @@ function RolesStep({
   onBack,
   onSubmit,
   loading,
+  editMode = false,
+  initialRoles = [],
 }: RolesStepProps) {
-  const [availableRoles, setAvailableRoles] =
+  /* =====================================================
+     NEW ROLES CREATED IN THIS SESSION
+  ===================================================== */
+
+  const [addedRoles, setAddedRoles] =
     useState<string[]>([]);
+
+  /* =====================================================
+     AVAILABLE ROLES
+
+     Existing roles come from initialRoles.
+
+     New roles created during this session are stored
+     in addedRoles.
+
+     Set removes duplicates.
+  ===================================================== */
+
+  const availableRoles = Array.from(
+    new Set([
+      ...initialRoles,
+      ...addedRoles,
+    ])
+  ).sort((a, b) =>
+    a.localeCompare(b)
+  );
+
+  /* =====================================================
+     ROLE FORM
+  ===================================================== */
 
   const [showRoleForm, setShowRoleForm] =
     useState(false);
@@ -34,14 +70,19 @@ function RolesStep({
   const [assignmentError, setAssignmentError] =
     useState("");
 
-  /*
-   * Add a new role
-   */
+  /* =====================================================
+     ADD ROLE
+  ===================================================== */
+
   const handleAddRole = () => {
-    const trimmedRole = newRole.trim();
+    const trimmedRole =
+      newRole.trim();
 
     if (!trimmedRole) {
-      setRoleError("Role name is required.");
+      setRoleError(
+        "Role name is required."
+      );
+
       return;
     }
 
@@ -56,10 +97,11 @@ function RolesStep({
       setRoleError(
         `Role "${trimmedRole}" already exists.`
       );
+
       return;
     }
 
-    setAvailableRoles((prev) => [
+    setAddedRoles((prev) => [
       ...prev,
       trimmedRole,
     ]);
@@ -69,9 +111,10 @@ function RolesStep({
     setShowRoleForm(false);
   };
 
-  /*
-   * Update roles assigned to a folder
-   */
+  /* =====================================================
+     UPDATE FOLDER ROLES
+  ===================================================== */
+
   const updateRoles = (
     folderId: string,
     roles: string[]
@@ -87,15 +130,13 @@ function RolesStep({
       )
     );
 
-    // Clear the general assignment error
-    // when the user starts fixing roles.
     setAssignmentError("");
   };
 
-  /*
-   * Validate that every folder has at least
-   * one role assigned.
-   */
+  /* =====================================================
+     VALIDATE ROLES
+  ===================================================== */
+
   const validateRoles = () => {
     if (availableRoles.length === 0) {
       return "Please create at least one role.";
@@ -107,10 +148,15 @@ function RolesStep({
           folder.roles.length === 0
       );
 
-    if (foldersWithoutRoles.length > 0) {
+    if (
+      foldersWithoutRoles.length > 0
+    ) {
       const names =
         foldersWithoutRoles
-          .map((folder) => folder.name)
+          .map(
+            (folder) =>
+              folder.name
+          )
           .join(", ");
 
       return `No role assigned to: ${names}.`;
@@ -119,11 +165,13 @@ function RolesStep({
     return "";
   };
 
-  /*
-   * Validate before final submission
-   */
+  /* =====================================================
+     SUBMIT
+  ===================================================== */
+
   const handleSubmit = () => {
-    const error = validateRoles();
+    const error =
+      validateRoles();
 
     if (error) {
       setAssignmentError(error);
@@ -134,17 +182,20 @@ function RolesStep({
     onSubmit();
   };
 
-  /*
-   * Render folder hierarchy
-   */
+  /* =====================================================
+     RENDER FOLDER
+  ===================================================== */
+
   const renderFolder = (
     folder: ProjectTemplateFolder,
     level = 0
   ) => {
-    const children = folders.filter(
-      (item) =>
-        item.parentFolderId === folder.id
-    );
+    const children =
+      folders.filter(
+        (item) =>
+          item.parentFolderId ===
+          folder.id
+      );
 
     const hasNoRoles =
       folder.roles.length === 0;
@@ -156,24 +207,30 @@ function RolesStep({
       >
         <div
           style={{
-            marginLeft: `${level * 32}px`,
+            marginLeft:
+              `${level * 32}px`,
           }}
-          className={`border rounded-xl p-5 bg-white ${
+          className={`rounded-xl border bg-white p-5 ${
             hasNoRoles
               ? "border-red-300"
               : "border-gray-200"
-          }`}
+          } dark:bg-gray-800 dark:border-gray-700`}
         >
-          {/* Folder name */}
-          <h3 className="font-semibold mb-3">
+          {/* FOLDER NAME */}
+
+          <h3 className="mb-3 font-semibold text-gray-900 dark:text-white">
             {folder.name}
           </h3>
 
-          {/* Role buttons */}
-          {availableRoles.length > 0 ? (
+          {/* ROLE BUTTONS */}
+
+          {availableRoles.length >
+          0 ? (
             <RoleSelector
               roles={availableRoles}
-              selectedRoles={folder.roles}
+              selectedRoles={
+                folder.roles
+              }
               onChange={(roles) =>
                 updateRoles(
                   folder.id,
@@ -182,62 +239,82 @@ function RolesStep({
               }
             />
           ) : (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               No roles created yet.
             </p>
           )}
 
-          
-          {/* Selected roles */}
-          {folder.roles.length > 0 && (
-            <p className="text-xs text-gray-500 mt-3">
+          {/* SELECTED ROLES */}
+
+          {folder.roles.length >
+            0 && (
+            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
               Selected:{" "}
-              {folder.roles.join(", ")}
+              {folder.roles.join(
+                ", "
+              )}
             </p>
           )}
         </div>
 
-        {/* Subfolders */}
-        {children.map((child) =>
-          renderFolder(
-            child,
-            level + 1
-          )
+        {/* SUBFOLDERS */}
+
+        {children.map(
+          (child) =>
+            renderFolder(
+              child,
+              level + 1
+            )
         )}
       </div>
     );
   };
 
-  const rootFolders = folders.filter(
-    (folder) =>
-      folder.parentFolderId === null
-  );
+  /* =====================================================
+     ROOT FOLDERS
+  ===================================================== */
+
+  const rootFolders =
+    folders.filter(
+      (folder) =>
+        folder.parentFolderId ===
+        null
+    );
+
+  /* =====================================================
+     RENDER
+  ===================================================== */
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* HEADER */}
+
       <div>
-        <h2 className="text-xl font-semibold">
-          Create Roles & Assign Folders
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          {editMode
+            ? "Edit Roles & Assign Folders"
+            : "Create Roles & Assign Folders"}
         </h2>
 
-        <p className="text-sm text-gray-500 mt-1">
-          Create roles and assign one or more
-          roles to every folder and subfolder.
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          {editMode
+            ? "Update roles and folder assignments for this project template."
+            : "Create roles and assign one or more roles to every folder and subfolder."}
         </p>
       </div>
 
-      {/* Roles section */}
-      <div className="border rounded-xl p-5 bg-gray-50">
+      {/* ROLES SECTION */}
+
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-semibold">
+            <h3 className="font-semibold text-gray-900 dark:text-white">
               Available Roles
             </h3>
 
-            <p className="text-sm text-gray-500 mt-1">
-              Create roles that can be assigned
-              to folders.
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Create roles that can be
+              assigned to folders.
             </p>
           </div>
 
@@ -248,17 +325,18 @@ function RolesStep({
                 setShowRoleForm(true);
                 setRoleError("");
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
             >
               + Add Role
             </button>
           )}
         </div>
 
-        {/* Add Role Form */}
+        {/* ADD ROLE FORM */}
+
         {showRoleForm && (
-          <div className="mt-4 border rounded-lg p-4 bg-white">
-            <label className="block text-sm font-medium mb-1">
+          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Role Name
             </label>
 
@@ -267,28 +345,34 @@ function RolesStep({
                 type="text"
                 value={newRole}
                 onChange={(e) => {
-                  setNewRole(e.target.value);
+                  setNewRole(
+                    e.target.value
+                  );
                   setRoleError("");
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (
+                    e.key === "Enter"
+                  ) {
                     e.preventDefault();
                     handleAddRole();
                   }
                 }}
                 placeholder="e.g. Editor"
-                className={`flex-1 border rounded-lg px-3 py-2 ${
+                className={`flex-1 rounded-lg border bg-white px-3 py-2 text-gray-900 dark:bg-gray-800 dark:text-white ${
                   roleError
                     ? "border-red-500"
-                    : "border-gray-300"
+                    : "border-gray-300 dark:border-gray-600"
                 }`}
                 autoFocus
               />
 
               <button
                 type="button"
-                onClick={handleAddRole}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                onClick={
+                  handleAddRole
+                }
+                className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
               >
                 Add
               </button>
@@ -300,15 +384,15 @@ function RolesStep({
                   setNewRole("");
                   setRoleError("");
                 }}
-                className="px-4 py-2 border rounded-lg"
+                className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 dark:border-gray-600 dark:text-gray-200"
               >
                 Cancel
               </button>
             </div>
 
             {roleError && (
-              <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
-                <p className="text-sm text-red-600">
+              <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900 dark:bg-red-950/30">
+                <p className="text-sm text-red-600 dark:text-red-400">
                   ❌ {roleError}
                 </p>
               </div>
@@ -316,62 +400,71 @@ function RolesStep({
           </div>
         )}
 
-        {/* Created roles */}
-        {availableRoles.length > 0 && (
+        {/* CREATED ROLES */}
+
+        {availableRoles.length >
+          0 && (
           <div className="mt-4">
-            <p className="text-sm font-medium mb-2">
-              Created Roles
+            <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              Available Roles
             </p>
 
             <div className="flex flex-wrap gap-2">
-              {availableRoles.map((role) => (
-                <span
-                  key={role}
-                  className="px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-sm"
-                >
-                  {role}
-                </span>
-              ))}
+              {availableRoles.map(
+                (role) => (
+                  <span
+                    key={role}
+                    className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+                  >
+                    {role}
+                  </span>
+                )
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* Assignment error */}
+      {/* ASSIGNMENT ERROR */}
+
       {assignmentError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-          <p className="text-sm text-red-600">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30">
+          <p className="text-sm text-red-600 dark:text-red-400">
             ❌ {assignmentError}
           </p>
         </div>
       )}
 
-      {/* Folder assignments */}
+      {/* FOLDER ASSIGNMENTS */}
+
       <div>
-        <h3 className="font-semibold mb-3">
+        <h3 className="mb-3 font-semibold text-gray-900 dark:text-white">
           Assign Roles to Folders
         </h3>
 
-        {rootFolders.length > 0 ? (
+        {rootFolders.length >
+        0 ? (
           <div className="space-y-4">
-            {rootFolders.map((folder) =>
-              renderFolder(folder)
+            {rootFolders.map(
+              (folder) =>
+                renderFolder(folder)
             )}
           </div>
         ) : (
-          <div className="border border-dashed rounded-xl p-8 text-center text-gray-500">
+          <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-600">
             No folders available.
           </div>
         )}
       </div>
 
-      {/* Navigation */}
+      {/* NAVIGATION */}
+
       <div className="flex justify-between pt-4">
         <button
           type="button"
           onClick={onBack}
           disabled={loading}
-          className="px-5 py-2.5 border rounded-lg disabled:opacity-50"
+          className="rounded-lg border border-gray-300 px-5 py-2.5 text-gray-700 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200"
         >
           ← Back
         </button>
@@ -383,11 +476,15 @@ function RolesStep({
             loading ||
             folders.length === 0
           }
-          className="px-6 py-2.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+          className="rounded-lg bg-blue-600 px-6 py-2.5 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading
-            ? "Creating..."
-            : "Create Template"}
+            ? editMode
+              ? "Updating..."
+              : "Creating..."
+            : editMode
+              ? "Update Template"
+              : "Create Template"}
         </button>
       </div>
     </div>

@@ -31,7 +31,7 @@ import EditTaskPage from "./pages/tasks/EditTaskPage";
 import WorkflowProcessList from "./pages/workflow-process/WorkflowProcessList";
 import CreateProcess from "./pages/workflow-process/CreateProcess";
 import ViewProcess from "./pages/workflow-process/ViewProcess";
-
+import EditProjectTemplate from "./pages/EditProjectTemplate"
 function App() {
   const [darkMode, setDarkMode] = useState(false);
 
@@ -129,6 +129,10 @@ function App() {
               element={<EditTaskPage />}
             />
 
+            <Route
+              path="/project-template/:templateId/edit"
+              element={<EditProjectTemplate />}
+            />
             <Route
               path="/projects"
               element={<Projects />}

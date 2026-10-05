@@ -98,6 +98,7 @@ export interface ProcessJson {
     NumberofTasks: number;
     Tasks: ProcessTask[];
     connections: ProcessConnection[];
+    tid?:number;
 }
 
 /*
