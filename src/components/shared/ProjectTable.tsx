@@ -81,11 +81,11 @@ function ProjectTable({ projects }: ProjectTableProps) {
               </th>
 
               <th className="px-6 py-4 font-semibold">
-                Project No.
+                Project Type
               </th>
 
               <th className="px-6 py-4 font-semibold">
-                Department
+                Template
               </th>
 
               <th className="px-6 py-4 font-semibold">
@@ -139,14 +139,12 @@ function ProjectTable({ projects }: ProjectTableProps) {
                     {project.coordinator ?? "—"}
                   </td>
 
-                  {/* Project Number */}
                   <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                    {project.projectno || "—"}
+                    {project.projecttype || "—"}
                   </td>
 
-                  {/* Department */}
                   <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                    {project.department || "—"}
+                    {project.tid || "—"}
                   </td>
 
                   {/* Status */}
