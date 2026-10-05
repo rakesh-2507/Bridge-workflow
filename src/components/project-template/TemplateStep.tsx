@@ -223,7 +223,7 @@ function TemplateStep({
 
             setNameError(
               response.message ||
-                "Project template name already exists."
+              "Project template name already exists."
             );
 
             setValidatedName("");
@@ -432,7 +432,7 @@ function TemplateStep({
         ) {
           setCreateTypeError(
             error.message ||
-              "Unable to create project type."
+            "Unable to create project type."
           );
         } else {
           setCreateTypeError(
@@ -482,7 +482,7 @@ function TemplateStep({
     !isTemplateNameEmpty &&
     nameStatus === "valid" &&
     validatedName ===
-      templateName &&
+    templateName &&
     !nameError;
 
   /* =====================================================
@@ -498,14 +498,14 @@ function TemplateStep({
   const isProjectTypeChecking =
     !isProjectTypeEmpty &&
     projectTypeStatus ===
-      "checking";
+    "checking";
 
   const isProjectTypeValid =
     !isProjectTypeEmpty &&
     projectTypeStatus ===
-      "valid" &&
+    "valid" &&
     validatedProjectType ===
-      projectTypeName &&
+    projectTypeName &&
     !createTypeError;
 
   /* =====================================================
@@ -642,11 +642,10 @@ function TemplateStep({
             )
           }
           placeholder="Enter template name"
-          className={`w-full rounded-lg px-4 py-2.5 border bg-white text-gray-900 dark:bg-gray-800 dark:text-white ${
-            nameError
+          className={`w-full rounded-lg px-4 py-2.5 border bg-white text-gray-900 dark:bg-gray-800 dark:text-white ${nameError
               ? "border-red-500"
               : "border-gray-300 dark:border-gray-600"
-          }`}
+            }`}
         />
 
         {isNameChecking && (
@@ -787,11 +786,10 @@ function TemplateStep({
                 disabled={
                   creatingProjectType
                 }
-                className={`flex-1 rounded-lg border bg-white px-3 py-2 text-gray-900 dark:bg-gray-900 dark:text-white ${
-                  createTypeError
+                className={`flex-1 rounded-lg border bg-white px-3 py-2 text-gray-900 dark:bg-gray-900 dark:text-white ${createTypeError
                     ? "border-red-500"
                     : "border-gray-300 dark:border-gray-600"
-                }`}
+                  }`}
               />
 
               <button
@@ -908,6 +906,42 @@ function TemplateStep({
             {data.workflow_config_id}
           </p>
         )}
+      </div>
+
+
+      {/* ==========================================
+          WORKFLOW SCOPE
+      ========================================== */}
+
+      <div>
+        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Workflow Scope
+        </label>
+
+        <select
+          value={data.workflow_scope || "FOLDER"}
+          onChange={(e) =>
+            handleChange(
+              "workflow_scope",
+              e.target.value
+            )
+          }
+          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+          required
+        >
+          <option value="FOLDER">
+            Folder
+          </option>
+
+          <option value="PROJECT">
+            Project
+          </option>
+        </select>
+
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          Select whether the workflow should apply
+          at the folder level or project level.
+        </p>
       </div>
 
       {/* ==========================================

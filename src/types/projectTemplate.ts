@@ -21,6 +21,7 @@ export interface ProjectTemplateDetails {
   description: string;
   project_type_id: number;
   workflow_config_id: string;
+  workflow_scope: string;
 }
 
 export interface ProjectTemplateFolder {

@@ -5,6 +5,13 @@ function Home() {
 
   const cards = [
     {
+      title: "Project Templates",
+      value: "12",
+      description: "View Project Templates →",
+      path: "/workflow-process",
+      clickable: true,
+    },
+    {
       title: "Total Projects",
       value: "50",
       description: "View all projects →",
@@ -16,13 +23,6 @@ function Home() {
       value: "5",
       description: "View Project categories →",
       path: "/project-types",
-      clickable: true,
-    },
-    {
-      title: "Templates",
-      value: "3",
-      description: "Available templates →",
-      path: "/templates",
       clickable: true,
     },
     {
@@ -44,20 +44,6 @@ function Home() {
       value: "12",
       description: "View users →",
       path: "/members",
-      clickable: true,
-    },
-    {
-      title: "Project Template",
-      value: "1",
-      description: "View project templates →",
-      path: "/projecttemplate",
-      clickable: true,
-    },
-        {
-      title: "Project Creation",
-      value: "1",
-      description: "Create new projects →",
-      path: "/project-create",
       clickable: true,
     },
   ];

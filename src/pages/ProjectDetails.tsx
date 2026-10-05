@@ -6,15 +6,15 @@ import {
   type Project,
 } from "../api/projects";
 
-interface ProjectFile {
-  id: number;
-  name: string;
-  type: "folder" | "pdf" | "doc" | "image" | "text";
-  updatedBy: string;
-  size: string;
-  pages?: number;
-  date: string;
-}
+// interface ProjectFile {
+//   id: number;
+//   name: string;
+//   type: "folder" | "pdf" | "doc" | "image" | "text";
+//   updatedBy: string;
+//   size: string;
+//   pages?: number;
+//   date: string;
+// }
 
 function ProjectDetails() {
   const { id } = useParams();
@@ -25,67 +25,67 @@ function ProjectDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [currentFolder, setCurrentFolder] =
-    useState("Project Files");
+  // const [currentFolder, setCurrentFolder] =
+  //   useState("Project Files");
 
-  /*
-   * Temporary files.
-   *
-   * These are still static because you have not
-   * provided a project-files API yet.
-   */
-  const files: ProjectFile[] = [
-    {
-      id: 1,
-      name: "Project Documents",
-      type: "folder",
-      updatedBy: "John Doe",
-      size: "-",
-      date: "18/08/2026",
-    },
-    {
-      id: 2,
-      name: "Design Assets",
-      type: "folder",
-      updatedBy: "John Doe",
-      size: "-",
-      date: "17/08/2026",
-    },
-    {
-      id: 3,
-      name: "Requirements.pdf",
-      type: "pdf",
-      updatedBy: "John Doe",
-      size: "2.7 MB",
-      pages: 12,
-      date: "18/08/2026",
-    },
-    {
-      id: 4,
-      name: "Project Specification.docx",
-      type: "doc",
-      updatedBy: "System Administrator",
-      size: "1.2 MB",
-      pages: 8,
-      date: "17/08/2026",
-    },
-    {
-      id: 5,
-      name: "homepage.png",
-      type: "image",
-      updatedBy: "John Doe",
-      size: "850 KB",
-      date: "16/08/2026",
-    },
-    {
-      id: 6,
-      name: "project-notes.txt",
-      type: "text",
-      updatedBy: "System Administrator",
-      size: "14 KB",
-      date: "15/08/2026",
-    },
-  ];
+  // /*
+  //  * Temporary files.
+  //  *
+  //  * These are still static because you have not
+  //  * provided a project-files API yet.
+  //  */
+  // const files: ProjectFile[] = [
+  //   {
+  //     id: 1,
+  //     name: "Project Documents",
+  //     type: "folder",
+  //     updatedBy: "John Doe",
+  //     size: "-",
+  //     date: "18/08/2026",
+  //   },
+  //   {
+  //     id: 2,
+  //     name: "Design Assets",
+  //     type: "folder",
+  //     updatedBy: "John Doe",
+  //     size: "-",
+  //     date: "17/08/2026",
+  //   },
+  //   {
+  //     id: 3,
+  //     name: "Requirements.pdf",
+  //     type: "pdf",
+  //     updatedBy: "John Doe",
+  //     size: "2.7 MB",
+  //     pages: 12,
+  //     date: "18/08/2026",
+  //   },
+  //   {
+  //     id: 4,
+  //     name: "Project Specification.docx",
+  //     type: "doc",
+  //     updatedBy: "System Administrator",
+  //     size: "1.2 MB",
+  //     pages: 8,
+  //     date: "17/08/2026",
+  //   },
+  //   {
+  //     id: 5,
+  //     name: "homepage.png",
+  //     type: "image",
+  //     updatedBy: "John Doe",
+  //     size: "850 KB",
+  //     date: "16/08/2026",
+  //   },
+  //   {
+  //     id: 6,
+  //     name: "project-notes.txt",
+  //     type: "text",
+  //     updatedBy: "System Administrator",
+  //     size: "14 KB",
+  //     date: "15/08/2026",
+  //   },
+  // ];
 
   /*
    * Load project by ID
@@ -144,62 +144,62 @@ function ProjectDetails() {
   /*
    * File icon
    */
-  const getFileIcon = (
-    type: ProjectFile["type"]
-  ) => {
-    if (type === "folder") {
-      return (
-        <svg
-          className="h-5 w-5 text-yellow-500"
-          fill="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2Z" />
-        </svg>
-      );
-    }
+  // const getFileIcon = (
+  //   type: ProjectFile["type"]
+  // ) => {
+  //   if (type === "folder") {
+  //     return (
+  //       <svg
+  //         className="h-5 w-5 text-yellow-500"
+  //         fill="currentColor"
+  //         viewBox="0 0 24 24"
+  //       >
+  //         <path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2Z" />
+  //       </svg>
+  //     );
+  //   }
 
-    if (type === "pdf") {
-      return (
-        <span className="text-xs font-bold text-red-500">
-          PDF
-        </span>
-      );
-    }
+  //   if (type === "pdf") {
+  //     return (
+  //       <span className="text-xs font-bold text-red-500">
+  //         PDF
+  //       </span>
+  //     );
+  //   }
 
-    if (type === "doc") {
-      return (
-        <span className="text-xs font-bold text-blue-500">
-          DOC
-        </span>
-      );
-    }
+  //   if (type === "doc") {
+  //     return (
+  //       <span className="text-xs font-bold text-blue-500">
+  //         DOC
+  //       </span>
+  //     );
+  //   }
 
-    if (type === "image") {
-      return (
-        <span className="text-xs font-bold text-purple-500">
-          IMG
-        </span>
-      );
-    }
+  //   if (type === "image") {
+  //     return (
+  //       <span className="text-xs font-bold text-purple-500">
+  //         IMG
+  //       </span>
+  //     );
+  //   }
 
-    return (
-      <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
-        TXT
-      </span>
-    );
-  };
+  //   return (
+  //     <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+  //       TXT
+  //     </span>
+  //   );
+  // };
 
   /*
    * Folder click
    */
-  const handleFileClick = (
-    file: ProjectFile
-  ) => {
-    if (file.type === "folder") {
-      setCurrentFolder(file.name);
-    }
-  };
+  // const handleFileClick = (
+  //   file: ProjectFile
+  // ) => {
+  //   if (file.type === "folder") {
+  //     setCurrentFolder(file.name);
+  //   }
+  // };
 
   /*
    * Loading state
@@ -355,24 +355,12 @@ function ProjectDetails() {
             value={project.project_id}
           />
 
-          <ProjectInfo
-            label="Project Number"
-            value={project.projectno}
-          />
+          
 
-          <ProjectInfo
-            label="Department"
-            value={project.department}
-          />
-
+         
           <ProjectInfo
             label="Coordinator"
             value={project.coordinator}
-          />
-
-          <ProjectInfo
-            label="Member ID"
-            value={project.member_id}
           />
 
           <ProjectInfo
@@ -398,23 +386,8 @@ function ProjectDetails() {
           />
 
           <ProjectInfo
-            label="PO"
-            value={project.po}
-          />
-
-          <ProjectInfo
-            label="Cost Head"
-            value={project.costhead}
-          />
-
-          <ProjectInfo
-            label="Created By"
-            value={project.created_by}
-          />
-
-          <ProjectInfo
-            label="Updated By"
-            value={project.updated_by}
+            label="Created On"
+            value={project.created_date}
           />
 
         </div>
@@ -437,9 +410,8 @@ function ProjectDetails() {
 
       {/* Files */}
 
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950">
+      {/* <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950">
 
-        {/* Files Header */}
 
         <div className="flex flex-col gap-4 border-b border-gray-200 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between dark:border-gray-700">
 
@@ -496,7 +468,6 @@ function ProjectDetails() {
 
         </div>
 
-        {/* Desktop */}
 
         <div className="hidden overflow-x-auto md:block">
 
@@ -603,7 +574,6 @@ function ProjectDetails() {
 
         </div>
 
-        {/* Mobile */}
 
         <div className="divide-y divide-gray-200 md:hidden dark:divide-gray-700">
 
@@ -709,7 +679,6 @@ function ProjectDetails() {
 
         </div>
 
-        {/* Footer */}
 
         <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-gray-700 dark:bg-gray-900">
 
@@ -737,7 +706,7 @@ function ProjectDetails() {
 
         </div>
 
-      </div>
+      </div> */}
 
     </div>
   );

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import WizardSteps from "./WizardSteps";
 import TemplateStep from "./TemplateStep";
@@ -22,6 +23,7 @@ function TemplateWizard() {
       description: "",
       project_type_id: 0,
       workflow_config_id: "",
+      workflow_scope: "FOLDER",
     });
 
   const [folders, setFolders] = useState<
@@ -39,8 +41,7 @@ function TemplateWizard() {
           (item) => item.id === folder.parentFolderId
         );
 
-        parentFolderIndex =
-          index >= 0 ? index : null;
+        parentFolderIndex = index >= 0 ? index : null;
       }
 
       return {
@@ -62,6 +63,7 @@ function TemplateWizard() {
           description: template.description,
           project_type_id: template.project_type_id,
           workflow_config_id: template.workflow_config_id,
+          workflow_scope: template.workflow_scope,
         },
         folders: buildApiFolders(),
       };
@@ -83,6 +85,7 @@ function TemplateWizard() {
         description: "",
         project_type_id: 0,
         workflow_config_id: "",
+        workflow_scope: "FOLDER",
       });
 
       setFolders([]);

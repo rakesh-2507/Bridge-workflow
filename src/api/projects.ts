@@ -11,8 +11,8 @@ export interface Project {
   projectname?: string;
   projectdesc?: string;
   status?: number;
-  created_by?: string;
-  updated_by?: string;
+  created_date?: string;
+  updated_date?: string;
   coordinator?: number;
   is_project_manage?: number;
   po?: string;

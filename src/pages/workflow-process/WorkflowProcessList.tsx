@@ -67,11 +67,11 @@ export default function WorkflowProcessList() {
 
                             <div>
                                 <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                                    Workflow Processes
+                                    Project Templates
                                 </h1>
 
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Manage workflow process definitions.
+                                    Manage workflow process and templates definitions.
                                 </p>
                             </div>
                         </div>
@@ -81,13 +81,13 @@ export default function WorkflowProcessList() {
                         type="button"
                         onClick={() =>
                             navigate(
-                                "/workflow-process/create"
+                                "/projecttemplate"
                             )
                         }
                         className="flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-cyan-700"
                     >
                         <Plus className="h-4 w-4" />
-                        Add Process
+                        Add Template
                     </button>
                 </div>
 
@@ -97,15 +97,15 @@ export default function WorkflowProcessList() {
                     <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
                         <div>
                             <h2 className="font-semibold text-gray-900 dark:text-white">
-                                Processes
+                                Templates
                             </h2>
 
                             {!loading && (
                                 <p className="mt-0.5 text-xs text-gray-500">
-                                    {processes.length} process
+                                    {processes.length} template
                                     {processes.length === 1
                                         ? ""
-                                        : "es"}
+                                        : "s"}
                                 </p>
                             )}
                         </div>
