@@ -58,6 +58,11 @@ function Sidebar({
 
     ]
     : [
+      {
+        label: "Dashboard",
+        icon: LayoutDashboard,
+        to: "/dashboard",
+      },
 
       {
         label: "Today Tasks",

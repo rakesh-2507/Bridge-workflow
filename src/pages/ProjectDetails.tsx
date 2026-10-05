@@ -1,102 +1,71 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  Download,
+  Loader2,
+  X,
+} from "lucide-react";
 
 import {
   getProject,
-  type Project,
+  type AdminProjectDetails,
+  type ProjectFolder,
+  type ProjectMember,
+  type ProjectFile,
 } from "../api/projects";
 
-// interface ProjectFile {
-//   id: number;
-//   name: string;
-//   type: "folder" | "pdf" | "doc" | "image" | "text";
-//   updatedBy: string;
-//   size: string;
-//   pages?: number;
-//   date: string;
-// }
+import { apiRequest } from "../api/client";
 
 function ProjectDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const [project, setProject] = useState<Project | null>(null);
+  const [project, setProject] =
+    useState<AdminProjectDetails | null>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [folders, setFolders] =
+    useState<ProjectFolder[]>([]);
 
-  // const [currentFolder, setCurrentFolder] =
-  //   useState("Project Files");
+  const [members, setMembers] =
+    useState<ProjectMember[]>([]);
 
-  // /*
-  //  * Temporary files.
-  //  *
-  //  * These are still static because you have not
-  //  * provided a project-files API yet.
-  //  */
-  // const files: ProjectFile[] = [
-  //   {
-  //     id: 1,
-  //     name: "Project Documents",
-  //     type: "folder",
-  //     updatedBy: "John Doe",
-  //     size: "-",
-  //     date: "18/08/2026",
-  //   },
-  //   {
-  //     id: 2,
-  //     name: "Design Assets",
-  //     type: "folder",
-  //     updatedBy: "John Doe",
-  //     size: "-",
-  //     date: "17/08/2026",
-  //   },
-  //   {
-  //     id: 3,
-  //     name: "Requirements.pdf",
-  //     type: "pdf",
-  //     updatedBy: "John Doe",
-  //     size: "2.7 MB",
-  //     pages: 12,
-  //     date: "18/08/2026",
-  //   },
-  //   {
-  //     id: 4,
-  //     name: "Project Specification.docx",
-  //     type: "doc",
-  //     updatedBy: "System Administrator",
-  //     size: "1.2 MB",
-  //     pages: 8,
-  //     date: "17/08/2026",
-  //   },
-  //   {
-  //     id: 5,
-  //     name: "homepage.png",
-  //     type: "image",
-  //     updatedBy: "John Doe",
-  //     size: "850 KB",
-  //     date: "16/08/2026",
-  //   },
-  //   {
-  //     id: 6,
-  //     name: "project-notes.txt",
-  //     type: "text",
-  //     updatedBy: "System Administrator",
-  //     size: "14 KB",
-  //     date: "15/08/2026",
-  //   },
-  // ];
+  const [selectedFolder, setSelectedFolder] =
+    useState<ProjectFolder | null>(null);
+
+  const [foldersCount, setFoldersCount] =
+    useState(0);
+
+  const [totalFiles, setTotalFiles] =
+    useState(0);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
 
   /*
-   * Load project by ID
+   * File viewer modal state
+   */
+  const [viewingFile, setViewingFile] =
+    useState<ProjectFile | null>(null);
+
+  const [fileUrl, setFileUrl] =
+    useState<string | null>(null);
+
+  const [fileLoading, setFileLoading] =
+    useState(false);
+
+  const [fileError, setFileError] =
+    useState("");
+
+  /*
+   * Load project details
    */
   useEffect(() => {
     let cancelled = false;
 
     const loadProject = async () => {
-      /*
-       * Validate URL ID
-       */
       const projectId = Number(id);
 
       if (!id || !Number.isInteger(projectId)) {
@@ -111,9 +80,19 @@ function ProjectDetails() {
 
         const response = await getProject(projectId);
 
-        if (!cancelled) {
-          setProject(response);
+        if (cancelled) {
+          return;
         }
+
+        setProject(response.data.project);
+        setFolders(response.data.folders ?? []);
+        setMembers(response.data.members ?? []);
+        setFoldersCount(
+          response.data.folders_count ?? 0
+        );
+        setTotalFiles(
+          response.data.total_files ?? 0
+        );
       } catch (err) {
         console.error(
           "Failed to load project:",
@@ -134,7 +113,7 @@ function ProjectDetails() {
       }
     };
 
-    loadProject();
+    void loadProject();
 
     return () => {
       cancelled = true;
@@ -142,67 +121,248 @@ function ProjectDetails() {
   }, [id]);
 
   /*
-   * File icon
+   * Revoke Blob URL when it changes/unmounts.
    */
-  // const getFileIcon = (
-  //   type: ProjectFile["type"]
-  // ) => {
-  //   if (type === "folder") {
-  //     return (
-  //       <svg
-  //         className="h-5 w-5 text-yellow-500"
-  //         fill="currentColor"
-  //         viewBox="0 0 24 24"
-  //       >
-  //         <path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2Z" />
-  //       </svg>
-  //     );
-  //   }
-
-  //   if (type === "pdf") {
-  //     return (
-  //       <span className="text-xs font-bold text-red-500">
-  //         PDF
-  //       </span>
-  //     );
-  //   }
-
-  //   if (type === "doc") {
-  //     return (
-  //       <span className="text-xs font-bold text-blue-500">
-  //         DOC
-  //       </span>
-  //     );
-  //   }
-
-  //   if (type === "image") {
-  //     return (
-  //       <span className="text-xs font-bold text-purple-500">
-  //         IMG
-  //       </span>
-  //     );
-  //   }
-
-  //   return (
-  //     <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
-  //       TXT
-  //     </span>
-  //   );
-  // };
+  useEffect(() => {
+    return () => {
+      if (fileUrl) {
+        URL.revokeObjectURL(fileUrl);
+      }
+    };
+  }, [fileUrl]);
 
   /*
-   * Folder click
+   * Format file size
    */
-  // const handleFileClick = (
-  //   file: ProjectFile
-  // ) => {
-  //   if (file.type === "folder") {
-  //     setCurrentFolder(file.name);
-  //   }
-  // };
+  const formatFileSize = (size: number) => {
+    if (!size || size <= 0) {
+      return "0 B";
+    }
+
+    if (size < 1024) {
+      return `${size} B`;
+    }
+
+    if (size < 1024 * 1024) {
+      return `${(size / 1024).toFixed(1)} KB`;
+    }
+
+    if (size < 1024 * 1024 * 1024) {
+      return `${(
+        size /
+        (1024 * 1024)
+      ).toFixed(1)} MB`;
+    }
+
+    return `${(
+      size /
+      (1024 * 1024 * 1024)
+    ).toFixed(1)} GB`;
+  };
 
   /*
-   * Loading state
+   * Open folder
+   */
+  const handleFolderClick = (
+    folder: ProjectFolder
+  ) => {
+    setSelectedFolder(folder);
+  };
+
+  /*
+   * Go back to folders
+   */
+  const handleBackToFolders = () => {
+    setSelectedFolder(null);
+  };
+
+  /*
+   * Open file in viewer modal.
+   *
+   * IMPORTANT:
+   *
+   * Do NOT use:
+   *
+   * window.open(file.view_url)
+   * navigate(file.view_url)
+   * <Link to={file.view_url}>
+   *
+   * The view URL is an API endpoint.
+   *
+   * apiRequest() handles:
+   * - API base URL
+   * - Authorization header
+   * - token refresh
+   * - 401 retry
+   * - Blob response
+   */
+  const handleViewFile = async (
+    file: ProjectFile
+  ) => {
+    if (!file.view_url) {
+      return;
+    }
+
+    /*
+     * Revoke old Blob URL.
+     */
+    if (fileUrl) {
+      URL.revokeObjectURL(fileUrl);
+    }
+
+    setViewingFile(file);
+    setFileUrl(null);
+    setFileLoading(true);
+    setFileError("");
+
+    try {
+      /*
+       * Example endpoint:
+       *
+       * /api/80/folders/258/files/78/view
+       *
+       * apiRequest() turns this into:
+       *
+       * https://bridgeapi.sidpz.com/api/80/folders/258/files/78/view
+       */
+      const blob = await apiRequest<Blob>(
+        file.view_url,
+        {
+          method: "GET",
+          responseType: "blob",
+        }
+      );
+
+      if (!blob || blob.size === 0) {
+        throw new Error(
+          "The server returned an empty file."
+        );
+      }
+
+      const objectUrl =
+        URL.createObjectURL(blob);
+
+      setFileUrl(objectUrl);
+    } catch (err) {
+      console.error(
+        "Failed to preview file:",
+        err
+      );
+
+      setFileError(
+        err instanceof Error
+          ? err.message
+          : "Failed to preview file."
+      );
+    } finally {
+      setFileLoading(false);
+    }
+  };
+
+  /*
+   * Close file viewer
+   */
+  const handleCloseFileViewer = () => {
+    if (fileUrl) {
+      URL.revokeObjectURL(fileUrl);
+    }
+
+    setViewingFile(null);
+    setFileUrl(null);
+    setFileLoading(false);
+    setFileError("");
+  };
+
+  /*
+   * Download file
+   */
+  const handleDownloadFile = (
+    file: ProjectFile
+  ) => {
+    if (!file.download_url) {
+      return;
+    }
+
+    /*
+     * Download URL may be:
+     *
+     * /api/80/folders/258/files/78/download
+     *
+     * For now keep existing download behavior.
+     */
+    const downloadUrl =
+      file.download_url.startsWith(
+        "http://"
+      ) ||
+      file.download_url.startsWith(
+        "https://"
+      )
+        ? file.download_url
+        : file.download_url;
+
+    /*
+     * If download_url is a backend API path,
+     * use apiRequest so authentication and
+     * token refresh work correctly.
+     */
+    if (
+      downloadUrl.startsWith("/api/")
+    ) {
+      void (async () => {
+        try {
+          const blob =
+            await apiRequest<Blob>(
+              downloadUrl,
+              {
+                method: "GET",
+                responseType: "blob",
+              }
+            );
+
+          const objectUrl =
+            URL.createObjectURL(blob);
+
+          const anchor =
+            document.createElement("a");
+
+          anchor.href = objectUrl;
+          anchor.download =
+            file.filename || "download";
+
+          document.body.appendChild(
+            anchor
+          );
+
+          anchor.click();
+
+          anchor.remove();
+
+          URL.revokeObjectURL(
+            objectUrl
+          );
+        } catch (err) {
+          console.error(
+            "Failed to download file:",
+            err
+          );
+        }
+      })();
+
+      return;
+    }
+
+    /*
+     * External/full URL.
+     */
+    window.open(
+      downloadUrl,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
+  /*
+   * Loading
    */
   if (loading) {
     return (
@@ -217,14 +377,16 @@ function ProjectDetails() {
   }
 
   /*
-   * Error state
+   * Error
    */
   if (error) {
     return (
       <div className="mx-auto">
         <button
           type="button"
-          onClick={() => navigate("/projects")}
+          onClick={() =>
+            navigate("/projects")
+          }
           className="mb-5 flex items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           <svg
@@ -251,7 +413,9 @@ function ProjectDetails() {
 
           <button
             type="button"
-            onClick={() => window.location.reload()}
+            onClick={() =>
+              window.location.reload()
+            }
             className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
           >
             Try Again
@@ -276,13 +440,6 @@ function ProjectDetails() {
     );
   }
 
-  /*
-   * Project status
-   *
-   * API currently returns status as a number.
-   * We don't know the backend's exact status mapping,
-   * so display the value instead of inventing one.
-   */
   const projectStatus =
     project.status !== undefined &&
     project.status !== null
@@ -291,12 +448,13 @@ function ProjectDetails() {
 
   return (
     <div className="mx-auto">
-
       {/* Back */}
 
       <button
         type="button"
-        onClick={() => navigate("/projects")}
+        onClick={() =>
+          navigate("/projects")
+        }
         className="mb-5 flex items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
       >
         <svg
@@ -319,45 +477,38 @@ function ProjectDetails() {
       {/* Project Details */}
 
       <div className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950">
-
-        {/* Header */}
-
         <div className="border-b border-gray-200 px-4 py-5 sm:px-6 dark:border-gray-700">
-
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-
             <div className="min-w-0">
-
               <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-                {project.projectname || "Unnamed Project"}
+                {project.project_name ||
+                  "Unnamed Project"}
               </h1>
 
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Project #{project.project_id}
               </p>
 
+              {project.template_name && (
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  Template:{" "}
+                  {project.template_name}
+                </p>
+              )}
             </div>
 
             <span className="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
               Status: {projectStatus}
             </span>
-
           </div>
-
         </div>
 
-        {/* Project information */}
-
         <div className="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 lg:grid-cols-3 sm:p-6">
-
           <ProjectInfo
             label="Project ID"
             value={project.project_id}
           />
 
-          
-
-         
           <ProjectInfo
             label="Coordinator"
             value={project.coordinator}
@@ -370,12 +521,12 @@ function ProjectDetails() {
 
           <ProjectInfo
             label="Company ID"
-            value={project.cid}
+            value={project.company_id}
           />
 
           <ProjectInfo
-            label="Type ID"
-            value={project.tid}
+            label="Template ID"
+            value={project.template_id}
           />
 
           <ProjectInfo
@@ -386,328 +537,1014 @@ function ProjectDetails() {
           />
 
           <ProjectInfo
-            label="Created On"
-            value={project.created_date}
+            label="Start Date"
+            value={project.start_date}
           />
 
+          <ProjectInfo
+            label="End Date"
+            value={project.end_date}
+          />
+
+          <ProjectInfo
+            label="Folders"
+            value={foldersCount}
+          />
+
+          <ProjectInfo
+            label="Files"
+            value={totalFiles}
+          />
+
+          <ProjectInfo
+            label="Members"
+            value={members.length}
+          />
         </div>
 
-        {/* Description */}
-
         <div className="border-t border-gray-200 px-4 py-5 sm:px-6 dark:border-gray-700">
-
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
             Project Description
           </h2>
 
           <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-600 dark:text-gray-300">
-            {project.projectdesc || "No description available."}
+            {project.project_description ||
+              "No description available."}
           </p>
-
         </div>
-
       </div>
 
-      {/* Files */}
+      {/* =====================================================
+          FOLDER VIEW
+          ===================================================== */}
 
-      {/* <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950">
-
-
-        <div className="flex flex-col gap-4 border-b border-gray-200 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between dark:border-gray-700">
-
-          <div className="min-w-0">
-
+      {!selectedFolder && (
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950">
+          <div className="border-b border-gray-200 px-4 py-5 sm:px-6 dark:border-gray-700">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Project Files
+              Project Folders
             </h2>
 
-            <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {foldersCount}{" "}
+              {foldersCount === 1
+                ? "folder"
+                : "folders"}{" "}
+              · {totalFiles}{" "}
+              {totalFiles === 1
+                ? "file"
+                : "files"}
+            </p>
+          </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setCurrentFolder("Project Files")
-                }
-                className="transition hover:text-gray-900 dark:hover:text-white"
-              >
-                Project Files
-              </button>
-
-              {currentFolder !==
-                "Project Files" && (
-                <>
-                  <span>/</span>
-
-                  <span className="truncate">
-                    {currentFolder}
-                  </span>
-                </>
-              )}
-
+          {folders.length === 0 && (
+            <div className="px-6 py-12 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No folders found for this
+                project.
+              </p>
             </div>
+          )}
 
-          </div>
+          {folders.length > 0 && (
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold">
+                      Folder
+                    </th>
 
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <th className="px-6 py-4 font-semibold">
+                      Description
+                    </th>
 
-            <button
-              type="button"
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              Create Folder
-            </button>
+                    <th className="px-6 py-4 font-semibold">
+                      Start Date
+                    </th>
 
-            <button
-              type="button"
-              className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 sm:w-auto dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-            >
-              Upload Files
-            </button>
+                    <th className="px-6 py-4 font-semibold">
+                      End Date
+                    </th>
 
-          </div>
+                    <th className="px-6 py-4 font-semibold">
+                      Files
+                    </th>
 
-        </div>
+                    <th className="px-6 py-4 font-semibold">
+                      Assignments
+                    </th>
+                  </tr>
+                </thead>
 
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {folders.map(
+                    (folder) => (
+                      <tr
+                        key={
+                          folder.project_folder_id
+                        }
+                        onClick={() =>
+                          handleFolderClick(
+                            folder
+                          )
+                        }
+                        className="cursor-pointer transition hover:bg-gray-50 dark:hover:bg-gray-900"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+                              <svg
+                                className="h-5 w-5 text-gray-600 dark:text-gray-300"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2Z" />
+                              </svg>
+                            </div>
 
-        <div className="hidden overflow-x-auto md:block">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-900 dark:text-white">
+                                {
+                                  folder.folder_name
+                                }
+                              </p>
 
-          <table className="w-full text-left text-sm">
+                              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                Folder #
+                                {
+                                  folder.folder_id
+                                }
+                              </p>
+                            </div>
+                          </div>
+                        </td>
 
-            <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-200">
+                        <td className="max-w-xs px-6 py-4 text-gray-600 dark:text-gray-300">
+                          <span className="line-clamp-2">
+                            {
+                              folder.folder_description ||
+                              "—"
+                            }
+                          </span>
+                        </td>
 
-              <tr>
+                        <td className="whitespace-nowrap px-6 py-4 text-gray-600 dark:text-gray-300">
+                          {folder.start_date ||
+                            "—"}
+                        </td>
 
-                <th className="w-12 px-6 py-4">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700"
-                  />
-                </th>
+                        <td className="whitespace-nowrap px-6 py-4 text-gray-600 dark:text-gray-300">
+                          {folder.end_date ||
+                            "—"}
+                        </td>
 
-                <th className="px-6 py-4 font-semibold">
-                  File / Folder Name
-                </th>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                            {
+                              folder.files_count
+                            }
+                          </span>
+                        </td>
 
-                <th className="px-6 py-4 font-semibold">
-                  Updated By
-                </th>
+                        <td className="px-6 py-4">
+                          {folder.assignments?.length ? (
+                            <div className="space-y-1">
+                              {folder.assignments.map(
+                                (
+                                  assignment
+                                ) => (
+                                  <div
+                                    key={`${folder.project_folder_id}-${assignment.user_id}-${assignment.role}`}
+                                    className="text-xs"
+                                  >
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                      {
+                                        assignment.user_name
+                                      }
+                                    </span>
 
-                <th className="px-6 py-4 font-semibold">
-                  Size
-                </th>
+                                    <span className="ml-1 text-gray-500 dark:text-gray-400">
+                                      (
+                                      {
+                                        assignment.role
+                                      }
+                                      )
+                                    </span>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">
+                              No assignments
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-                <th className="px-6 py-4 font-semibold">
-                  Pages
-                </th>
+          {folders.length > 0 && (
+            <div className="divide-y divide-gray-200 md:hidden dark:divide-gray-700">
+              {folders.map(
+                (folder) => (
+                  <button
+                    type="button"
+                    key={
+                      folder.project_folder_id
+                    }
+                    onClick={() =>
+                      handleFolderClick(
+                        folder
+                      )
+                    }
+                    className="block w-full p-4 text-left transition hover:bg-gray-50 dark:hover:bg-gray-900"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+                        <svg
+                          className="h-5 w-5 text-gray-600 dark:text-gray-300"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2Z" />
+                        </svg>
+                      </div>
 
-                <th className="px-6 py-4 font-semibold">
-                  Date
-                </th>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                          {
+                            folder.folder_name
+                          }
+                        </h3>
 
-              </tr>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          {
+                            folder.files_count
+                          }{" "}
+                          files
+                        </p>
+                      </div>
+                    </div>
 
-            </thead>
-
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-
-              {files.map((file) => (
-
-                <tr
-                  key={file.id}
-                  className="transition hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-
-                  <td className="px-6 py-4">
-
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700"
-                    />
-
-                  </td>
-
-                  <td className="px-6 py-4">
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleFileClick(file)
+                    <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
+                      {
+                        folder.folder_description ||
+                        "No description available."
                       }
-                      className="flex items-center gap-3 font-medium text-gray-900 transition hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-                    >
+                    </p>
+                  </button>
+                )
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center">
-                        {getFileIcon(file.type)}
-                      </span>
+      {/* =====================================================
+          FILE VIEW
+          ===================================================== */}
 
-                      <span className="truncate">
-                        {file.name}
-                      </span>
+      {selectedFolder && (
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950">
+          <div className="border-b border-gray-200 px-4 py-5 sm:px-6 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={
+                handleBackToFolders
+              }
+              className="mb-4 flex items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
 
-                    </button>
+              Back to Folders
+            </button>
 
-                  </td>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {
+                    selectedFolder.folder_name
+                  }
+                </h2>
 
-                  <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                    {file.updatedBy}
-                  </td>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {
+                    selectedFolder.folder_description ||
+                    "No description available."
+                  }
+                </p>
+              </div>
 
-                  <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                    {file.size}
-                  </td>
+              <span className="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                {
+                  selectedFolder.files_count
+                }{" "}
+                {
+                  selectedFolder.files_count ===
+                  1
+                    ? "file"
+                    : "files"
+                }
+              </span>
+            </div>
+          </div>
 
-                  <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                    {file.pages ?? "-"}
-                  </td>
+          <div className="grid grid-cols-1 gap-4 border-b border-gray-200 p-4 sm:grid-cols-3 sm:p-6 dark:border-gray-700">
+            <ProjectInfo
+              label="Folder ID"
+              value={
+                selectedFolder.folder_id
+              }
+            />
 
-                  <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                    {file.date}
-                  </td>
+            <ProjectInfo
+              label="Start Date"
+              value={
+                selectedFolder.start_date
+              }
+            />
 
-                </tr>
+            <ProjectInfo
+              label="End Date"
+              value={
+                selectedFolder.end_date
+              }
+            />
+          </div>
 
-              ))}
+          {selectedFolder.files.length ===
+            0 && (
+            <div className="px-6 py-12 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                <svg
+                  className="h-6 w-6 text-gray-500 dark:text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 7h4l2 2h12v10H3V7Z"
+                  />
+                </svg>
+              </div>
 
-            </tbody>
+              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                No files in this folder.
+              </p>
+            </div>
+          )}
 
-          </table>
+          {selectedFolder.files.length >
+            0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold">
+                      File Name
+                    </th>
 
+                    <th className="px-6 py-4 font-semibold">
+                      Type
+                    </th>
+
+                    <th className="px-6 py-4 font-semibold">
+                      Size
+                    </th>
+
+                    <th className="px-6 py-4 font-semibold">
+                      Uploaded By
+                    </th>
+
+                    <th className="px-6 py-4 font-semibold">
+                      Date
+                    </th>
+
+                    <th className="px-6 py-4 text-right font-semibold">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {selectedFolder.files.map(
+                    (file) => (
+                      <tr
+                        key={file.pffid}
+                        className="transition hover:bg-gray-50 dark:hover:bg-gray-900"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+                              <svg
+                                className="h-5 w-5 text-gray-600 dark:text-gray-300"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"
+                                />
+
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M14 3v6h6"
+                                />
+                              </svg>
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-gray-900 dark:text-white">
+                                {
+                                  file.filename
+                                }
+                              </p>
+
+                              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                File #
+                                {file.pffid}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                          {file.MIME ||
+                            "—"}
+                        </td>
+
+                        <td className="whitespace-nowrap px-6 py-4 text-gray-600 dark:text-gray-300">
+                          {formatFileSize(
+                            file.filesize
+                          )}
+                        </td>
+
+                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                          User #
+                          {file.uploaded_by ??
+                            "—"}
+                        </td>
+
+                        <td className="whitespace-nowrap px-6 py-4 text-gray-600 dark:text-gray-300">
+                          {file.createddate
+                            ? new Date(
+                                file.createddate
+                              ).toLocaleDateString()
+                            : "—"}
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="flex justify-end gap-2">
+                            {file.view_url && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleViewFile(
+                                    file
+                                  )
+                                }
+                                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                              >
+                                View
+                              </button>
+                            )}
+
+                            {file.download_url && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDownloadFile(
+                                    file
+                                  )
+                                }
+                                className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                              >
+                                Download
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Members */}
+
+      {members.length > 0 && (
+        <div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950">
+          <div className="border-b border-gray-200 px-4 py-5 sm:px-6 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Project Members
+            </h2>
+
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Users associated with this
+              project.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 sm:p-6">
+            {members.map((member) => (
+              <div
+                key={member.user_id}
+                className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900"
+              >
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {member.user_name}
+                </p>
+
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  User #{member.user_id}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================
+          FILE VIEWER MODAL
+          ===================================================== */}
+
+      {viewingFile && (
+        <FileViewerModal
+          file={viewingFile}
+          fileUrl={fileUrl}
+          isLoading={fileLoading}
+          error={fileError}
+          onClose={
+            handleCloseFileViewer
+          }
+          onDownload={() =>
+            handleDownloadFile(
+              viewingFile
+            )
+          }
+          onRetry={() =>
+            void handleViewFile(
+              viewingFile
+            )
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+/*
+ * File viewer modal
+ */
+interface FileViewerModalProps {
+  file: ProjectFile;
+  fileUrl: string | null;
+  isLoading: boolean;
+  error: string;
+  onClose: () => void;
+  onDownload: () => void;
+  onRetry: () => void;
+}
+
+function FileViewerModal({
+  file,
+  fileUrl,
+  isLoading,
+  error,
+  onClose,
+  onDownload,
+  onRetry,
+}: FileViewerModalProps) {
+  const mimeType =
+    file.MIME?.toLowerCase() || "";
+
+  const filename =
+    file.filename?.toLowerCase() || "";
+
+  const isPdf =
+    mimeType.includes(
+      "application/pdf"
+    ) ||
+    filename.endsWith(".pdf");
+
+  const isImage =
+    mimeType.startsWith("image/") ||
+    /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(
+      filename
+    );
+
+  const isVideo =
+    mimeType.startsWith("video/");
+
+  const isAudio =
+    mimeType.startsWith("audio/");
+
+  /*
+   * Close modal with Escape key.
+   */
+  useEffect(() => {
+    const handleKeyDown = (
+      event: KeyboardEvent
+    ) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener(
+      "keydown",
+      handleKeyDown
+    );
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleKeyDown
+      );
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="
+        fixed
+        inset-0
+        z-[100]
+        flex
+        items-center
+        justify-center
+        bg-black/70
+        p-4
+        backdrop-blur-sm
+      "
+      onMouseDown={(event) => {
+        if (
+          event.target ===
+          event.currentTarget
+        ) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="
+          flex
+          h-[90vh]
+          w-full
+          max-w-6xl
+          flex-col
+          overflow-hidden
+          rounded-2xl
+          border
+          border-gray-700
+          bg-white
+          shadow-2xl
+          dark:bg-gray-900
+        "
+      >
+        {/* Header */}
+
+        <div
+          className="
+            flex
+            shrink-0
+            items-center
+            justify-between
+            gap-4
+            border-b
+            border-gray-200
+            px-5
+            py-3
+            dark:border-gray-800
+          "
+        >
+          <div className="min-w-0">
+            <p
+              className="
+                truncate
+                text-sm
+                font-semibold
+                text-gray-900
+                dark:text-white
+              "
+              title={file.filename}
+            >
+              {file.filename}
+            </p>
+
+            <p
+              className="
+                mt-0.5
+                text-xs
+                text-gray-500
+                dark:text-gray-400
+              "
+            >
+              {file.MIME ||
+                "Unknown file type"}
+            </p>
+          </div>
+
+          <div
+            className="
+              flex
+              shrink-0
+              items-center
+              gap-2
+            "
+          >
+            <button
+              type="button"
+              onClick={onDownload}
+              disabled={isLoading}
+              className="
+                flex
+                items-center
+                gap-2
+                rounded-lg
+                bg-sky-900
+                px-3
+                py-2
+                text-xs
+                font-semibold
+                text-white
+                transition
+                hover:bg-sky-800
+                disabled:cursor-not-allowed
+                disabled:opacity-40
+                dark:bg-sky-200
+                dark:text-sky-950
+              "
+            >
+              <Download size={14} />
+              Download
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="
+                rounded-lg
+                p-2
+                text-gray-400
+                transition
+                hover:bg-gray-100
+                hover:text-gray-700
+                dark:hover:bg-gray-800
+                dark:hover:text-gray-200
+              "
+              aria-label="Close file viewer"
+            >
+              <X size={19} />
+            </button>
+          </div>
         </div>
 
+        {/* Content */}
 
-        <div className="divide-y divide-gray-200 md:hidden dark:divide-gray-700">
-
-          {files.map((file) => (
-
+        <div
+          className="
+            min-h-0
+            flex-1
+            overflow-auto
+            bg-gray-100
+            p-4
+            dark:bg-gray-950
+          "
+        >
+          {isLoading ? (
             <div
-              key={file.id}
-              className="p-4 transition hover:bg-gray-50 dark:hover:bg-gray-900"
+              className="
+                flex
+                h-full
+                items-center
+                justify-center
+              "
             >
-
-              <div className="flex items-start gap-3">
-
-                <input
-                  type="checkbox"
-                  className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+              <div
+                className="
+                  flex
+                  items-center
+                  gap-2
+                  text-sm
+                  text-gray-500
+                  dark:text-gray-400
+                "
+              >
+                <Loader2
+                  size={20}
+                  className="animate-spin"
                 />
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleFileClick(file)
-                  }
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                >
-
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
-                    {getFileIcon(file.type)}
-                  </span>
-
-                  <span className="min-w-0">
-
-                    <span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">
-                      {file.name}
-                    </span>
-
-                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                      {file.type === "folder"
-                        ? "Folder"
-                        : file.type.toUpperCase()}
-                    </span>
-
-                  </span>
-
-                </button>
-
+                Loading file...
               </div>
-
-              <div className="mt-4 ml-7 grid grid-cols-2 gap-x-4 gap-y-3">
-
-                <div>
-
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Updated By
-                  </p>
-
-                  <p className="mt-1 truncate text-sm font-medium text-gray-700 dark:text-gray-200">
-                    {file.updatedBy}
-                  </p>
-
-                </div>
-
-                <div>
-
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Size
-                  </p>
-
-                  <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                    {file.size}
-                  </p>
-
-                </div>
-
-                <div>
-
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Pages
-                  </p>
-
-                  <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                    {file.pages ?? "-"}
-                  </p>
-
-                </div>
-
-                <div>
-
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Date
-                  </p>
-
-                  <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                    {file.date}
-                  </p>
-
-                </div>
-
-              </div>
-
             </div>
+          ) : error ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="max-w-md rounded-xl border border-red-200 bg-white p-8 text-center shadow-sm dark:border-red-900 dark:bg-gray-900">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/50">
+                  <X
+                    size={22}
+                    className="text-red-500"
+                  />
+                </div>
 
-          ))}
+                <h3 className="mt-4 text-sm font-semibold text-gray-900 dark:text-white">
+                  Unable to preview file
+                </h3>
 
+                <p className="mt-2 break-words text-sm text-gray-500 dark:text-gray-400">
+                  {error}
+                </p>
+
+                <div className="mt-5 flex justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    className="rounded-lg bg-gray-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                  >
+                    Try Again
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onDownload}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    <Download size={14} />
+                    Download
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : !fileUrl ? (
+            <PreviewUnavailable
+              onDownload={onDownload}
+            />
+          ) : isPdf ? (
+            <iframe
+              src={fileUrl}
+              title={file.filename}
+              className="
+                h-full
+                min-h-[600px]
+                w-full
+                rounded-lg
+                border
+                border-gray-200
+                bg-white
+                dark:border-gray-800
+              "
+            />
+          ) : isImage ? (
+            <div
+              className="
+                flex
+                min-h-full
+                items-center
+                justify-center
+              "
+            >
+              <img
+                src={fileUrl}
+                alt={file.filename}
+                className="
+                  max-h-full
+                  max-w-full
+                  rounded-lg
+                  object-contain
+                  shadow-lg
+                "
+              />
+            </div>
+          ) : isVideo ? (
+            <div
+              className="
+                flex
+                min-h-full
+                items-center
+                justify-center
+              "
+            >
+              <video
+                src={fileUrl}
+                controls
+                className="
+                  max-h-full
+                  max-w-full
+                  rounded-lg
+                "
+              />
+            </div>
+          ) : isAudio ? (
+            <div
+              className="
+                flex
+                h-full
+                items-center
+                justify-center
+              "
+            >
+              <audio
+                src={fileUrl}
+                controls
+              />
+            </div>
+          ) : (
+            <PreviewUnavailable
+              onDownload={onDownload}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/*
+ * Preview unavailable component
+ */
+function PreviewUnavailable({
+  onDownload,
+}: {
+  onDownload: () => void;
+}) {
+  return (
+    <div className="flex min-h-full items-center justify-center">
+      <div className="max-w-md rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+          <Download
+            size={22}
+            className="text-gray-500 dark:text-gray-400"
+          />
         </div>
 
+        <h3 className="mt-4 text-sm font-semibold text-gray-900 dark:text-white">
+          Preview unavailable
+        </h3>
 
-        <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-gray-700 dark:bg-gray-900">
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          This file type cannot be previewed
+          in the browser. You can download
+          the file instead.
+        </p>
 
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            {files.length} items
-          </div>
-
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-
-            <button
-              type="button"
-              className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              Delete Files
-            </button>
-
-            <button
-              type="button"
-              className="w-full rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 sm:w-auto dark:border-red-900 dark:bg-gray-900 dark:text-red-400 dark:hover:bg-red-900/30"
-            >
-              Delete All Files
-            </button>
-
-          </div>
-
-        </div>
-
-      </div> */}
-
+        <button
+          type="button"
+          onClick={onDownload}
+          className="
+            mt-5
+            inline-flex
+            items-center
+            gap-2
+            rounded-lg
+            bg-gray-900
+            px-4
+            py-2
+            text-xs
+            font-semibold
+            text-white
+            transition
+            hover:bg-gray-700
+            dark:bg-white
+            dark:text-gray-900
+            dark:hover:bg-gray-200
+          "
+        >
+          <Download size={14} />
+          Download File
+        </button>
+      </div>
     </div>
   );
 }
@@ -720,7 +1557,11 @@ function ProjectInfo({
   value,
 }: {
   label: string;
-  value: string | number | null | undefined;
+  value:
+    | string
+    | number
+    | null
+    | undefined;
 }) {
   return (
     <div>

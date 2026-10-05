@@ -1,7 +1,5 @@
 import { apiRequest } from "./client";
-import type {
-  CreateProjectFromTemplatePayload,
-} from "../types/projectTemplate"; 
+import type { CreateProjectFromTemplatePayload } from "../types/projectTemplate";
 
 export interface Project {
   project_id: number;
@@ -46,6 +44,73 @@ export interface CreateProjectData {
   department?: string;
 }
 
+export interface ProjectFile {
+  pffid: number;
+  project_id: number;
+  folder_id: number;
+  filename: string;
+  filesize: number;
+  MIME?: string;
+  createddate?: string;
+  uploaded_by?: number;
+  download_url?: string;
+  view_url?: string;
+}
+
+export interface ProjectFolderAssignment {
+  user_id: number;
+  user_name: string;
+  role: string;
+  workflow_level: string;
+}
+
+export interface ProjectFolder {
+  project_folder_id: number;
+  folder_id: number;
+  folder_name: string;
+  folder_description?: string;
+  parent_folder_id?: number | null;
+  start_date?: string;
+  end_date?: string;
+  assignments: ProjectFolderAssignment[];
+  files: ProjectFile[];
+  files_count: number;
+}
+
+
+export interface ProjectMember {
+  user_id: number;
+  user_name: string;
+}
+
+export interface AdminProjectDetails {
+  project_id: number;
+  template_id?: number;
+  template_name?: string;
+  company_id?: number;
+  coordinator?: number;
+  project_name?: string;
+  project_description?: string;
+  projecttype?: number;
+  status?: number;
+  start_date?: string;
+  end_date?: string;
+  is_project_manage?: number;
+  [key: string]: unknown;
+}
+
+export interface AdminProjectResponse {
+  success: boolean;
+  message: string;
+  data: {
+    project: AdminProjectDetails;
+    folders: ProjectFolder[];
+    members: ProjectMember[];
+    folders_count: number;
+    total_files: number;
+  };
+}
+
 /**
  * Get all projects
  */
@@ -53,28 +118,18 @@ export async function getProjects() {
   return apiRequest<ProjectsResponse>("/api/getprojects");
 }
 
-/**
- * Get single project
- */
 export async function getProject(projectId: number) {
-  return apiRequest<Project>(
-    `/api/getproject/${projectId}`
-  );
+  return apiRequest<AdminProjectResponse>(`/api/getadminproject/${projectId}`);
 }
 
 /**
  * Create project
  */
-export async function createProject(
-  data: CreateProjectData
-) {
-  return apiRequest<Project>(
-    "/api/createproject",
-    {
-      method: "POST",
-      body: JSON.stringify(data),
-    }
-  );
+export async function createProject(data: CreateProjectData) {
+  return apiRequest<Project>("/api/createproject", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 /**
@@ -82,33 +137,28 @@ export async function createProject(
  */
 export async function updateProject(
   projectId: number,
-  data: Partial<CreateProjectData>
+  data: Partial<CreateProjectData>,
 ) {
-  return apiRequest<Project>(
-    `/api/updateproject/${projectId}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }
-  );
+  return apiRequest<Project>(`/api/updateproject/${projectId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
 }
 
 /**
  * Delete project
  */
-export async function deleteProject(
-  projectId: number
-) {
-  return apiRequest(
-    `/api/deleteproject/${projectId}`,
-    {
-      method: "DELETE",
-    }
-  );
+export async function deleteProject(projectId: number) {
+  return apiRequest(`/api/deleteproject/${projectId}`, {
+    method: "DELETE",
+  });
 }
 
+/**
+ * Create project from template
+ */
 export async function createProjectFromTemplate(
-  data: CreateProjectFromTemplatePayload
+  data: CreateProjectFromTemplatePayload,
 ) {
   return apiRequest("/api/createprojectfromtemplate", {
     method: "POST",

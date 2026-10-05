@@ -1,12 +1,19 @@
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 
 import {
   ArrowLeft,
   Download,
   Eye,
   File,
-  Loader2,
   Folder as FolderIcon,
+  Loader2,
+  X,
 } from "lucide-react";
 
 import CreateFolderForm from "../components/forms/CreateFolderForm";
@@ -18,60 +25,360 @@ import {
 
 import {
   getFolderFiles,
-  viewFolderFile,
   saveFolderFile,
   type TaskFile,
 } from "../api/tasks";
 
+import { apiRequest } from "../api/client";
+
+/* =========================================================
+ * File Viewer Modal
+ * ========================================================= */
+
+interface FileViewerModalProps {
+  file: TaskFile;
+  fileUrl: string | null;
+  loading: boolean;
+  error: string;
+  onClose: () => void;
+  onDownload: () => void;
+}
+
+function FileViewerModal({
+  file,
+  fileUrl,
+  loading,
+  error,
+  onClose,
+  onDownload,
+}: FileViewerModalProps) {
+  const mime = (file.MIME || "").toLowerCase();
+  const filename = file.filename || "File";
+
+  const isPdf =
+    mime === "application/pdf" ||
+    filename.toLowerCase().endsWith(".pdf");
+
+  const isImage = mime.startsWith("image/");
+  const isVideo = mime.startsWith("video/");
+  const isAudio = mime.startsWith("audio/");
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-950">
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+              {filename}
+            </h2>
+
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              File #{file.pffid}
+              {" · "}
+              {file.MIME || "Unknown type"}
+            </p>
+          </div>
+
+          <div className="ml-4 flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={onDownload}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close file viewer"
+              className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="min-h-0 flex-1 bg-gray-100 dark:bg-gray-900">
+          {loading ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Loading file preview...
+              </div>
+            </div>
+          ) : error ? (
+            <div className="flex h-full items-center justify-center p-6">
+              <div className="max-w-md text-center">
+                <File className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-700" />
+
+                <h3 className="mt-4 text-sm font-semibold text-gray-900 dark:text-white">
+                  Unable to preview file
+                </h3>
+
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  {error}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={onDownload}
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                >
+                  <Download className="h-4 w-4" />
+                  Download File
+                </button>
+              </div>
+            </div>
+          ) : !fileUrl ? (
+            <div className="flex h-full items-center justify-center p-6">
+              <div className="text-center">
+                <File className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-700" />
+
+                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                  File preview is not available.
+                </p>
+              </div>
+            </div>
+          ) : isPdf ? (
+            <iframe
+              src={fileUrl}
+              title={filename}
+              className="h-full w-full border-0"
+            />
+          ) : isImage ? (
+            <div className="flex h-full items-center justify-center overflow-auto p-6">
+              <img
+                src={fileUrl}
+                alt={filename}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          ) : isVideo ? (
+            <div className="flex h-full items-center justify-center p-6">
+              <video
+                src={fileUrl}
+                controls
+                className="max-h-full max-w-full"
+              >
+                Your browser does not support video playback.
+              </video>
+            </div>
+          ) : isAudio ? (
+            <div className="flex h-full items-center justify-center p-6">
+              <div className="w-full max-w-xl rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-950">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+                    <File className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                      {filename}
+                    </p>
+
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Audio preview
+                    </p>
+                  </div>
+                </div>
+
+                <audio
+                  src={fileUrl}
+                  controls
+                  className="w-full"
+                >
+                  Your browser does not support audio playback.
+                </audio>
+              </div>
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center p-6">
+              <div className="max-w-md text-center">
+                <File className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-700" />
+
+                <h3 className="mt-4 text-sm font-semibold text-gray-900 dark:text-white">
+                  Preview not supported
+                </h3>
+
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  This file type cannot be displayed directly in
+                  the browser.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={onDownload}
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                >
+                  <Download className="h-4 w-4" />
+                  Download File
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+ * Folders
+ * ========================================================= */
+
 function Folders() {
   const [folders, setFolders] = useState<Folder[]>([]);
-
   const [search, setSearch] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
-
   const [currentPage, setCurrentPage] = useState(1);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  /*
+  /* =======================================================
    * Selected folder
-   */
+   * ======================================================= */
+
   const [selectedFolder, setSelectedFolder] =
     useState<Folder | null>(null);
 
-  /*
+  /* =======================================================
    * Files inside selected folder
-   */
-  const [folderFiles, setFolderFiles] = useState<TaskFile[]>([]);
-  const [filesLoading, setFilesLoading] = useState(false);
+   * ======================================================= */
+
+  const [folderFiles, setFolderFiles] =
+    useState<TaskFile[]>([]);
+
+  const [filesLoading, setFilesLoading] =
+    useState(false);
+
   const [filesError, setFilesError] = useState("");
 
-  /*
-   * File action loading state
-   */
+  /* =======================================================
+   * File action loading
+   * ======================================================= */
+
   const [fileActionId, setFileActionId] =
     useState<number | null>(null);
 
-  const itemsPerPage = 10;
+  /* =======================================================
+   * File viewer
+   * ======================================================= */
+
+  const [viewingFile, setViewingFile] =
+    useState<TaskFile | null>(null);
+
+  const [fileUrl, setFileUrl] =
+    useState<string | null>(null);
+
+  const [fileLoading, setFileLoading] =
+    useState(false);
+
+  const [fileError, setFileError] = useState("");
 
   /*
-   * Load folders
+   * Used to invalidate an older preview request when:
+   * - another file is opened
+   * - the viewer is closed
    */
-  const loadFolders = async () => {
+  const previewRequestId = useRef(0);
+
+  const itemsPerPage = 10;
+
+  /* =========================================================
+   * Close file viewer
+   *
+   * Declared before effects that use it.
+   * useCallback keeps the function reference stable.
+   * ========================================================= */
+
+  const handleCloseFileViewer = useCallback(() => {
+    previewRequestId.current += 1;
+
+    setViewingFile(null);
+    setFileUrl(null);
+    setFileError("");
+    setFileLoading(false);
+    setFileActionId(null);
+  }, []);
+
+  /* =========================================================
+   * Clean up object URL
+   * ========================================================= */
+
+  useEffect(() => {
+    return () => {
+      if (fileUrl) {
+        URL.revokeObjectURL(fileUrl);
+      }
+    };
+  }, [fileUrl]);
+
+  /* =========================================================
+   * Escape key for file viewer
+   * ========================================================= */
+
+  useEffect(() => {
+    if (!viewingFile) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        handleCloseFileViewer();
+      }
+    };
+
+    window.addEventListener(
+      "keydown",
+      handleKeyDown,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown,
+      );
+    };
+  }, [
+    viewingFile,
+    handleCloseFileViewer,
+  ]);
+
+  /* =========================================================
+   * Load folders
+   * ========================================================= */
+
+  const loadFolders = async (): Promise<Folder[]> => {
     try {
       const response = await getFolders();
 
       return response.folders;
     } catch (err) {
-      console.error("Failed to load folders:", err);
+      console.error(
+        "Failed to load folders:",
+        err,
+      );
+
       throw err;
     }
   };
 
-  /*
+  /* =========================================================
    * Initial folder loading
-   */
+   * ========================================================= */
+
   useEffect(() => {
     let cancelled = false;
 
@@ -100,24 +407,31 @@ function Folders() {
       }
     };
 
-    fetchFolders();
+    void fetchFolders();
 
     return () => {
       cancelled = true;
     };
   }, []);
 
-  /*
+  /* =========================================================
    * Open folder
-   */
-  const handleOpenFolder = async (folder: Folder) => {
+   * ========================================================= */
+
+  const handleOpenFolder = async (
+    folder: Folder,
+  ) => {
     setSelectedFolder(folder);
     setFolderFiles([]);
     setFilesError("");
     setFilesLoading(true);
 
+    handleCloseFileViewer();
+
     try {
-      const files = await getFolderFiles(folder.fid);
+      const files = await getFolderFiles(
+        folder.fid,
+      );
 
       setFolderFiles(files);
     } catch (err) {
@@ -136,18 +450,22 @@ function Folders() {
     }
   };
 
-  /*
+  /* =========================================================
    * Back to folders
-   */
+   * ========================================================= */
+
   const handleBackToFolders = () => {
+    handleCloseFileViewer();
+
     setSelectedFolder(null);
     setFolderFiles([]);
     setFilesError("");
   };
 
-  /*
+  /* =========================================================
    * Search
-   */
+   * ========================================================= */
+
   const filteredFolders = folders.filter(
     (folder) =>
       folder.fname
@@ -161,57 +479,70 @@ function Folders() {
         .includes(search.toLowerCase()),
   );
 
-  /*
+  /* =========================================================
    * Pagination
-   */
+   * ========================================================= */
+
   const totalPages = Math.max(
     1,
     Math.ceil(
-      filteredFolders.length / itemsPerPage,
+      filteredFolders.length /
+        itemsPerPage,
     ),
   );
 
   const startIndex =
     (currentPage - 1) * itemsPerPage;
 
-  const currentFolders = filteredFolders.slice(
-    startIndex,
-    startIndex + itemsPerPage,
-  );
+  const currentFolders =
+    filteredFolders.slice(
+      startIndex,
+      startIndex + itemsPerPage,
+    );
 
-  /*
+  /* =========================================================
    * Search handler
-   */
-  const handleSearch = (value: string) => {
+   * ========================================================= */
+
+  const handleSearch = (
+    value: string,
+  ) => {
     setSearch(value);
     setCurrentPage(1);
   };
 
-  /*
+  /* =========================================================
    * Previous page
-   */
+   * ========================================================= */
+
   const handlePrevious = () => {
     if (currentPage > 1) {
-      setCurrentPage((prev) => prev - 1);
+      setCurrentPage(
+        (prev) => prev - 1,
+      );
     }
   };
 
-  /*
+  /* =========================================================
    * Next page
-   */
+   * ========================================================= */
+
   const handleNext = () => {
     if (currentPage < totalPages) {
-      setCurrentPage((prev) => prev + 1);
+      setCurrentPage(
+        (prev) => prev + 1,
+      );
     }
   };
 
-  /*
+  /* =========================================================
    * Go to page
-   */
+   * ========================================================= */
+
   const handleGoToPage = (
-    e: React.ChangeEvent<HTMLInputElement>,
+    event: ChangeEvent<HTMLInputElement>,
   ) => {
-    const value = e.target.value;
+    const value = event.target.value;
 
     if (value === "") {
       return;
@@ -220,6 +551,7 @@ function Folders() {
     const page = Number(value);
 
     if (
+      Number.isInteger(page) &&
       page >= 1 &&
       page <= totalPages
     ) {
@@ -227,19 +559,25 @@ function Folders() {
     }
   };
 
-  /*
+  /* =========================================================
    * Folder successfully created
-   */
+   * ========================================================= */
+
   const handleFolderCreated = async (
     data: unknown,
   ) => {
-    console.log("Folder created:", data);
+    console.log(
+      "Folder created:",
+      data,
+    );
 
     setShowCreateForm(false);
     setCurrentPage(1);
 
     try {
-      const updatedFolders = await loadFolders();
+      const updatedFolders =
+        await loadFolders();
+
       setFolders(updatedFolders);
     } catch (err) {
       console.error(
@@ -249,79 +587,151 @@ function Folders() {
     }
   };
 
-  /*
+  /* =========================================================
+   * Get file identifiers
+   * ========================================================= */
+
+  const getFileIdentifiers = (
+    file: TaskFile,
+  ): {
+    projectId: number;
+    folderId: number;
+  } => {
+    const projectId =
+      file.projectid ??
+      file.project_id;
+
+    const folderId =
+      file.fid ??
+      file.folder_id;
+
+    if (
+      projectId === undefined ||
+      folderId === undefined
+    ) {
+      throw new Error(
+        "File is missing project or folder information.",
+      );
+    }
+
+    return {
+      projectId,
+      folderId,
+    };
+  };
+
+  /* =========================================================
    * View file
-   */
+   *
+   * The API request is made through apiRequest() so that:
+   *
+   * 1. The API base URL is added.
+   * 2. Authorization is added.
+   * 3. Refresh-token handling works.
+   * 4. The API URL is NOT sent through React Router.
+   *
+   * Example endpoint:
+   *
+   * /api/80/folders/258/files/78/view
+   * ========================================================= */
+
   const handleViewFile = async (
     file: TaskFile,
   ) => {
+    const requestId =
+      ++previewRequestId.current;
+
+    setViewingFile(file);
+    setFileUrl(null);
+    setFileError("");
+    setFileLoading(true);
+    setFileActionId(file.pffid);
+
     try {
-      setFileActionId(file.pffid);
+      const {
+        projectId,
+        folderId,
+      } = getFileIdentifiers(file);
+
+      const endpoint =
+        `/api/${projectId}/folders/${folderId}/files/${file.pffid}/view`;
+
+      const blob =
+        await apiRequest<Blob>(
+          endpoint,
+          {
+            responseType: "blob",
+          },
+        );
 
       /*
-       * IMPORTANT:
-       * Use the identifiers returned by the file API.
+       * Ignore the response if the viewer has already
+       * been closed or another file has been selected.
        */
-      const projectId =
-        file.projectid ?? file.project_id;
-
-      const folderId =
-        file.fid ?? file.folder_id;
-
       if (
-        projectId === undefined ||
-        folderId === undefined
+        requestId !==
+        previewRequestId.current
       ) {
+        return;
+      }
+
+      if (!blob || blob.size === 0) {
         throw new Error(
-          "File is missing project or folder information.",
+          "The server returned an empty file.",
         );
       }
 
-      await viewFolderFile(
-        projectId,
-        folderId,
-        file.pffid,
-      );
-    } catch (err) {
-      console.error("Failed to view file:", err);
+      const objectUrl =
+        URL.createObjectURL(blob);
 
-      alert(
+      setFileUrl(objectUrl);
+    } catch (err) {
+      if (
+        requestId !==
+        previewRequestId.current
+      ) {
+        return;
+      }
+
+      console.error(
+        "Failed to view file:",
+        err,
+      );
+
+      setFileError(
         err instanceof Error
           ? err.message
-          : "Failed to view file.",
+          : "Failed to load file preview.",
       );
     } finally {
-      setFileActionId(null);
+      if (
+        requestId ===
+        previewRequestId.current
+      ) {
+        setFileLoading(false);
+        setFileActionId(null);
+      }
     }
   };
 
-  /*
+  /* =========================================================
    * Download file
-   */
+   *
+   * Keep using the existing saveFolderFile() helper because
+   * its backend download implementation is already defined
+   * in the project.
+   * ========================================================= */
+
   const handleDownloadFile = async (
     file: TaskFile,
   ) => {
     try {
       setFileActionId(file.pffid);
 
-      /*
-       * IMPORTANT:
-       * Use the identifiers returned by the file API.
-       */
-      const projectId =
-        file.projectid ?? file.project_id;
-
-      const folderId =
-        file.fid ?? file.folder_id;
-
-      if (
-        projectId === undefined ||
-        folderId === undefined
-      ) {
-        throw new Error(
-          "File is missing project or folder information.",
-        );
-      }
+      const {
+        projectId,
+        folderId,
+      } = getFileIdentifiers(file);
 
       await saveFolderFile(
         projectId,
@@ -345,9 +755,10 @@ function Folders() {
     }
   };
 
-  /*
+  /* =========================================================
    * Format file size
-   */
+   * ========================================================= */
+
   const formatFileSize = (
     size: number,
   ): string => {
@@ -356,10 +767,17 @@ function Folders() {
     }
 
     if (size < 1024 * 1024) {
-      return `${(size / 1024).toFixed(1)} KB`;
+      return `${(
+        size / 1024
+      ).toFixed(1)} KB`;
     }
 
-    if (size < 1024 * 1024 * 1024) {
+    if (
+      size <
+      1024 *
+        1024 *
+        1024
+    ) {
       return `${(
         size /
         (1024 * 1024)
@@ -368,13 +786,16 @@ function Folders() {
 
     return `${(
       size /
-      (1024 * 1024 * 1024)
+      (1024 *
+        1024 *
+        1024)
     ).toFixed(1)} GB`;
   };
 
-  /*
+  /* =========================================================
    * Format MIME type
-   */
+   * ========================================================= */
+
   const getFileType = (
     mime: string,
   ): string => {
@@ -407,21 +828,20 @@ function Folders() {
     return mime;
   };
 
-  /*
-   * ========================================================
+  /* ========================================================
    * Folder Files View
-   * ========================================================
-   */
+   * ======================================================== */
+
   if (selectedFolder) {
     return (
       <div className="mx-auto text-gray-900 dark:text-white">
-
         {/* Header */}
         <div className="mb-6">
-
           <button
             type="button"
-            onClick={handleBackToFolders}
+            onClick={
+              handleBackToFolders
+            }
             className="mb-5 inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -429,9 +849,7 @@ function Folders() {
           </button>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
             <div className="flex items-start gap-3">
-
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
                 <FolderIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
               </div>
@@ -442,39 +860,31 @@ function Folders() {
                 </h1>
 
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Folder #{selectedFolder.fid}
+                  Folder #
+                  {selectedFolder.fid}
                   {" · "}
                   {folderFiles.length}{" "}
-                  {folderFiles.length === 1
+                  {folderFiles.length ===
+                  1
                     ? "file"
                     : "files"}
                 </p>
               </div>
-
             </div>
-
           </div>
-
         </div>
 
         {/* Files */}
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950">
-
           {filesLoading ? (
-
             <div className="flex min-h-[300px] items-center justify-center">
-
               <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading files...
               </div>
-
             </div>
-
           ) : filesError ? (
-
             <div className="p-6">
-
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
                 {filesError}
               </div>
@@ -482,7 +892,7 @@ function Folders() {
               <button
                 type="button"
                 onClick={() =>
-                  handleOpenFolder(
+                  void handleOpenFolder(
                     selectedFolder,
                   )
                 }
@@ -490,22 +900,14 @@ function Folders() {
               >
                 Try Again
               </button>
-
             </div>
-
           ) : (
-
             <>
-
               {/* Desktop */}
               <div className="hidden overflow-x-auto md:block">
-
                 <table className="w-full text-left text-sm">
-
                   <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-200">
-
                     <tr>
-
                       <th className="px-6 py-4 font-semibold">
                         File
                       </th>
@@ -525,38 +927,28 @@ function Folders() {
                       <th className="px-6 py-4 text-right font-semibold">
                         Actions
                       </th>
-
                     </tr>
-
                   </thead>
 
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-
-                    {folderFiles.length === 0 ? (
-
+                    {folderFiles.length ===
+                    0 ? (
                       <tr>
-
                         <td
                           colSpan={5}
                           className="px-6 py-12 text-center"
                         >
-
                           <div className="flex flex-col items-center">
-
                             <File className="h-10 w-10 text-gray-300 dark:text-gray-700" />
 
                             <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                              No files found in this folder.
+                              No files found in this
+                              folder.
                             </p>
-
                           </div>
-
                         </td>
-
                       </tr>
-
                     ) : (
-
                       folderFiles.map(
                         (file) => (
                           <tr
@@ -565,17 +957,13 @@ function Folders() {
                             }
                             className="transition hover:bg-gray-50 dark:hover:bg-gray-800"
                           >
-
                             <td className="px-6 py-4">
-
                               <div className="flex items-center gap-3">
-
                                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
                                   <File className="h-4 w-4 text-gray-600 dark:text-gray-300" />
                                 </div>
 
                                 <div className="min-w-0">
-
                                   <p className="truncate font-medium text-gray-900 dark:text-white">
                                     {
                                       file.filename
@@ -588,27 +976,20 @@ function Folders() {
                                       file.pffid
                                     }
                                   </p>
-
                                 </div>
-
                               </div>
-
                             </td>
 
                             <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                              {
-                                getFileType(
-                                  file.MIME,
-                                )
-                              }
+                              {getFileType(
+                                file.MIME,
+                              )}
                             </td>
 
                             <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                              {
-                                formatFileSize(
-                                  file.filesize,
-                                )
-                              }
+                              {formatFileSize(
+                                file.filesize,
+                              )}
                             </td>
 
                             <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
@@ -620,13 +1001,11 @@ function Folders() {
                             </td>
 
                             <td className="px-6 py-4">
-
                               <div className="flex justify-end gap-2">
-
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    handleViewFile(
+                                    void handleViewFile(
                                       file,
                                     )
                                   }
@@ -649,7 +1028,7 @@ function Folders() {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    handleDownloadFile(
+                                    void handleDownloadFile(
                                       file,
                                     )
                                   }
@@ -662,40 +1041,29 @@ function Folders() {
                                   <Download className="h-4 w-4" />
                                   Download
                                 </button>
-
                               </div>
-
                             </td>
-
                           </tr>
                         ),
                       )
-
                     )}
-
                   </tbody>
-
                 </table>
-
               </div>
 
               {/* Mobile */}
               <div className="divide-y divide-gray-200 md:hidden dark:divide-gray-700">
-
-                {folderFiles.length === 0 ? (
-
+                {folderFiles.length ===
+                0 ? (
                   <div className="flex flex-col items-center p-10 text-center">
-
                     <File className="h-10 w-10 text-gray-300 dark:text-gray-700" />
 
                     <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                      No files found in this folder.
+                      No files found in this
+                      folder.
                     </p>
-
                   </div>
-
                 ) : (
-
                   folderFiles.map(
                     (file) => (
                       <div
@@ -704,15 +1072,12 @@ function Folders() {
                         }
                         className="p-4"
                       >
-
                         <div className="flex items-start gap-3">
-
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
                             <File className="h-5 w-5 text-gray-600 dark:text-gray-300" />
                           </div>
 
                           <div className="min-w-0 flex-1">
-
                             <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
                               {
                                 file.filename
@@ -727,18 +1092,15 @@ function Folders() {
                             </p>
 
                             <div className="mt-3 grid grid-cols-2 gap-3">
-
                               <div>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
                                   Type
                                 </p>
 
                                 <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
-                                  {
-                                    getFileType(
-                                      file.MIME,
-                                    )
-                                  }
+                                  {getFileType(
+                                    file.MIME,
+                                  )}
                                 </p>
                               </div>
 
@@ -748,26 +1110,20 @@ function Folders() {
                                 </p>
 
                                 <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
-                                  {
-                                    formatFileSize(
-                                      file.filesize,
-                                    )
-                                  }
+                                  {formatFileSize(
+                                    file.filesize,
+                                  )}
                                 </p>
                               </div>
-
                             </div>
-
                           </div>
-
                         </div>
 
                         <div className="mt-4 flex gap-2">
-
                           <button
                             type="button"
                             onClick={() =>
-                              handleViewFile(
+                              void handleViewFile(
                                 file,
                               )
                             }
@@ -775,16 +1131,22 @@ function Folders() {
                               fileActionId ===
                               file.pffid
                             }
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                           >
-                            <Eye className="h-4 w-4" />
+                            {fileActionId ===
+                            file.pffid ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+
                             View
                           </button>
 
                           <button
                             type="button"
                             onClick={() =>
-                              handleDownloadFile(
+                              void handleDownloadFile(
                                 file,
                               )
                             }
@@ -792,42 +1154,49 @@ function Folders() {
                               fileActionId ===
                               file.pffid
                             }
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-gray-700 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
                           >
                             <Download className="h-4 w-4" />
                             Download
                           </button>
-
                         </div>
-
                       </div>
                     ),
                   )
-
                 )}
-
               </div>
-
             </>
-
           )}
-
         </div>
 
+        {/* File Viewer */}
+        {viewingFile && (
+          <FileViewerModal
+            file={viewingFile}
+            fileUrl={fileUrl}
+            loading={fileLoading}
+            error={fileError}
+            onClose={
+              handleCloseFileViewer
+            }
+            onDownload={() =>
+              void handleDownloadFile(
+                viewingFile,
+              )
+            }
+          />
+        )}
       </div>
     );
   }
 
-  /*
-   * ========================================================
+  /* ========================================================
    * Folder List View
-   * ========================================================
-   */
+   * ======================================================== */
+
   return (
     <div className="mx-auto text-gray-900 dark:text-white">
-
       {showCreateForm ? (
-
         <CreateFolderForm
           onCancel={() =>
             setShowCreateForm(false)
@@ -836,21 +1205,18 @@ function Folders() {
             handleFolderCreated
           }
         />
-
       ) : (
-
         <>
-
           {/* Header */}
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
             <div>
               <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
                 Folders
               </h1>
 
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-300">
-                Manage template folders and document sections.
+                Manage template folders and document
+                sections.
               </p>
             </div>
 
@@ -863,14 +1229,11 @@ function Folders() {
             >
               Add Folder
             </button>
-
           </div>
 
           {/* Search */}
           <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-
             <div className="relative w-full sm:max-w-md">
-
               <svg
                 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
                 fill="none"
@@ -889,14 +1252,13 @@ function Folders() {
                 type="text"
                 placeholder="Search folders..."
                 value={search}
-                onChange={(e) =>
+                onChange={(event) =>
                   handleSearch(
-                    e.target.value,
+                    event.target.value,
                   )
                 }
                 className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
               />
-
             </div>
 
             <button
@@ -908,27 +1270,19 @@ function Folders() {
             >
               Search
             </button>
-
           </div>
 
           {/* Table */}
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950">
-
             {loading ? (
-
               <div className="flex min-h-[300px] items-center justify-center">
-
                 <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Loading folders...
                 </div>
-
               </div>
-
             ) : error ? (
-
               <div className="p-6">
-
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
                   {error}
                 </div>
@@ -958,22 +1312,14 @@ function Folders() {
                 >
                   Try Again
                 </button>
-
               </div>
-
             ) : (
-
               <>
-
                 {/* Desktop */}
                 <div className="hidden overflow-x-auto md:block">
-
                   <table className="w-full text-left text-sm">
-
                     <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-200">
-
                       <tr>
-
                         <th className="px-6 py-4 font-semibold">
                           Folder ID
                         </th>
@@ -993,44 +1339,34 @@ function Folders() {
                         <th className="px-6 py-4 font-semibold">
                           Description
                         </th>
-
                       </tr>
-
                     </thead>
 
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-
                       {currentFolders.length ===
                       0 ? (
-
                         <tr>
-
                           <td
                             colSpan={5}
                             className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
                           >
                             No folders found.
                           </td>
-
                         </tr>
-
                       ) : (
-
                         currentFolders.map(
                           (folder) => (
-
                             <tr
                               key={
                                 folder.fid
                               }
                               onClick={() =>
-                                handleOpenFolder(
+                                void handleOpenFolder(
                                   folder,
                                 )
                               }
                               className="cursor-pointer transition hover:bg-gray-50 dark:hover:bg-gray-800"
                             >
-
                               <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
                                 #
                                 {
@@ -1039,9 +1375,7 @@ function Folders() {
                               </td>
 
                               <td className="px-6 py-4">
-
                                 <div className="flex items-center gap-3">
-
                                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
                                     <FolderIcon className="h-4 w-4 text-gray-600 dark:text-gray-300" />
                                   </div>
@@ -1051,9 +1385,7 @@ function Folders() {
                                       folder.fname
                                     }
                                   </span>
-
                                 </div>
-
                               </td>
 
                               <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
@@ -1075,56 +1407,42 @@ function Folders() {
                                   "—"
                                 }
                               </td>
-
                             </tr>
-
                           ),
                         )
-
                       )}
-
                     </tbody>
-
                   </table>
-
                 </div>
 
                 {/* Mobile */}
                 <div className="divide-y divide-gray-200 md:hidden dark:divide-gray-700">
-
                   {currentFolders.length ===
                   0 ? (
-
                     <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
                       No folders found.
                     </div>
-
                   ) : (
-
                     currentFolders.map(
                       (folder) => (
-
                         <button
                           key={
                             folder.fid
                           }
                           type="button"
                           onClick={() =>
-                            handleOpenFolder(
+                            void handleOpenFolder(
                               folder,
                             )
                           }
                           className="block w-full p-4 text-left transition hover:bg-gray-50 dark:hover:bg-gray-900"
                         >
-
                           <div className="flex items-center gap-3">
-
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
                               <FolderIcon className="h-5 w-5 text-gray-600 dark:text-gray-300" />
                             </div>
 
                             <div className="min-w-0">
-
                               <p className="text-xs text-gray-500 dark:text-gray-400">
                                 Folder #
                                 {
@@ -1137,13 +1455,10 @@ function Folders() {
                                   folder.fname
                                 }
                               </h3>
-
                             </div>
-
                           </div>
 
                           <div className="mt-4 grid grid-cols-2 gap-4">
-
                             <div>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
                                 Parent
@@ -1168,7 +1483,6 @@ function Folders() {
                                 }
                               </p>
                             </div>
-
                           </div>
 
                           <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
@@ -1177,21 +1491,15 @@ function Folders() {
                               "No description"
                             }
                           </p>
-
                         </button>
-
                       ),
                     )
-
                   )}
-
                 </div>
 
                 {/* Pagination */}
                 <div className="flex flex-col gap-4 border-t border-gray-200 px-4 py-4 sm:px-6 md:flex-row md:items-center md:justify-between dark:border-gray-700">
-
                   <div className="flex items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-
                     <span>
                       Go to page
                     </span>
@@ -1212,11 +1520,9 @@ function Folders() {
                     <span>
                       of {totalPages}
                     </span>
-
                   </div>
 
                   <div className="flex items-center justify-center gap-2">
-
                     <button
                       type="button"
                       onClick={
@@ -1233,8 +1539,13 @@ function Folders() {
 
                     <span className="px-2 text-sm text-gray-600 dark:text-gray-300">
                       Page{" "}
-                      {currentPage} of{" "}
-                      {totalPages}
+                      {
+                        currentPage
+                      }{" "}
+                      of{" "}
+                      {
+                        totalPages
+                      }
                     </span>
 
                     <button
@@ -1250,21 +1561,13 @@ function Folders() {
                     >
                       Next
                     </button>
-
                   </div>
-
                 </div>
-
               </>
-
             )}
-
           </div>
-
         </>
-
       )}
-
     </div>
   );
 }
