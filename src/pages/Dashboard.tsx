@@ -117,142 +117,135 @@ function MetricCard({
 }
 
 /* =========================================================
- * Recent Request
+ * Recent Requests Table
  * ========================================================= */
 
-interface RecentRequestCardProps {
-    request: RecentDashboardRequest;
+interface RecentRequestsTableProps {
+    requests: RecentDashboardRequest[];
 }
 
-function RecentRequestCard({
-    request,
-}: RecentRequestCardProps) {
-    const percentage = request.progress?.percentage ?? 0;
-
+function RecentRequestsTable({
+    requests,
+}: RecentRequestsTableProps) {
     return (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-gray-800 dark:bg-gray-900">
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div className="overflow-x-auto">
+                <table className="w-full min-w-[800px] text-left">
+                    <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/50">
+                        <tr>
+                            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                Task ID
+                            </th>
 
-            {/* Header */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                Config
+                            </th>
 
-                <div className="min-w-0">
+                            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                Project ID
+                            </th>
 
-                    <div className="flex items-center gap-2">
-                        <FileText
-                            size={18}
-                            className="shrink-0 text-cyan-600 dark:text-cyan-400"
-                        />
+                            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                Progress
+                            </th>
 
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                            {request.task_id}
-                        </span>
-                    </div>
+                            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                Status
+                            </th>
+                        </tr>
+                    </thead>
 
-                    <h3 className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {request.config_name}
-                    </h3>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {requests.map((request) => {
+                            const percentage =
+                                request.progress?.percentage ?? 0;
 
-                </div>
+                            return (
+                                <tr
+                                    key={request.task_id}
+                                    className="transition hover:bg-gray-50 dark:hover:bg-gray-800/40"
+                                >
+                                    {/* Task ID */}
+                                    <td className="whitespace-nowrap px-5 py-4">
+                                        <div className="flex items-center gap-2">
+                                            <FileText
+                                                size={17}
+                                                className="shrink-0 text-cyan-600 dark:text-cyan-400"
+                                            />
 
-                <span
-                    className={`inline-flex w-fit shrink-0 items-center rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(
-                        request.status
-                    )}`}
-                >
-                    {getStatusLabel(request.status)}
-                </span>
+                                            <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                                {request.task_id}
+                                            </span>
+                                        </div>
+                                    </td>
 
+                                    {/* Config */}
+                                    <td className="max-w-[260px] px-5 py-4">
+                                        <div>
+                                            <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-200">
+                                                {request.config_name}
+                                            </p>
+
+                                            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                                {request.config_type}
+                                            </p>
+                                        </div>
+                                    </td>
+
+                                    {/* Mapping */}
+                                    <td className="max-w-[240px] px-5 py-4">
+                                        <div>
+                                            <p className="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-500">
+                                                {request.mapping_value}
+                                            </p>
+                                        </div>
+                                    </td>
+
+                                    {/* Progress */}
+                                    <td className="w-[220px] px-5 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                                                <div
+                                                    className="h-full rounded-full bg-cyan-500 transition-all duration-500"
+                                                    style={{
+                                                        width: getProgressBarWidth(
+                                                            percentage
+                                                        ),
+                                                    }}
+                                                />
+                                            </div>
+
+                                            <span className="w-10 text-right text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                                {percentage}%
+                                            </span>
+                                        </div>
+
+                                        <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                                            {request.progress
+                                                ?.completed_levels ?? 0}{" "}
+                                            /{" "}
+                                            {request.progress?.total_levels ??
+                                                0}{" "}
+                                            levels
+                                        </p>
+                                    </td>
+
+                                    {/* Status */}
+                                    <td className="whitespace-nowrap px-5 py-4">
+                                        <span
+                                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(
+                                                request.status
+                                            )}`}
+                                        >
+                                            {getStatusLabel(request.status)}
+                                        </span>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
             </div>
-
-            {/* Workflow information */}
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-
-                <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                        Active Level
-                    </p>
-
-                    <p className="mt-1 text-sm font-medium text-gray-800 dark:text-gray-200">
-                        {request.active?.label ?? "Workflow Completed"}
-                    </p>
-                </div>
-
-                <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                        Assigned To
-                    </p>
-
-                    <p className="mt-1 text-sm font-medium text-gray-800 dark:text-gray-200">
-                        {request.active?.assign_to ?? "—"}
-                    </p>
-                </div>
-
-            </div>
-
-            {/* Progress */}
-            <div className="mt-5">
-
-                <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                        Workflow Progress
-                    </span>
-
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                        {percentage}%
-                    </span>
-                </div>
-
-                <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                    <div
-                        className="h-full rounded-full bg-cyan-500 transition-all duration-500"
-                        style={{
-                            width: getProgressBarWidth(percentage),
-                        }}
-                    />
-                </div>
-
-                <div className="mt-2 flex justify-between text-xs text-gray-400 dark:text-gray-500">
-                    <span>
-                        {request.progress?.completed_levels ?? 0} completed
-                    </span>
-
-                    <span>
-                        {request.progress?.total_levels ?? 0} total levels
-                    </span>
-                </div>
-
-            </div>
-
-            {/* Mapping */}
-            <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
-
-                <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
-
-                    <span>
-                        <strong className="font-medium text-gray-600 dark:text-gray-300">
-                            Type:
-                        </strong>{" "}
-                        {request.config_type}
-                    </span>
-
-                    <span>
-                        <strong className="font-medium text-gray-600 dark:text-gray-300">
-                            Mapping:
-                        </strong>{" "}
-                        {request.mapping_type}
-                    </span>
-
-                    <span>
-                        <strong className="font-medium text-gray-600 dark:text-gray-300">
-                            Value:
-                        </strong>{" "}
-                        {request.mapping_value}
-                    </span>
-
-                </div>
-
-            </div>
-
         </div>
     );
 }
@@ -262,18 +255,14 @@ function RecentRequestCard({
  * ========================================================= */
 
 export default function Dashboard() {
-
     const [dashboard, setDashboard] =
         useState<DashboardData | null>(null);
 
-    const [loading, setLoading] =
-        useState(true);
+    const [loading, setLoading] = useState(true);
 
-    const [refreshing, setRefreshing] =
-        useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const [error, setError] =
-        useState("");
+    const [error, setError] = useState("");
 
     /* =====================================================
      * Load Dashboard
@@ -310,6 +299,10 @@ export default function Dashboard() {
             setRefreshing(false);
         }
     };
+
+    /* =====================================================
+     * Initial Load
+     * ===================================================== */
 
     useEffect(() => {
         let cancelled = false;
@@ -352,12 +345,9 @@ export default function Dashboard() {
      * ===================================================== */
 
     if (loading) {
-
         return (
             <div className="flex min-h-[calc(100vh-120px)] items-center justify-center">
-
                 <div className="flex flex-col items-center gap-3">
-
                     <Loader2
                         size={32}
                         className="animate-spin text-cyan-600 dark:text-cyan-400"
@@ -366,9 +356,7 @@ export default function Dashboard() {
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                         Loading dashboard...
                     </p>
-
                 </div>
-
             </div>
         );
     }
@@ -378,21 +366,16 @@ export default function Dashboard() {
      * ===================================================== */
 
     if (error) {
-
         return (
             <div className="p-6">
-
                 <div className="mx-auto max-w-3xl rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900/50 dark:bg-red-950/20">
-
                     <div className="flex items-start gap-3">
-
                         <XCircle
                             size={22}
                             className="mt-0.5 shrink-0 text-red-600 dark:text-red-400"
                         />
 
                         <div className="flex-1">
-
                             <h2 className="font-semibold text-red-800 dark:text-red-300">
                                 Unable to load dashboard
                             </h2>
@@ -409,13 +392,9 @@ export default function Dashboard() {
                                 <RefreshCw size={16} />
                                 Try Again
                             </button>
-
                         </div>
-
                     </div>
-
                 </div>
-
             </div>
         );
     }
@@ -439,30 +418,23 @@ export default function Dashboard() {
      * ===================================================== */
 
     return (
-        <div className="h-[calc(96vh-64px)] overflow-y-auto p-4 sm:p-6 lg:p-8 scrollbar-hide">
-            <div className="mx-auto max-w-7xl">
-
+        <div className="h-[calc(96vh-64px)] overflow-y-auto p-4 scrollbar-hide sm:p-6 lg:p-8">
+            <div className="mx-auto">
                 {/* =================================================
                  * Page Header
                  * ================================================= */}
 
                 <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
                     <div>
-
                         <div className="flex items-center gap-3">
-
                             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-100 dark:bg-cyan-900/30">
-
                                 <Activity
                                     size={21}
                                     className="text-cyan-600 dark:text-cyan-400"
                                 />
-
                             </div>
 
                             <div>
-
                                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                                     Dashboard
                                 </h1>
@@ -470,11 +442,8 @@ export default function Dashboard() {
                                 <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
                                     Overview of your workflow requests
                                 </p>
-
                             </div>
-
                         </div>
-
                     </div>
 
                     <button
@@ -483,7 +452,6 @@ export default function Dashboard() {
                         disabled={refreshing}
                         className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                     >
-
                         <RefreshCw
                             size={16}
                             className={
@@ -496,17 +464,14 @@ export default function Dashboard() {
                         {refreshing
                             ? "Refreshing..."
                             : "Refresh"}
-
                     </button>
-
                 </div>
 
                 {/* =================================================
-                 * Metrics
+                 * Top Metrics
                  * ================================================= */}
 
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
                     <MetricCard
                         title="Total Requests"
                         value={metrics.total}
@@ -558,7 +523,6 @@ export default function Dashboard() {
                         }
                         iconClasses="bg-red-100 dark:bg-red-900/30"
                     />
-
                 </div>
 
                 {/* =================================================
@@ -566,11 +530,8 @@ export default function Dashboard() {
                  * ================================================= */}
 
                 <div className="mt-8">
-
                     <div className="mb-4 flex items-center justify-between">
-
                         <div>
-
                             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                                 Recent Requests
                             </h2>
@@ -578,32 +539,23 @@ export default function Dashboard() {
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                                 Latest workflow requests assigned to you
                             </p>
-
                         </div>
 
                         <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-
                             {recentRequests.length}{" "}
-
                             {recentRequests.length === 1
                                 ? "Request"
                                 : "Requests"}
-
                         </span>
-
                     </div>
 
                     {recentRequests.length === 0 ? (
-
                         <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center dark:border-gray-700 dark:bg-gray-900">
-
                             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
-
                                 <FileText
                                     size={22}
                                     className="text-gray-400 dark:text-gray-500"
                                 />
-
                             </div>
 
                             <h3 className="mt-4 text-sm font-semibold text-gray-800 dark:text-gray-200">
@@ -613,30 +565,14 @@ export default function Dashboard() {
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                                 You don't have any workflow requests yet.
                             </p>
-
                         </div>
-
                     ) : (
-
-                        <div className="grid gap-4">
-
-                            {recentRequests.map(
-                                (request) => (
-                                    <RecentRequestCard
-                                        key={request.task_id}
-                                        request={request}
-                                    />
-                                )
-                            )}
-
-                        </div>
-
+                        <RecentRequestsTable
+                            requests={recentRequests}
+                        />
                     )}
-
                 </div>
-
             </div>
-
         </div>
     );
 }

@@ -55,7 +55,7 @@ export default function WorkflowProcessList() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+        <div className="bg-gray-50 dark:bg-gray-950">
             <div className="mx-auto max-w-7xl p-6">
                 {/* Header */}
                 <div className="mb-6 flex items-center justify-between">
@@ -118,11 +118,10 @@ export default function WorkflowProcessList() {
                             title="Refresh"
                         >
                             <RefreshCw
-                                className={`h-4 w-4 ${
-                                    loading
+                                className={`h-4 w-4 ${loading
                                         ? "animate-spin"
                                         : ""
-                                }`}
+                                    }`}
                             />
                         </button>
                     </div>
@@ -187,12 +186,13 @@ export default function WorkflowProcessList() {
                         )}
 
                     {/* Table */}
+                    {/* Table */}
                     {!loading &&
                         !error &&
                         processes.length > 0 && (
-                            <div className="overflow-x-auto">
+                            <div className="max-h-[calc(100vh-240px)] overflow-auto scrollbar-hide">
                                 <table className="w-full text-left">
-                                    <thead>
+                                    <thead className="sticky top-0 z-10">
                                         <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
                                             <th className="px-5 py-3 font-medium">
                                                 Process
@@ -213,71 +213,58 @@ export default function WorkflowProcessList() {
                                     </thead>
 
                                     <tbody>
-                                        {processes.map(
-                                            (process) => (
-                                                <tr
-                                                    key={
-                                                        process.process_id
-                                                    }
-                                                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
-                                                >
-                                                    <td className="px-5 py-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
-                                                                <Workflow className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                        {processes.map((process) => (
+                                            <tr
+                                                key={process.process_id}
+                                                className="border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
+                                            >
+                                                <td className="px-5 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+                                                            <Workflow className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                                        </div>
+
+                                                        <div>
+                                                            <div className="font-medium text-gray-900 dark:text-white">
+                                                                {process.process_name}
                                                             </div>
 
-                                                            <div>
-                                                                <div className="font-medium text-gray-900 dark:text-white">
-                                                                    {
-                                                                        process.process_name
-                                                                    }
-                                                                </div>
-
-                                                                <div className="mt-0.5 text-xs text-gray-500">
-                                                                    Workflow
-                                                                    Process
-                                                                </div>
+                                                            <div className="mt-0.5 text-xs text-gray-500">
+                                                                Workflow Process
                                                             </div>
                                                         </div>
-                                                    </td>
+                                                    </div>
+                                                </td>
 
-                                                    <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
-                                                        #
-                                                        {
-                                                            process.process_id
+                                                <td className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
+                                                    #{process.process_id}
+                                                </td>
+
+                                                <td className="px-5 py-4">
+                                                    <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                                        {process.number_of_tasks}{" "}
+                                                        {process.number_of_tasks === 1
+                                                            ? "Task"
+                                                            : "Tasks"}
+                                                    </span>
+                                                </td>
+
+                                                <td className="px-5 py-4 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            navigate(
+                                                                `/workflow-process/${process.process_id}`
+                                                            )
                                                         }
-                                                    </td>
-
-                                                    <td className="px-5 py-4">
-                                                        <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                                            {
-                                                                process.number_of_tasks
-                                                            }{" "}
-                                                            {process.number_of_tasks ===
-                                                            1
-                                                                ? "Task"
-                                                                : "Tasks"}
-                                                        </span>
-                                                    </td>
-
-                                                    <td className="px-5 py-4 text-right">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                navigate(
-                                                                    `/workflow-process/${process.process_id}`
-                                                                )
-                                                            }
-                                                            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                                        >
-                                                            <Eye className="h-4 w-4" />
-                                                            View
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            )
-                                        )}
+                                                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                    >
+                                                        <Eye className="h-4 w-4" />
+                                                        View
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             </div>

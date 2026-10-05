@@ -166,7 +166,7 @@ function TodayTasksPage() {
                     );
                 }
             );
-       }, [userTasks, selectedDate]);
+        }, [userTasks, selectedDate]);
     const handleDeleted = (
         taskId: number
     ) => {
@@ -239,7 +239,7 @@ function TodayTasksPage() {
     }
 
     return (
-        <div className="flex h-[calc(100vh-64px)] min-w-0 flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
+        <div className="flex h-[calc(95vh-64px)] min-w-0 flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
 
             <TaskDateStrip
                 selectedDate={selectedDate}
@@ -253,7 +253,7 @@ function TodayTasksPage() {
                 </div>
             )}
 
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 overflow-y-auto border-r border-gray-200 dark:border-gray-800 scrollbar-hide">
                 <div className="grid h-full grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
                     <TaskList
                         tasks={

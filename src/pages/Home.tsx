@@ -49,8 +49,7 @@ function Home() {
   ];
 
   return (
-    <div className="mx-auto">
-
+    <div className="w-full px-6 py-6 lg:px-8 lg:py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
           Dashboard
@@ -62,7 +61,6 @@ function Home() {
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-
         {cards.map((card) => {
           const CardContent = (
             <>
@@ -75,10 +73,11 @@ function Home() {
               </p>
 
               <p
-                className={`mt-2 text-xs transition ${card.clickable
-                  ? "text-gray-400 opacity-0 group-hover:opacity-100 dark:text-gray-500"
-                  : "text-gray-400 dark:text-gray-500"
-                  }`}
+                className={`mt-2 text-xs transition ${
+                  card.clickable
+                    ? "text-gray-400 opacity-0 group-hover:opacity-100 dark:text-gray-500"
+                    : "text-gray-400 dark:text-gray-500"
+                }`}
               >
                 {card.description}
               </p>
@@ -90,7 +89,7 @@ function Home() {
               <button
                 key={card.title}
                 type="button"
-                onClick={() => navigate(card.path!)}
+                onClick={() => navigate(card.path)}
                 className="group rounded-xl border border-gray-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-1 hover:border-gray-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-950 dark:hover:border-gray-600"
               >
                 {CardContent}
@@ -107,9 +106,7 @@ function Home() {
             </div>
           );
         })}
-
       </div>
-
     </div>
   );
 }

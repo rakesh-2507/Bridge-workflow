@@ -659,7 +659,7 @@ function TaskDetails({
                     CONTENT
                 ====================================================== */}
 
-                <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto lg:grid-cols-[minmax(0,1fr)_340px]">
+                <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto lg:grid-cols-[minmax(0,1fr)_340px] scrollbar-hide">
                     <div className="min-w-0 space-y-5 p-5">
                         {/* Dates */}
 

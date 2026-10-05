@@ -81,8 +81,7 @@ function TasksPage() {
         setTasks((previous) =>
             previous.filter(
                 (task) =>
-                    task.task_id !==
-                    taskId
+                    task.task_id !== taskId
             )
         );
 
@@ -91,7 +90,7 @@ function TasksPage() {
 
     if (loading) {
         return (
-            <div className="flex min-h-[70vh] items-center justify-center">
+            <div className="flex h-[calc(100vh-64px)] items-center justify-center overflow-hidden">
                 <div className="text-center">
                     <Loader2
                         size={30}
@@ -107,8 +106,9 @@ function TasksPage() {
     }
 
     return (
-        <div className="flex h-[calc(100vh-64px)] flex-col bg-gray-50 dark:bg-gray-950">
+        <div className="flex h-[calc(95vh-64px)] min-h-0 flex-col overflow-hidden bg-gray-50 dark:bg-gray-950">
 
+            {/* Header */}
             <div className="shrink-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-800 dark:bg-gray-900">
 
                 <div className="flex items-center justify-between gap-4">
@@ -116,48 +116,54 @@ function TasksPage() {
                     <div>
                         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
                             Tasks
-                        {/* <span className="rounded-full bg-gray-100 p-2 m-2 text-sm font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                                {tasks.length}
-                            </span> */}
                         </h1>
 
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                             Manage and track your pending tasks.
                         </p>
                     </div>
+
                 </div>
             </div>
 
+            {/* Error */}
             {error && (
-                <div className="mx-6 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+                <div className="mx-6 mt-4 shrink-0 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
                     {error}
                 </div>
             )}
 
-            <div className="min-h-0 flex-1">
+            {/* Task workspace */}
+            <div className="min-h-0 flex-1 overflow-hidden">
 
-                <div className="grid h-full grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+                <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)]">
 
-                    <TaskList
-                        tasks={pendingTasks}
-                        selectedTask={selectedTask}
-                        onSelect={setSelectedTask}
-                    />
+                    {/* Task list */}
+                    <div className="min-h-0 overflow-y-auto border-r border-gray-200 dark:border-gray-800 scrollbar-hide">
+                        <TaskList
+                            tasks={pendingTasks}
+                            selectedTask={selectedTask}
+                            onSelect={setSelectedTask}
+                        />
+                    </div>
 
-                    <TaskDetails
-                        task={selectedTask}
-                        onEdit={(task) =>
-                            navigate(
-                                `/tasks/${task.task_id}/edit`,
-                                {
-                                    state: {
-                                        task,
-                                    },
-                                }
-                            )
-                        }
-                        onDeleted={handleDeleted}
-                    />
+                    {/* Task details */}
+                    <div className="min-h-0">
+                        <TaskDetails
+                            task={selectedTask}
+                            onEdit={(task) =>
+                                navigate(
+                                    `/tasks/${task.task_id}/edit`,
+                                    {
+                                        state: {
+                                            task,
+                                        },
+                                    }
+                                )
+                            }
+                            onDeleted={handleDeleted}
+                        />
+                    </div>
 
                 </div>
             </div>

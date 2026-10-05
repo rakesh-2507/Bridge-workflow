@@ -1,16 +1,26 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
 import {
   Background,
   Controls,
+  Handle,
   MiniMap,
+  Position,
   ReactFlow,
   addEdge,
+  applyEdgeChanges,
   applyNodeChanges,
+  reconnectEdge,
   type Connection,
   type Edge,
+  type EdgeChange,
   type Node,
   type NodeChange,
+  type NodeProps,
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
@@ -18,8 +28,8 @@ import "@xyflow/react/dist/style.css";
 import {
   ArrowLeft,
   Loader2,
-  Save,
   Pencil,
+  Save,
 } from "lucide-react";
 
 import {
@@ -35,6 +45,10 @@ import {
   type ProcessTask,
 } from "../../api/process";
 
+/* =========================================================
+ * Workflow Node Types
+ * ========================================================= */
+
 type WorkflowNodeData = {
   label: string;
   taskType: string;
@@ -46,14 +60,231 @@ type WorkflowNodeData = {
 
 type WorkflowNode = Node<WorkflowNodeData>;
 
+/* =========================================================
+ * Custom Workflow Node
+ *
+ * Four connection points:
+ *
+ *              TOP
+ *               ●
+ *
+ *       ●   WORKFLOW NODE   ●
+ *      LEFT                RIGHT
+ *
+ *               ●
+ *             BOTTOM
+ *
+ * TOP / LEFT       = target handles
+ * RIGHT / BOTTOM   = source handles
+ * ========================================================= */
+
+function WorkflowNode({
+  data,
+}: NodeProps<WorkflowNode>) {
+  return (
+    <div
+      className="
+        relative
+        min-w-[230px]
+        rounded-xl
+        border
+        border-gray-300
+        bg-white
+        px-5
+        py-4
+        shadow-md
+        dark:border-gray-700
+        dark:bg-gray-900
+      "
+    >
+      {/* TOP TARGET */}
+
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="top"
+        className="
+          !h-3
+          !w-3
+          !border-2
+          !border-white
+          !bg-cyan-500
+          dark:!border-gray-900
+        "
+      />
+
+      {/* LEFT TARGET */}
+
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="left"
+        className="
+          !h-3
+          !w-3
+          !border-2
+          !border-white
+          !bg-cyan-500
+          dark:!border-gray-900
+        "
+      />
+
+      {/* RIGHT SOURCE */}
+
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="right"
+        className="
+          !h-3
+          !w-3
+          !border-2
+          !border-white
+          !bg-cyan-600
+          dark:!border-gray-900
+        "
+      />
+
+      {/* BOTTOM SOURCE */}
+
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="bottom"
+        className="
+          !h-3
+          !w-3
+          !border-2
+          !border-white
+          !bg-cyan-600
+          dark:!border-gray-900
+        "
+      />
+
+      {/* NODE CONTENT */}
+
+      <div
+        className="
+          text-sm
+          font-semibold
+          text-gray-900
+          dark:text-white
+        "
+      >
+        {data.label}
+      </div>
+
+      {data.taskType && (
+        <div
+          className="
+            mt-1
+            text-xs
+            text-gray-500
+            dark:text-gray-400
+          "
+        >
+          Type: {data.taskType}
+        </div>
+      )}
+
+      {data.role && (
+        <div
+          className="
+            mt-1
+            text-xs
+            text-gray-500
+            dark:text-gray-400
+          "
+        >
+          Role: {data.role}
+        </div>
+      )}
+
+      {data.level > 0 && (
+        <div
+          className="
+            mt-1
+            text-xs
+            text-gray-500
+            dark:text-gray-400
+          "
+        >
+          Level: {data.level}
+        </div>
+      )}
+
+      {data.configType && (
+        <div
+          className="
+            mt-1
+            text-xs
+            text-gray-500
+            dark:text-gray-400
+          "
+        >
+          Config: {data.configType}
+        </div>
+      )}
+
+      {data.actions &&
+        data.actions.length > 0 && (
+          <div
+            className="
+              mt-2
+              flex
+              flex-wrap
+              gap-1
+            "
+          >
+            {data.actions.map(
+              (action) => (
+                <span
+                  key={action}
+                  className="
+                    rounded-md
+                    bg-gray-100
+                    px-2
+                    py-0.5
+                    text-[10px]
+                    text-gray-600
+                    dark:bg-gray-800
+                    dark:text-gray-300
+                  "
+                >
+                  {action}
+                </span>
+              ),
+            )}
+          </div>
+        )}
+    </div>
+  );
+}
+
+/* =========================================================
+ * React Flow Node Types
+ * ========================================================= */
+
+const nodeTypes = {
+  workflow: WorkflowNode,
+};
+
+/* =========================================================
+ * View Process
+ * ========================================================= */
+
 export default function ViewProcess() {
-  const { id } = useParams<{ id: string }>();
+  const { id } =
+    useParams<{ id: string }>();
+
   const navigate = useNavigate();
 
   const processId = Number(id);
 
   const [process, setProcess] =
-    useState<ProcessJson | null>(null);
+    useState<ProcessJson | null>(
+      null,
+    );
 
   const [nodes, setNodes] =
     useState<WorkflowNode[]>([]);
@@ -61,13 +292,19 @@ export default function ViewProcess() {
   const [edges, setEdges] =
     useState<Edge[]>([]);
 
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] =
+    useState(true);
 
-  /*
-   * Load process whenever the route process ID changes.
-   */
+  const [saving, setSaving] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  /* =========================================================
+   * Load Process
+   * ========================================================= */
+
   useEffect(() => {
     let cancelled = false;
 
@@ -76,80 +313,112 @@ export default function ViewProcess() {
       setError("");
 
       try {
-        const response = await getProcess(processId);
+        const response =
+          await getProcess(
+            processId,
+          );
 
         if (cancelled) {
           return;
         }
 
-        const processData = response.ProcessJson;
+        const processData =
+          response.ProcessJson;
 
-        setProcess(processData);
+        setProcess(
+          processData,
+        );
 
-        /*
-         * Convert API tasks into React Flow nodes.
-         *
-         * The original ProcessTask remains in `process`.
-         * React Flow only stores the information required
-         * to display and edit the diagram.
-         */
+        /* ===================================================
+         * Convert API Tasks -> React Flow Nodes
+         * =================================================== */
+
         const flowNodes: WorkflowNode[] =
           processData.Tasks.map(
-            (task: ProcessTask) => ({
-              id: String(task.TaskID),
+            (
+              task: ProcessTask,
+            ) => ({
+              id: String(
+                task.TaskID,
+              ),
 
-              position: task.position || {
-                x: 100,
-                y: 100,
-              },
+              type: "workflow",
+
+              position:
+                task.position || {
+                  x: 100,
+                  y: 100,
+                },
 
               data: {
                 label:
-                  task.TaskDetails?.TaskName ||
+                  task.TaskDetails
+                    ?.TaskName ||
                   task.TaskType ||
                   "Task",
 
                 taskType:
-                  task.TaskType || "",
+                  task.TaskType ||
+                  "",
 
                 role:
-                  task.TaskDetails?.Level?.role ||
+                  task.TaskDetails
+                    ?.Level?.role ||
                   "",
 
                 level:
-                  task.TaskDetails?.Level?.level ||
+                  task.TaskDetails
+                    ?.Level?.level ||
                   0,
 
                 configType:
-                  task.TaskDetails?.ConfigType,
+                  task.TaskDetails
+                    ?.ConfigType,
 
                 actions:
-                  task.TaskDetails?.Actions || [],
+                  task.TaskDetails
+                    ?.Actions || [],
               },
-            })
+            }),
           );
 
-        /*
-         * Convert saved API connections into React Flow edges.
-         *
-         * IMPORTANT:
-         * Preserve source -> target exactly as returned
-         * by the API.
-         */
-        const flowEdges: Edge[] = (
-          processData.connections || []
-        ).map((connection, index) => ({
-          id: `edge-${index}-${String(
-            connection.source
-          )}-${String(connection.target)}`,
+        /* ===================================================
+         * Convert API Connections -> React Flow Edges
+         * =================================================== */
 
-          source: String(connection.source),
+        const flowEdges: Edge[] =
+          (
+            processData.connections ||
+            []
+          ).map(
+            (
+              connection,
+              index,
+            ) => ({
+              id:
+                `edge-${index}-${String(
+                  connection.source,
+                )}-${String(
+                  connection.target,
+                )}`,
 
-          target: String(connection.target),
-        }));
+              source: String(
+                connection.source,
+              ),
 
-        setNodes(flowNodes);
-        setEdges(flowEdges);
+              target: String(
+                connection.target,
+              ),
+            }),
+          );
+
+        setNodes(
+          flowNodes,
+        );
+
+        setEdges(
+          flowEdges,
+        );
       } catch (err) {
         if (cancelled) {
           return;
@@ -157,13 +426,16 @@ export default function ViewProcess() {
 
         console.error(
           "Failed to load process:",
-          err
+          err,
         );
 
         setProcess(null);
         setNodes([]);
         setEdges([]);
-        setError("Failed to load process.");
+
+        setError(
+          "Failed to load process.",
+        );
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -171,7 +443,11 @@ export default function ViewProcess() {
       }
     }
 
-    if (Number.isFinite(processId)) {
+    if (
+      Number.isFinite(
+        processId,
+      )
+    ) {
       void fetchProcess();
     }
 
@@ -180,132 +456,275 @@ export default function ViewProcess() {
     };
   }, [processId]);
 
-  /*
-   * Handle React Flow node changes.
+  /* =========================================================
+   * Handle Node Changes
    *
-   * This includes:
-   * - dragging
-   * - selecting
-   * - deleting
-   * - position changes
-   */
-  const onNodesChange = useCallback(
-    (changes: NodeChange<WorkflowNode>[]) => {
-      setNodes((currentNodes) =>
-        applyNodeChanges(
-          changes,
-          currentNodes
-        )
-      );
-    },
-    []
-  );
-
-  /*
-   * Handle a new React Flow connection.
+   * IMPORTANT:
    *
-   * React Flow gives us:
-   * source = node where the connection starts
-   * target = node where the connection ends
+   * When a node is deleted, React Flow updates the nodes
+   * but our edges are stored separately.
    *
-   * We preserve that direction when saving.
-   */
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      if (
-        !connection.source ||
-        !connection.target
-      ) {
-        return;
-      }
+   * Therefore we explicitly remove every edge connected
+   * to the deleted node.
+   * ========================================================= */
 
-      if (
-        connection.source ===
-        connection.target
-      ) {
-        return;
-      }
+  const onNodesChange =
+    useCallback(
+      (
+        changes: NodeChange<WorkflowNode>[],
+      ) => {
+        /* ===============================================
+         * Find nodes being removed
+         * =============================================== */
 
-      console.log(
-        "New workflow connection:",
-        connection
-      );
-
-      setEdges((currentEdges) => {
-        /*
-         * Prevent duplicate connections.
-         */
-        const alreadyExists =
-          currentEdges.some(
-            (edge) =>
-              edge.source ===
-              connection.source &&
-              edge.target ===
-              connection.target
+        const removedNodeIds =
+          new Set(
+            changes
+              .filter(
+                (change) =>
+                  change.type ===
+                  "remove",
+              )
+              .map(
+                (change) =>
+                  change.id,
+              ),
           );
 
-        if (alreadyExists) {
-          return currentEdges;
+        /* ===============================================
+         * Update nodes
+         * =============================================== */
+
+        setNodes(
+          (currentNodes) =>
+            applyNodeChanges(
+              changes,
+              currentNodes,
+            ),
+        );
+
+        /* ===============================================
+         * Remove edges connected to deleted nodes
+         * =============================================== */
+
+        if (
+          removedNodeIds.size > 0
+        ) {
+          setEdges(
+            (currentEdges) =>
+              currentEdges.filter(
+                (edge) =>
+                  !removedNodeIds.has(
+                    edge.source,
+                  ) &&
+                  !removedNodeIds.has(
+                    edge.target,
+                  ),
+              ),
+          );
+        }
+      },
+      [],
+    );
+
+  /* =========================================================
+   * Handle Edge Changes
+   *
+   * This allows:
+   *
+   * - selecting edges
+   * - deleting edges
+   * - updating edge state
+   *
+   * Delete / Backspace will now remove the selected edge.
+   * ========================================================= */
+
+  const onEdgesChange =
+    useCallback(
+      (
+        changes: EdgeChange[],
+      ) => {
+        setEdges(
+          (currentEdges) =>
+            applyEdgeChanges(
+              changes,
+              currentEdges,
+            ),
+        );
+      },
+      [],
+    );
+
+  /* =========================================================
+   * Handle New Connection
+   *
+   * RIGHT  -> TOP
+   * RIGHT  -> LEFT
+   * BOTTOM -> TOP
+   * BOTTOM -> LEFT
+   *
+   * Self-connections are prevented.
+   * ========================================================= */
+
+  const onConnect =
+    useCallback(
+      (
+        connection: Connection,
+      ) => {
+        if (
+          !connection.source ||
+          !connection.target
+        ) {
+          return;
         }
 
-        const updatedEdges = addEdge(
-          connection,
-          currentEdges
+        /* Prevent task -> same task */
+
+        if (
+          connection.source ===
+          connection.target
+        ) {
+          return;
+        }
+
+        setEdges(
+          (currentEdges) => {
+            /* ===========================================
+             * Prevent exact duplicate connection
+             * =========================================== */
+
+            const duplicate =
+              currentEdges.some(
+                (edge) =>
+                  edge.source ===
+                    connection.source &&
+                  edge.target ===
+                    connection.target &&
+                  edge.sourceHandle ===
+                    connection.sourceHandle &&
+                  edge.targetHandle ===
+                    connection.targetHandle,
+              );
+
+            if (duplicate) {
+              return currentEdges;
+            }
+
+            return addEdge(
+              {
+                ...connection,
+
+                id:
+                  `edge-${Date.now()}-${Math.random()
+                    .toString(36)
+                    .slice(2, 8)}`,
+              },
+              currentEdges,
+            );
+          },
         );
+      },
+      [],
+    );
 
-        console.log(
-          "Updated workflow edges:",
-          updatedEdges
+  /* =========================================================
+   * Reconnect Existing Edge
+   * ========================================================= */
+
+  const onReconnect =
+    useCallback(
+      (
+        oldEdge: Edge,
+        newConnection: Connection,
+      ) => {
+        if (
+          !newConnection.source ||
+          !newConnection.target
+        ) {
+          return;
+        }
+
+        /* Prevent self-connection */
+
+        if (
+          newConnection.source ===
+          newConnection.target
+        ) {
+          return;
+        }
+
+        setEdges(
+          (currentEdges) => {
+            /* ===========================================
+             * Prevent duplicate connection
+             * =========================================== */
+
+            const duplicate =
+              currentEdges.some(
+                (edge) =>
+                  edge.id !==
+                    oldEdge.id &&
+                  edge.source ===
+                    newConnection.source &&
+                  edge.target ===
+                    newConnection.target &&
+                  edge.sourceHandle ===
+                    newConnection.sourceHandle &&
+                  edge.targetHandle ===
+                    newConnection.targetHandle,
+              );
+
+            if (duplicate) {
+              return currentEdges;
+            }
+
+            return reconnectEdge(
+              oldEdge,
+              newConnection,
+              currentEdges,
+            );
+          },
         );
+      },
+      [],
+    );
 
-        return updatedEdges;
-      });
-    },
-    []
-  );
+  /* =========================================================
+   * Navigate To Template
+   * ========================================================= */
 
-  /*
-   * Navigate to the template that created this process.
-   *
-   * The backend now returns:
-   *
-   * ProcessJson:
-   * {
-   *   Processid: 12,
-   *   tid: 56,
-   *   ProcessName: "Book Publishing Template",
-   *   ...
-   * }
-   *
-   * Therefore:
-   *
-   * process.tid === 56
-   *
-   * becomes:
-   *
-   * /project-template/56
-   */
   function handleEditTemplate() {
     if (!process?.tid) {
       setError(
-        "Template ID is not available for this process."
+        "Template ID is not available for this process.",
       );
+
       return;
     }
 
-    navigate(`/project-template/${process.tid}/edit?processId=${process.Processid}`);
+    navigate(
+      `/project-template/${process.tid}/edit?processId=${process.Processid}`,
+    );
   }
 
-  /*
-   * Save the current workflow designer state.
-   */
+  /* =========================================================
+   * Save Process Designer
+   * ========================================================= */
+
   async function handleSave() {
     if (!process) {
       return;
     }
 
-    if (!Number.isFinite(processId)) {
-      setError("Invalid process ID.");
+    if (
+      !Number.isFinite(
+        processId,
+      )
+    ) {
+      setError(
+        "Invalid process ID.",
+      );
+
       return;
     }
 
@@ -313,29 +732,30 @@ export default function ViewProcess() {
       setSaving(true);
       setError("");
 
-      /*
+      /* =====================================================
        * Keep only tasks whose nodes still exist
-       * in React Flow.
-       *
-       * The original ProcessTask is retained here
-       * so that local process state does not lose
-       * TaskDetails.
-       */
+       * ===================================================== */
+
       const updatedTasks: ProcessTask[] =
         process.Tasks
           .filter((task) =>
             nodes.some(
               (node) =>
                 node.id ===
-                String(task.TaskID)
-            )
+                String(
+                  task.TaskID,
+                ),
+            ),
           )
           .map((task) => {
-            const node = nodes.find(
-              (item) =>
-                item.id ===
-                String(task.TaskID)
-            );
+            const node =
+              nodes.find(
+                (item) =>
+                  item.id ===
+                  String(
+                    task.TaskID,
+                  ),
+              );
 
             if (!node) {
               return task;
@@ -349,79 +769,67 @@ export default function ViewProcess() {
                 y: node.position.y,
               },
 
-              /*
-               * Preserve existing TaskDetails.
-               */
-              TaskDetails: task.TaskDetails
-                ? {
-                  ...task.TaskDetails,
-                }
-                : task.TaskDetails,
+              TaskDetails:
+                task.TaskDetails
+                  ? {
+                      ...task.TaskDetails,
+                    }
+                  : task.TaskDetails,
             };
           });
 
-      /*
-       * IDs of tasks that still exist.
-       */
-      const remainingNodeIds = new Set(
-        updatedTasks.map(
-          (task) =>
-            String(task.TaskID)
-        )
-      );
+      /* =====================================================
+       * IDs of remaining tasks
+       * ===================================================== */
 
-      /*
-       * Keep only connections whose source
-       * and target nodes still exist.
+      const remainingNodeIds =
+        new Set(
+          updatedTasks.map(
+            (task) =>
+              String(
+                task.TaskID,
+              ),
+          ),
+        );
+
+      /* =====================================================
+       * Save Connections
        *
-       * Direction is NOT changed:
-       *
-       * source -> target
-       */
+       * Any edge connected to a deleted node is automatically
+       * removed here as a second safety check.
+       * ===================================================== */
+
       const updatedConnections =
         edges
           .filter(
             (edge) =>
               remainingNodeIds.has(
-                String(edge.source)
+                String(
+                  edge.source,
+                ),
               ) &&
               remainingNodeIds.has(
-                String(edge.target)
-              )
+                String(
+                  edge.target,
+                ),
+              ),
           )
           .map((edge) => ({
             source: String(
-              edge.source
+              edge.source,
             ),
 
             target: String(
-              edge.target
+              edge.target,
             ),
           }));
 
-      /*
-       * The designer endpoint expects:
-       *
-       * {
-       *   process_name,
-       *   tasks: [
-       *     {
-       *       task_config_id,
-       *       position
-       *     }
-       *   ],
-       *   connections: [
-       *     {
-       *       source,
-       *       target
-       *     }
-       *   ]
-       * }
-       *
-       * Do not send ProcessJson here.
-       */
-      const designerPayload: ProcessDesignerPayload =
-      {
+      /* =====================================================
+       * Designer Payload
+       * ===================================================== */
+
+      const designerPayload:
+        ProcessDesignerPayload = {
         process_name:
           process.ProcessName,
 
@@ -436,7 +844,7 @@ export default function ViewProcess() {
                   x: 100,
                   y: 100,
                 },
-            })
+            }),
           ),
 
         connections:
@@ -448,62 +856,78 @@ export default function ViewProcess() {
         JSON.stringify(
           designerPayload,
           null,
-          2
-        )
+          2,
+        ),
       );
 
-      /*
-       * Save to:
-       *
-       * PUT /api/process/{process_id}/designer
-       */
+      /* =====================================================
+       * Save To Backend
+       * ===================================================== */
+
       await saveProcessDesigner(
         processId,
-        designerPayload
+        designerPayload,
       );
 
-      /*
-       * Update local process state after
-       * successful save.
-       */
-      const updatedProcess: ProcessJson = {
+      /* =====================================================
+       * Update Local Process State
+       * ===================================================== */
+
+      const updatedProcess:
+        ProcessJson = {
         ...process,
 
         NumberofTasks:
           updatedTasks.length,
 
-        Tasks: updatedTasks,
+        Tasks:
+          updatedTasks,
 
         connections:
           updatedConnections,
       };
 
-      setProcess(updatedProcess);
+      setProcess(
+        updatedProcess,
+      );
 
       console.log(
-        "Process designer saved successfully."
+        "Process designer saved successfully.",
       );
     } catch (err) {
       console.error(
         "Failed to save process:",
-        err
+        err,
       );
 
       setError(
-        "Failed to save process."
+        "Failed to save process.",
       );
     } finally {
       setSaving(false);
     }
   }
 
-  /*
-   * Invalid route ID.
-   */
-  if (!Number.isFinite(processId)) {
+  /* =========================================================
+   * Invalid Route ID
+   * ========================================================= */
+
+  if (
+    !Number.isFinite(
+      processId,
+    )
+  ) {
     return (
       <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950">
-        <div className="rounded-lg bg-red-50 p-4 text-red-600 dark:bg-red-950/30">
+        <div
+          className="
+            rounded-lg
+            bg-red-50
+            p-4
+            text-red-600
+            dark:bg-red-950/30
+          "
+        >
           Invalid process ID.
         </div>
 
@@ -511,36 +935,80 @@ export default function ViewProcess() {
           type="button"
           onClick={() =>
             navigate(
-              "/workflow-process"
+              "/workflow-process",
             )
           }
-          className="mt-4 flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+          className="
+            mt-4
+            flex
+            items-center
+            gap-2
+            rounded-lg
+            border
+            border-gray-300
+            px-4
+            py-2
+            text-sm
+            font-medium
+            text-gray-700
+            hover:bg-gray-100
+            dark:border-gray-700
+            dark:text-gray-200
+            dark:hover:bg-gray-800
+          "
         >
           <ArrowLeft className="h-4 w-4" />
+
           Back to Processes
         </button>
       </div>
     );
   }
 
-  /*
-   * Loading state.
-   */
+  /* =========================================================
+   * Loading
+   * ========================================================= */
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <Loader2 className="h-7 w-7 animate-spin text-cyan-500" />
+      <div
+        className="
+          flex
+          min-h-screen
+          items-center
+          justify-center
+          bg-gray-50
+          dark:bg-gray-950
+        "
+      >
+        <Loader2
+          className="
+            h-7
+            w-7
+            animate-spin
+            text-cyan-500
+          "
+        />
       </div>
     );
   }
 
-  /*
-   * Process not found or API error.
-   */
+  /* =========================================================
+   * Process Not Found
+   * ========================================================= */
+
   if (!process) {
     return (
       <div className="min-h-screen bg-gray-50 p-6 dark:bg-gray-950">
-        <div className="rounded-lg bg-red-50 p-4 text-red-600 dark:bg-red-950/30">
+        <div
+          className="
+            rounded-lg
+            bg-red-50
+            p-4
+            text-red-600
+            dark:bg-red-950/30
+          "
+        >
           {error ||
             "Process not found."}
         </div>
@@ -549,43 +1017,107 @@ export default function ViewProcess() {
           type="button"
           onClick={() =>
             navigate(
-              "/workflow-process"
+              "/workflow-process",
             )
           }
-          className="mt-4 flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+          className="
+            mt-4
+            flex
+            items-center
+            gap-2
+            rounded-lg
+            border
+            border-gray-300
+            px-4
+            py-2
+            text-sm
+            font-medium
+            text-gray-700
+            hover:bg-gray-100
+            dark:border-gray-700
+            dark:text-gray-200
+            dark:hover:bg-gray-800
+          "
         >
           <ArrowLeft className="h-4 w-4" />
+
           Back to Processes
         </button>
       </div>
     );
   }
 
+  /* =========================================================
+   * Main UI
+   * ========================================================= */
+
   return (
-    <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
-      {/* Header */}
-      <header className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-5 dark:border-gray-800 dark:bg-gray-900">
-        {/* Process information */}
+    <div
+      className="
+        flex
+        h-screen
+        flex-col
+        bg-gray-50
+        dark:bg-gray-950
+      "
+    >
+      {/* =====================================================
+       * Header
+       * ===================================================== */}
+
+      <header
+        className="
+          flex
+          h-16
+          shrink-0
+          items-center
+          justify-between
+          border-b
+          border-gray-200
+          bg-white
+          px-5
+          dark:border-gray-800
+          dark:bg-gray-900
+        "
+      >
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() =>
               navigate(
-                "/workflow-process"
+                "/workflow-process",
               )
             }
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="
+              rounded-lg
+              p-2
+              text-gray-500
+              hover:bg-gray-100
+              dark:hover:bg-gray-800
+            "
             aria-label="Back to processes"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
 
           <div>
-            <h1 className="font-semibold text-gray-900 dark:text-white">
+            <h1
+              className="
+                font-semibold
+                text-gray-900
+                dark:text-white
+              "
+            >
               {process.ProcessName}
             </h1>
 
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p
+              className="
+                text-xs
+                text-gray-500
+                dark:text-gray-400
+              "
+            >
               Process ID:{" "}
               {process.Processid}
               {" · "}
@@ -597,25 +1129,64 @@ export default function ViewProcess() {
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-2">
           {/* Edit Template */}
+
           <button
             type="button"
-            onClick={handleEditTemplate}
+            onClick={
+              handleEditTemplate
+            }
             disabled={!process.tid}
-            className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="
+              flex
+              items-center
+              gap-2
+              rounded-lg
+              border
+              border-gray-300
+              bg-white
+              px-4
+              py-2
+              text-sm
+              font-medium
+              text-gray-700
+              transition
+              hover:bg-gray-50
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+              dark:border-gray-700
+              dark:bg-gray-900
+              dark:text-gray-200
+              dark:hover:bg-gray-800
+            "
           >
             <Pencil className="h-4 w-4" />
+
             Edit Template
           </button>
 
-          {/* Save Process */}
+          {/* Save */}
+
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="
+              flex
+              items-center
+              gap-2
+              rounded-lg
+              bg-cyan-600
+              px-4
+              py-2
+              text-sm
+              font-medium
+              text-white
+              hover:bg-cyan-700
+              disabled:cursor-not-allowed
+              disabled:opacity-60
+            "
           >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -630,27 +1201,67 @@ export default function ViewProcess() {
         </div>
       </header>
 
-      {/* Error notification */}
+      {/* =====================================================
+       * Error Notification
+       * ===================================================== */}
+
       {error && (
         <div
           role="alert"
-          className="absolute left-1/2 top-20 z-50 -translate-x-1/2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 shadow dark:border-red-900 dark:bg-red-950/90"
+          className="
+            absolute
+            left-1/2
+            top-20
+            z-50
+            -translate-x-1/2
+            rounded-lg
+            border
+            border-red-200
+            bg-red-50
+            px-4
+            py-2
+            text-sm
+            text-red-600
+            shadow
+            dark:border-red-900
+            dark:bg-red-950/90
+          "
         >
           {error}
         </div>
       )}
 
-      {/* Workflow designer */}
+      {/* =====================================================
+       * Workflow Designer
+       * ===================================================== */}
+
       <div className="min-h-0 flex-1">
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
+          nodeTypes={nodeTypes}
+          onNodesChange={
+            onNodesChange
+          }
+          onEdgesChange={
+            onEdgesChange
+          }
           onConnect={onConnect}
+          onReconnect={onReconnect}
           fitView
+          deleteKeyCode={[
+            "Backspace",
+            "Delete",
+          ]}
+          defaultEdgeOptions={{
+            animated: false,
+            reconnectable: true,
+          }}
         >
           <MiniMap />
+
           <Controls />
+
           <Background />
         </ReactFlow>
       </div>
