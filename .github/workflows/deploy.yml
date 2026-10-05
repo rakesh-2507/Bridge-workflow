@@ -1,4 +1,4 @@
-name: Deploy Bridge Workflow
+name: Deploy Bridge Frontend
 
 on:
   push:
@@ -10,17 +10,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to VPS
+      - name: Deploy frontend to VPS
         uses: appleboy/ssh-action@v1.2.2
+
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
 
           script: |
+            set -e
+
             cd /home/bridgeapi_frontend/Bridge-workflow
 
+            echo "======================================"
             echo "Pulling latest code..."
+            echo "======================================"
+
             git pull origin main
 
+            echo "======================================"
+            echo "Installing dependencies..."
+            echo "======================================"
+
+            npm ci
+
+            echo "======================================"
+            echo "Building React application..."
+            echo "======================================"
+
+            npm run build
+
+            echo "======================================"
             echo "Deployment completed successfully."
+            echo "======================================"
