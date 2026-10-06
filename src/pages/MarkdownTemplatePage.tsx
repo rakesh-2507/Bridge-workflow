@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -8,10 +9,13 @@ import {
   AlertCircle,
   Braces,
   CheckCircle2,
+  Download,
   FileText,
   Loader2,
   Play,
   RotateCcw,
+  Upload,
+  X,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
@@ -40,8 +44,6 @@ interface ParsedFolder {
   name: string;
   description: string;
   parent_folder_index: number | null;
-  start_date?: string;
-  end_date?: string;
   roles: string[];
 }
 
@@ -53,17 +55,33 @@ interface ParsedTemplate {
     workflow_config: string;
     workflow_scope: string;
   };
+
   folders: ParsedFolder[];
 }
 
 /* =========================================================
- * DEFAULT MARKDOWN
+ * INTERNAL FOLDER PARSER TYPE
+ *
+ * Parent is initially stored by name.
+ * After the entire Markdown document is parsed,
+ * the parent name is converted to parent_folder_index.
  * ========================================================= */
 
-const DEFAULT_MARKDOWN = `# Template: Magazine Publishing
+interface ParsedFolderSource {
+  name: string;
+  description: string;
+  parentName: string | null;
+  roles: string[];
+}
+
+/* =========================================================
+ * REFERENCE MARKDOWN
+ * ========================================================= */
+
+const REFERENCE_MARKDOWN = `# Template: Magazine Publishing
 
 ## Description
-Workflow for publishing a magazine issue.
+Template for publishing a magazine.
 
 ## Project Type
 Magazine
@@ -76,17 +94,31 @@ PROJECT
 
 ## Folders
 
-### MANUSCRIPT SUBMISSION
+### Manuscript
+Parent: Root
+Description: Manuscript submission folder
 Roles: Author, Editor
 
-### EDITORIAL REVIEW
-Roles: Editor, Reviewer
-
-#### CONTENT REVIEW
+### Review
+Parent: Root
+Description: Editorial review folder
 Roles: Reviewer
 
-### FINAL APPROVAL
-Roles: Editor, Publisher`;
+### Content Review
+Parent: Review
+Description: Content review folder
+Roles: Reviewer
+
+### Copy Editing
+Parent: Review
+Description: Copy editing folder
+Roles: Copy Editor
+
+### Final Approval
+Parent: Root
+Description: Final approval folder
+Roles: Editor
+`;
 
 /* =========================================================
  * EMPTY TEMPLATE
@@ -100,33 +132,36 @@ const emptyTemplate = (): ParsedTemplate => ({
     workflow_config: "",
     workflow_scope: "FOLDER",
   },
+
   folders: [],
 });
 
 /* =========================================================
  * MARKDOWN PARSER
+ *
+ * Folder hierarchy is now decided by:
+ *
+ * Parent: Root
+ *
+ * OR
+ *
+ * Parent: Another Folder
+ *
+ * Heading levels no longer determine the parent.
  * ========================================================= */
 
 function parseMarkdown(
   markdown: string
 ): ParsedTemplate {
-  const lines =
-    markdown.split(/\r?\n/);
+  const lines = markdown.split(/\r?\n/);
 
-  const result =
-    emptyTemplate();
+  const result = emptyTemplate();
+
+  const folderSources: ParsedFolderSource[] = [];
 
   let currentSection = "";
 
-  let currentFolder:
-    | ParsedFolder
-    | null = null;
-
-  const folderStack: {
-    level: number;
-    index: number;
-  }[] = [];
-
+  let currentFolder: ParsedFolderSource | null = null;
   for (
     let i = 0;
     i < lines.length;
@@ -134,8 +169,7 @@ function parseMarkdown(
   ) {
     const rawLine = lines[i];
 
-    const line =
-      rawLine.trim();
+    const line = rawLine.trim();
 
     if (!line) {
       continue;
@@ -168,60 +202,43 @@ function parseMarkdown(
     ===================================================== */
 
     if (
-      line
-        .toLowerCase() ===
+      line.toLowerCase() ===
       "## description"
     ) {
-      currentSection =
-        "description";
-
+      currentSection = "description";
       continue;
     }
 
     if (
-      line
-        .toLowerCase() ===
+      line.toLowerCase() ===
       "## project type"
     ) {
-      currentSection =
-        "project_type";
-
+      currentSection = "project_type";
       continue;
     }
 
     if (
-      line
-        .toLowerCase() ===
+      line.toLowerCase() ===
       "## workflow"
     ) {
-      currentSection =
-        "workflow";
-
+      currentSection = "workflow";
       continue;
     }
 
     if (
-      line
-        .toLowerCase() ===
+      line.toLowerCase() ===
       "## workflow scope"
     ) {
-      currentSection =
-        "workflow_scope";
-
+      currentSection = "workflow_scope";
       continue;
     }
 
     if (
-      line
-        .toLowerCase() ===
+      line.toLowerCase() ===
       "## folders"
     ) {
-      currentSection =
-        "folders";
-
+      currentSection = "folders";
       currentFolder = null;
-
-      folderStack.length = 0;
 
       continue;
     }
@@ -231,66 +248,55 @@ function parseMarkdown(
     ===================================================== */
 
     if (
-      currentSection ===
-        "folders" &&
+      currentSection === "folders" &&
       /^#{3,}\s+/.test(line)
     ) {
-      const match =
-        line.match(
-          /^(#{3,})\s+(.+)$/
-        );
+      const match = line.match(
+        /^(#{3,})\s+(.+)$/
+      );
 
       if (!match) {
         continue;
       }
 
-      const headingLevel =
-        match[1].length;
-
       const folderName =
         match[2].trim();
 
-      const folderLevel =
-        headingLevel - 3;
+      const folder: ParsedFolderSource = {
+        name: folderName,
+        description: "",
+        parentName: null,
+        roles: [],
+      };
 
-      while (
-        folderStack.length > 0 &&
-        folderStack[
-          folderStack.length - 1
-        ].level >= folderLevel
-      ) {
-        folderStack.pop();
-      }
-
-      const parentFolderIndex =
-        folderStack.length > 0
-          ? folderStack[
-              folderStack.length - 1
-            ].index
-          : null;
-
-      const folder: ParsedFolder =
-        {
-          name: folderName,
-          description: "",
-          parent_folder_index:
-            parentFolderIndex,
-          roles: [],
-        };
-
-      result.folders.push(
-        folder
-      );
-
-      const folderIndex =
-        result.folders.length - 1;
-
-      folderStack.push({
-        level: folderLevel,
-        index: folderIndex,
-      });
+      folderSources.push(folder);
 
       currentFolder = folder;
+
+      continue;
+    }
+
+    /* =====================================================
+       PARENT FOLDER
+    ===================================================== */
+
+    if (
+      currentSection === "folders" &&
+      currentFolder &&
+      line
+        .toLowerCase()
+        .startsWith("parent:")
+    ) {
+      const parentText =
+        line
+          .replace(
+            /^parent:/i,
+            ""
+          )
+          .trim();
+
+      currentFolder.parentName =
+        parentText || null;
 
       continue;
     }
@@ -300,8 +306,7 @@ function parseMarkdown(
     ===================================================== */
 
     if (
-      currentSection ===
-        "folders" &&
+      currentSection === "folders" &&
       currentFolder &&
       line
         .toLowerCase()
@@ -318,9 +323,8 @@ function parseMarkdown(
       currentFolder.roles =
         rolesText
           .split(",")
-          .map(
-            (role) =>
-              role.trim()
+          .map((role) =>
+            role.trim()
           )
           .filter(Boolean);
 
@@ -332,14 +336,11 @@ function parseMarkdown(
     ===================================================== */
 
     if (
-      currentSection ===
-        "folders" &&
+      currentSection === "folders" &&
       currentFolder &&
       line
         .toLowerCase()
-        .startsWith(
-          "description:"
-        )
+        .startsWith("description:")
     ) {
       currentFolder.description =
         line
@@ -353,62 +354,11 @@ function parseMarkdown(
     }
 
     /* =====================================================
-       FOLDER START DATE
+       TEMPLATE DESCRIPTION
     ===================================================== */
 
     if (
-      currentSection ===
-        "folders" &&
-      currentFolder &&
-      line
-        .toLowerCase()
-        .startsWith(
-          "start date:"
-        )
-    ) {
-      currentFolder.start_date =
-        line
-          .replace(
-            /^start date:/i,
-            ""
-          )
-          .trim();
-
-      continue;
-    }
-
-    /* =====================================================
-       FOLDER END DATE
-    ===================================================== */
-
-    if (
-      currentSection ===
-        "folders" &&
-      currentFolder &&
-      line
-        .toLowerCase()
-        .startsWith(
-          "end date:"
-        )
-    ) {
-      currentFolder.end_date =
-        line
-          .replace(
-            /^end date:/i,
-            ""
-          )
-          .trim();
-
-      continue;
-    }
-
-    /* =====================================================
-       DESCRIPTION
-    ===================================================== */
-
-    if (
-      currentSection ===
-      "description"
+      currentSection === "description"
     ) {
       if (
         result.project_template
@@ -429,8 +379,7 @@ function parseMarkdown(
     ===================================================== */
 
     if (
-      currentSection ===
-      "project_type"
+      currentSection === "project_type"
     ) {
       result.project_template.project_type =
         line;
@@ -445,8 +394,7 @@ function parseMarkdown(
     ===================================================== */
 
     if (
-      currentSection ===
-      "workflow"
+      currentSection === "workflow"
     ) {
       result.project_template.workflow_config =
         line;
@@ -461,8 +409,7 @@ function parseMarkdown(
     ===================================================== */
 
     if (
-      currentSection ===
-      "workflow_scope"
+      currentSection === "workflow_scope"
     ) {
       const scope =
         line.toUpperCase();
@@ -481,6 +428,60 @@ function parseMarkdown(
     }
   }
 
+  /* =======================================================
+     RESOLVE PARENT NAMES
+     
+     This happens AFTER all folders have been parsed.
+     
+     Therefore this works even when the parent appears
+     later in the Markdown file.
+  ======================================================= */
+
+  result.folders =
+    folderSources.map(
+      (folder) => {
+        let parentFolderIndex:
+          | number
+          | null = null;
+
+        if (
+          folder.parentName &&
+          folder.parentName
+            .trim()
+            .toLowerCase() !==
+          "root"
+        ) {
+          const normalizedParent =
+            folder.parentName
+              .trim()
+              .toLowerCase();
+
+          const foundIndex =
+            folderSources.findIndex(
+              (candidate) =>
+                candidate.name
+                  .trim()
+                  .toLowerCase() ===
+                normalizedParent
+            );
+
+          parentFolderIndex =
+            foundIndex >= 0
+              ? foundIndex
+              : null;
+        }
+
+        return {
+          name: folder.name,
+          description:
+            folder.description,
+          parent_folder_index:
+            parentFolderIndex,
+          roles: folder.roles,
+        };
+      }
+    );
+
   return result;
 }
 
@@ -489,27 +490,47 @@ function parseMarkdown(
  * ========================================================= */
 
 function MarkdownTemplatePage() {
-  const navigate =
-    useNavigate();
+  const navigate = useNavigate();
 
-  const [markdown, setMarkdown] =
-    useState(
-      DEFAULT_MARKDOWN
-    );
+  /* =======================================================
+     FILE INPUT
+  ======================================================= */
 
+  const fileInputRef =
+    useRef<HTMLInputElement>(null);
 
-  const [parseError, setParseError] =
-    useState("");
+  const [
+    uploadedFileName,
+    setUploadedFileName,
+  ] = useState("");
 
-  /* =====================================================
+  /* =======================================================
+     MARKDOWN
+  ======================================================= */
+
+  const [
+    markdown,
+    setMarkdown,
+  ] = useState("");
+
+  const [
+    parseError,
+    setParseError,
+  ] = useState("");
+
+  /* =======================================================
      API DATA
-  ===================================================== */
+  ======================================================= */
 
-  const [projectTypes, setProjectTypes] =
-    useState<ProjectType[]>([]);
+  const [
+    projectTypes,
+    setProjectTypes,
+  ] = useState<ProjectType[]>([]);
 
-  const [workflowConfigs, setWorkflowConfigs] =
-    useState<WorkflowConfig[]>([]);
+  const [
+    workflowConfigs,
+    setWorkflowConfigs,
+  ] = useState<WorkflowConfig[]>([]);
 
   const [
     loadingReferenceData,
@@ -521,9 +542,9 @@ function MarkdownTemplatePage() {
     setReferenceDataError,
   ] = useState("");
 
-  /* =====================================================
+  /* =======================================================
      CREATE STATE
-  ===================================================== */
+  ======================================================= */
 
   const [
     creatingTemplate,
@@ -540,9 +561,9 @@ function MarkdownTemplatePage() {
     setCreateSuccess,
   ] = useState("");
 
-  /* =====================================================
-     LOAD PROJECT TYPES + WORKFLOW CONFIGS
-  ===================================================== */
+  /* =======================================================
+     LOAD REFERENCE DATA
+  ======================================================= */
 
   useEffect(() => {
     let cancelled = false;
@@ -554,9 +575,7 @@ function MarkdownTemplatePage() {
             true
           );
 
-          setReferenceDataError(
-            ""
-          );
+          setReferenceDataError("");
 
           const [
             projectTypeResponse,
@@ -612,9 +631,9 @@ function MarkdownTemplatePage() {
     };
   }, []);
 
-  /* =====================================================
+  /* =======================================================
      LIVE JSON
-  ===================================================== */
+  ======================================================= */
 
   const liveJson =
     useMemo(() => {
@@ -627,59 +646,405 @@ function MarkdownTemplatePage() {
       }
     }, [markdown]);
 
-  /* =====================================================
-     PARSE
-  ===================================================== */
+  /* =======================================================
+     CLEAR STATUS
+  ======================================================= */
 
-const handleParse = () => {
-  try {
+  const clearStatusMessages = () => {
     setParseError("");
+    setCreateError("");
+    setCreateSuccess("");
+  };
 
-    parseMarkdown(markdown);
-  } catch (error) {
+  /* =======================================================
+     UPLOAD MARKDOWN FILE
+  ======================================================= */
+
+  const handleMarkdownFileUpload =
+    async (
+      event: React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const file =
+        event.target.files?.[0];
+
+      if (!file) {
+        return;
+      }
+
+      try {
+        clearStatusMessages();
+
+        const lowerName =
+          file.name.toLowerCase();
+
+        const isMarkdownFile =
+          lowerName.endsWith(".md") ||
+          lowerName.endsWith(
+            ".markdown"
+          );
+
+        if (!isMarkdownFile) {
+          throw new Error(
+            "Please select a Markdown (.md or .markdown) file."
+          );
+        }
+
+        const content =
+          await file.text();
+
+        if (!content.trim()) {
+          throw new Error(
+            "The selected Markdown file is empty."
+          );
+        }
+
+        setMarkdown(content);
+
+        setUploadedFileName(
+          file.name
+        );
+      } catch (error) {
+        console.error(
+          "Failed to read Markdown file:",
+          error
+        );
+
+        setUploadedFileName("");
+
+        setParseError(
+          error instanceof Error
+            ? error.message
+            : "Unable to read the Markdown file."
+        );
+      } finally {
+        event.target.value = "";
+      }
+    };
+
+  /* =======================================================
+     OPEN FILE SELECTOR
+  ======================================================= */
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  /* =======================================================
+     REMOVE UPLOADED FILE
+  ======================================================= */
+
+  const handleRemoveUploadedFile =
+    () => {
+      setUploadedFileName("");
+      setMarkdown("");
+      clearStatusMessages();
+    };
+
+  /* =======================================================
+     DOWNLOAD REFERENCE MARKDOWN
+  ======================================================= */
+
+  const handleDownloadReference =
+    () => {
+      const blob =
+        new Blob(
+          [REFERENCE_MARKDOWN],
+          {
+            type: "text/markdown;charset=utf-8",
+          }
+        );
+
+      const url =
+        URL.createObjectURL(blob);
+
+      const anchor =
+        document.createElement(
+          "a"
+        );
+
+      anchor.href = url;
+
+      anchor.download =
+        "project-template-reference.md";
+
+      document.body.appendChild(
+        anchor
+      );
+
+      anchor.click();
+
+      document.body.removeChild(
+        anchor
+      );
+
+      URL.revokeObjectURL(url);
+    };
+
+  /* =======================================================
+     VALIDATE MARKDOWN PARSE
+  ======================================================= */
+
+  const validateParsedMarkdown =
+    (
+      parsed: ParsedTemplate
+    ) => {
+      if (
+        !parsed.project_template.name.trim()
+      ) {
+        throw new Error(
+          "Template name is required."
+        );
+      }
+
+      if (
+        !parsed.project_template.description.trim()
+      ) {
+        throw new Error(
+          "Template description is required."
+        );
+      }
+
+      if (
+        !parsed.project_template.project_type.trim()
+      ) {
+        throw new Error(
+          "Project Type is required."
+        );
+      }
+
+      if (
+        !parsed.project_template.workflow_config.trim()
+      ) {
+        throw new Error(
+          "Workflow is required."
+        );
+      }
+
+      const scope =
+        parsed.project_template.workflow_scope
+          .trim()
+          .toUpperCase();
+
+      if (
+        scope !== "FOLDER" &&
+        scope !== "PROJECT"
+      ) {
+        throw new Error(
+          "Workflow Scope must be FOLDER or PROJECT."
+        );
+      }
+
+      if (
+        parsed.folders.length === 0
+      ) {
+        throw new Error(
+          "At least one folder is required."
+        );
+      }
+
+      /* ===================================================
+         FOLDER VALIDATION
+      =================================================== */
+
+      const folderNames =
+        new Map<string, number>();
+
+      parsed.folders.forEach(
+        (folder, index) => {
+          const normalizedName =
+            folder.name
+              .trim()
+              .toLowerCase();
+
+          if (!folder.name.trim()) {
+            throw new Error(
+              `Folder ${index + 1} must have a name.`
+            );
+          }
+
+          if (
+            !folder.description.trim()
+          ) {
+            throw new Error(
+              `Folder "${folder.name}" requires a description.`
+            );
+          }
+
+          if (
+            folder.roles.length === 0
+          ) {
+            throw new Error(
+              `Folder "${folder.name}" requires at least one role.`
+            );
+          }
+
+          /* ===============================================
+             DUPLICATE FOLDER NAME
+             
+             Parent is selected by folder name in Markdown,
+             therefore names must be unique.
+          =============================================== */
+
+          if (
+            folderNames.has(
+              normalizedName
+            )
+          ) {
+            throw new Error(
+              `Duplicate folder name "${folder.name}" is not allowed.`
+            );
+          }
+
+          folderNames.set(
+            normalizedName,
+            index
+          );
+        }
+      );
+
+      /* ===================================================
+         VALIDATE PARENT INDEX
+      =================================================== */
+
+      parsed.folders.forEach(
+        (folder) => {
+          if (
+            folder.parent_folder_index ===
+            null
+          ) {
+            return;
+          }
+
+          if (
+            folder.parent_folder_index <
+            0 ||
+            folder.parent_folder_index >=
+            parsed.folders.length
+          ) {
+            throw new Error(
+              `Invalid parent folder for "${folder.name}".`
+            );
+          }
+
+          const parent =
+            parsed.folders[
+            folder.parent_folder_index
+            ];
+
+          if (
+            parent.name
+              .trim()
+              .toLowerCase() ===
+            folder.name
+              .trim()
+              .toLowerCase()
+          ) {
+            throw new Error(
+              `Folder "${folder.name}" cannot be its own parent.`
+            );
+          }
+        }
+      );
+
+      /* ===================================================
+         CYCLE DETECTION
+      =================================================== */
+
+      parsed.folders.forEach(
+        (folder, folderIndex) => {
+          const visited =
+            new Set<number>();
+
+          let currentIndex:
+            | number
+            | null =
+            folderIndex;
+
+          while (
+            currentIndex !== null
+          ) {
+            if (
+              visited.has(
+                currentIndex
+              )
+            ) {
+              throw new Error(
+                `Circular parent relationship detected involving "${folder.name}".`
+              );
+            }
+
+            visited.add(
+              currentIndex
+            );
+
+            const folderAtIndex: ParsedFolder =
+              parsed.folders[currentIndex];
+
+            currentIndex =
+              folderAtIndex.parent_folder_index;
+          }
+        }
+      );
+    };
+
+  /* =======================================================
+     PARSE
+  ======================================================= */
+
+  const handleParse = () => {
+    try {
+      setParseError("");
+
+      const parsed =
+        parseMarkdown(markdown);
+
+      validateParsedMarkdown(
+        parsed
+      );
+    } catch (error) {
       console.error(
         "Failed to parse Markdown:",
         error
       );
 
       setParseError(
-        "Unable to parse the Markdown. Please check the format."
+        error instanceof Error
+          ? error.message
+          : "Unable to parse the Markdown. Please check the format."
       );
     }
   };
 
-  /* =====================================================
+  /* =======================================================
      RESET
-  ===================================================== */
+  ======================================================= */
 
   const handleReset = () => {
-    setMarkdown(
-      DEFAULT_MARKDOWN
-    );
+    setMarkdown("");
+    setUploadedFileName("");
 
-    setParseError("");
-    setCreateError("");
-    setCreateSuccess("");
+    clearStatusMessages();
   };
 
-  /* =====================================================
+  /* =======================================================
      CLEAR
-  ===================================================== */
+  ======================================================= */
 
   const handleClear = () => {
     setMarkdown("");
+    setUploadedFileName("");
 
-    setParseError("");
-    setCreateError("");
-    setCreateSuccess("");
+    clearStatusMessages();
   };
 
-  /* =====================================================
+  /* =======================================================
      RESOLVE PROJECT TYPE
-  ===================================================== */
+  ======================================================= */
 
   const findProjectType =
-    (name: string) => {
+    (
+      name: string
+    ) => {
       const normalized =
         name
           .trim()
@@ -694,12 +1059,14 @@ const handleParse = () => {
       );
     };
 
-  /* =====================================================
+  /* =======================================================
      RESOLVE WORKFLOW
-  ===================================================== */
+  ======================================================= */
 
   const findWorkflowConfig =
-    (name: string) => {
+    (
+      name: string
+    ) => {
       const normalized =
         name
           .trim()
@@ -714,9 +1081,9 @@ const handleParse = () => {
       );
     };
 
-  /* =====================================================
-     VALIDATE
-  ===================================================== */
+  /* =======================================================
+     VALIDATE TEMPLATE
+  ======================================================= */
 
   const validateTemplate =
     async (
@@ -724,77 +1091,49 @@ const handleParse = () => {
     ) => {
       const errors: string[] = [];
 
-      if (
-        !template.project_template.name.trim()
-      ) {
-        errors.push(
-          "Template name is required."
+      try {
+        validateParsedMarkdown(
+          template
         );
-      }
-
-      if (
-        !template.project_template.description.trim()
-      ) {
+      } catch (error) {
         errors.push(
-          "Template description is required."
-        );
-      }
-
-      if (
-        !template.project_template.project_type.trim()
-      ) {
-        errors.push(
-          "Project Type is required."
-        );
-      }
-
-      if (
-        !template.project_template.workflow_config.trim()
-      ) {
-        errors.push(
-          "Workflow is required."
-        );
-      }
-
-      const scope =
-        template.project_template.workflow_scope.toUpperCase();
-
-      if (
-        scope !== "FOLDER" &&
-        scope !== "PROJECT"
-      ) {
-        errors.push(
-          "Workflow Scope must be FOLDER or PROJECT."
-        );
-      }
-
-      if (
-        template.folders.length === 0
-      ) {
-        errors.push(
-          "At least one folder is required."
+          error instanceof Error
+            ? error.message
+            : "Invalid Markdown template."
         );
       }
 
       const projectType =
         findProjectType(
-          template.project_template.project_type
+          template.project_template
+            .project_type
         );
 
-      if (!projectType) {
+      if (
+        !projectType &&
+        template.project_template
+          .project_type
+          .trim()
+      ) {
         errors.push(
-          `Project Type "${template.project_template.project_type}" was not found.`
+          `Project Type "${template.project_template.project_type}" was not found in the API data.`
         );
       }
 
       const workflowConfig =
         findWorkflowConfig(
-          template.project_template.workflow_config
+          template.project_template
+            .workflow_config
         );
 
-      if (!workflowConfig) {
+      if (
+        !workflowConfig &&
+        template.project_template
+          .workflow_config
+          .trim()
+      ) {
         errors.push(
-          `Workflow "${template.project_template.workflow_config}" was not found.`
+          `Workflow "${template.project_template.workflow_config}" was not found in the API data.`
         );
       }
 
@@ -804,9 +1143,9 @@ const handleParse = () => {
         );
       }
 
-      /*
-       * Check template name against backend.
-       */
+      /* ===================================================
+         CHECK TEMPLATE NAME USING BACKEND
+      =================================================== */
 
       const name =
         template.project_template.name.trim();
@@ -816,10 +1155,12 @@ const handleParse = () => {
           name
         );
 
-      if (!nameResponse.available) {
+      if (
+        !nameResponse.available
+      ) {
         throw new Error(
           nameResponse.message ||
-            "Project template name already exists."
+          "Project template name already exists."
         );
       }
 
@@ -832,9 +1173,14 @@ const handleParse = () => {
       };
     };
 
-  /* =====================================================
+  /* =======================================================
      BUILD API PAYLOAD
-  ===================================================== */
+     
+     IMPORTANT:
+     No start_date / end_date are included here.
+     
+     Dates belong to actual project creation.
+  ======================================================= */
 
   const buildPayload =
     (
@@ -857,7 +1203,9 @@ const handleParse = () => {
             workflowConfig.id,
 
           workflow_scope:
-            template.project_template.workflow_scope.toUpperCase(),
+            template.project_template.workflow_scope
+              .trim()
+              .toUpperCase(),
         },
 
         folders:
@@ -872,55 +1220,30 @@ const handleParse = () => {
               parent_folder_index:
                 folder.parent_folder_index,
 
-              ...(folder.start_date
-                ? {
-                    start_date:
-                      folder.start_date,
-                  }
-                : {}),
-
-              ...(folder.end_date
-                ? {
-                    end_date:
-                      folder.end_date,
-                  }
-                : {}),
-
               roles:
-                folder.roles,
+                folder.roles.map(
+                  (role) =>
+                    role.trim()
+                ),
             })
           ),
       };
     };
 
-  /* =====================================================
+  /* =======================================================
      CREATE TEMPLATE
-  ===================================================== */
+  ======================================================= */
 
   const handleCreateTemplate =
     async () => {
       try {
         setCreateError("");
         setCreateSuccess("");
-
-        /*
-         * Always parse the current Markdown.
-         *
-         * This prevents submitting an older
-         * parsedJson when the user edited the
-         * Markdown after clicking Parse.
-         */
-
-        const currentTemplate =
-          parseMarkdown(
-            markdown
-          );
-
         setParseError("");
 
-        /*
-         * Reference data must be loaded.
-         */
+        /* ================================================
+           CHECK REFERENCE DATA
+        ================================================= */
 
         if (
           loadingReferenceData
@@ -942,9 +1265,28 @@ const handleParse = () => {
           return;
         }
 
-        /*
-         * Validate.
-         */
+        /* ================================================
+           CHECK MARKDOWN
+        ================================================= */
+
+        if (!markdown.trim()) {
+          setCreateError(
+            "Please enter or upload a Markdown template."
+          );
+
+          return;
+        }
+
+        /* ================================================
+           PARSE CURRENT MARKDOWN
+        ================================================= */
+
+        const currentTemplate =
+          parseMarkdown(markdown);
+
+        /* ================================================
+           VALIDATE + RESOLVE API IDS
+        ================================================= */
 
         const {
           projectType,
@@ -954,9 +1296,9 @@ const handleParse = () => {
             currentTemplate
           );
 
-        /*
-         * Build backend payload.
-         */
+        /* ================================================
+           BUILD BACKEND PAYLOAD
+        ================================================= */
 
         const payload =
           buildPayload(
@@ -970,13 +1312,11 @@ const handleParse = () => {
           payload
         );
 
-        /*
-         * API call.
-         */
+        /* ================================================
+           CREATE USING API
+        ================================================= */
 
-        setCreatingTemplate(
-          true
-        );
+        setCreatingTemplate(true);
 
         const response =
           await createProjectTemplate(
@@ -992,12 +1332,11 @@ const handleParse = () => {
           "Project template created successfully."
         );
 
-        /*
-         * Give the success message
-         * a moment before redirecting.
-         */
+        /* ================================================
+           REDIRECT
+        ================================================= */
 
-        setTimeout(() => {
+        window.setTimeout(() => {
           navigate(
             "/workflow-process"
           );
@@ -1013,7 +1352,7 @@ const handleParse = () => {
         ) {
           setCreateError(
             error.message ||
-              "Unable to create project template."
+            "Unable to create project template."
           );
         } else {
           setCreateError(
@@ -1021,15 +1360,13 @@ const handleParse = () => {
           );
         }
       } finally {
-        setCreatingTemplate(
-          false
-        );
+        setCreatingTemplate(false);
       }
     };
 
-  /* =====================================================
+  /* =======================================================
      RENDER
-  ===================================================== */
+  ======================================================= */
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-gray-50 dark:bg-gray-950">
@@ -1039,15 +1376,14 @@ const handleParse = () => {
       =================================================== */}
 
       <div className="shrink-0 border-b border-gray-200 bg-white px-6 py-5 dark:border-gray-800 dark:bg-gray-900">
+
         <div className="flex items-center justify-between gap-4">
 
           <div>
             <div className="flex items-center gap-3">
 
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
-                <FileText
-                  size={21}
-                />
+                <FileText size={21} />
               </div>
 
               <div>
@@ -1067,16 +1403,27 @@ const handleParse = () => {
 
             <button
               type="button"
+              onClick={
+                handleDownloadReference
+              }
+              disabled={
+                creatingTemplate
+              }
+              className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <Download size={16} />
+              Reference
+            </button>
+
+            <button
+              type="button"
               onClick={handleReset}
               disabled={
                 creatingTemplate
               }
               className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
             >
-              <RotateCcw
-                size={16}
-              />
-
+              <RotateCcw size={16} />
               Reset
             </button>
 
@@ -1092,6 +1439,7 @@ const handleParse = () => {
             </button>
 
           </div>
+
         </div>
       </div>
 
@@ -1109,56 +1457,127 @@ const handleParse = () => {
 
           <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
 
-            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+            <div className="shrink-0 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
 
-              <div>
+              <div className="flex items-center justify-between gap-4">
+
+                <div>
+                  <div className="flex items-center gap-2">
+
+                    <FileText
+                      size={18}
+                      className="text-blue-600 dark:text-blue-400"
+                    />
+
+                    <h2 className="font-semibold text-gray-900 dark:text-white">
+                      Markdown
+                    </h2>
+
+                  </div>
+
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Use <strong>Parent:</strong> to decide the folder hierarchy.
+                  </p>
+                </div>
+
                 <div className="flex items-center gap-2">
 
-                  <FileText
-                    size={18}
-                    className="text-blue-600 dark:text-blue-400"
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".md,.markdown,text/markdown,text/plain"
+                    className="hidden"
+                    onChange={
+                      handleMarkdownFileUpload
+                    }
                   />
 
-                  <h2 className="font-semibold text-gray-900 dark:text-white">
-                    Markdown
-                  </h2>
+                  <button
+                    type="button"
+                    onClick={
+                      handleUploadClick
+                    }
+                    disabled={
+                      creatingTemplate
+                    }
+                    className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                  >
+                    <Upload size={15} />
+                    Upload
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={
+                      handleParse
+                    }
+                    disabled={
+                      creatingTemplate ||
+                      !markdown.trim()
+                    }
+                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Play size={15} />
+                    Parse
+                  </button>
 
                 </div>
 
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Write your template definition here.
-                </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleParse}
-                disabled={
-                  creatingTemplate
-                }
-                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Play
-                  size={15}
-                />
+              {/* UPLOADED FILE */}
 
-                Parse
-              </button>
+              {uploadedFileName && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-900 dark:bg-blue-950/30">
+
+                  <div className="flex min-w-0 items-center gap-2">
+
+                    <FileText
+                      size={15}
+                      className="shrink-0 text-blue-600 dark:text-blue-400"
+                    />
+
+                    <span className="truncate text-xs font-medium text-blue-700 dark:text-blue-300">
+                      {uploadedFileName}
+                    </span>
+
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={
+                      handleRemoveUploadedFile
+                    }
+                    disabled={
+                      creatingTemplate
+                    }
+                    title="Remove uploaded file"
+                    className="rounded-md p-1 text-blue-600 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/40"
+                  >
+                    <X size={15} />
+                  </button>
+
+                </div>
+              )}
 
             </div>
+
+            {/* TEXTAREA */}
 
             <div className="min-h-0 flex-1 p-4">
 
               <textarea
                 value={markdown}
-                onChange={(e) => {
+                onChange={(event) => {
                   setMarkdown(
-                    e.target.value
+                    event.target.value
                   );
 
-                  setParseError("");
-                  setCreateError("");
-                  setCreateSuccess("");
+                  setUploadedFileName(
+                    ""
+                  );
+
+                  clearStatusMessages();
                 }}
                 spellCheck={false}
                 disabled={
@@ -1182,17 +1601,24 @@ PROJECT
 ## Folders
 
 ### Manuscript
+Parent: Root
 Description: Manuscript submission folder
 Roles: Author, Editor
 
 ### Review
+Parent: Root
+Description: Editorial review folder
 Roles: Reviewer
 
-#### Content Review
+### Content Review
+Parent: Review
+Description: Content review folder
 Roles: Reviewer`}
               />
 
             </div>
+
+            {/* PARSE ERROR */}
 
             {parseError && (
               <div className="mx-4 mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30">
@@ -1220,6 +1646,7 @@ Roles: Reviewer`}
             <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-800">
 
               <div>
+
                 <div className="flex items-center gap-2">
 
                   <Braces
@@ -1234,15 +1661,18 @@ Roles: Reviewer`}
                 </div>
 
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Preview of the parsed template.
+                  Preview of the parsed Markdown template.
                 </p>
+
               </div>
 
               <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-950/40 dark:text-green-400">
-                Valid JSON
+                Live
               </span>
 
             </div>
+
+            {/* JSON */}
 
             <div className="min-h-0 flex-1 overflow-auto p-4">
 
@@ -1256,9 +1686,7 @@ Roles: Reviewer`}
 
             </div>
 
-            {/* =================================================
-                STATUS
-            ================================================= */}
+            {/* REFERENCE DATA ERROR */}
 
             {referenceDataError && (
               <div className="mx-4 mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30">
@@ -1275,6 +1703,8 @@ Roles: Reviewer`}
               </div>
             )}
 
+            {/* CREATE ERROR */}
+
             {createError && (
               <div className="mx-4 mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30">
 
@@ -1289,6 +1719,8 @@ Roles: Reviewer`}
 
               </div>
             )}
+
+            {/* SUCCESS */}
 
             {createSuccess && (
               <div className="mx-4 mb-4 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 dark:border-green-900 dark:bg-green-950/30">
@@ -1305,9 +1737,7 @@ Roles: Reviewer`}
               </div>
             )}
 
-            {/* =================================================
-                CREATE
-            ================================================= */}
+            {/* CREATE */}
 
             <div className="shrink-0 border-t border-gray-200 p-4 dark:border-gray-800">
 
@@ -1318,7 +1748,8 @@ Roles: Reviewer`}
                 }
                 disabled={
                   creatingTemplate ||
-                  loadingReferenceData
+                  loadingReferenceData ||
+                  !markdown.trim()
                 }
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -1339,7 +1770,7 @@ Roles: Reviewer`}
                       className="animate-spin"
                     />
 
-                    Loading...
+                    Loading API Data...
                   </>
                 ) : (
                   <>
