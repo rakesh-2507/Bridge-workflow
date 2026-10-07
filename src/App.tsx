@@ -39,6 +39,7 @@ import ViewProcess from "./pages/workflow-process/ViewProcess";
 
 import EditProjectTemplate from "./pages/EditProjectTemplate";
 import MarkdownTemplatePage from "./pages/MarkdownTemplatePage";
+import TemplateCreationWizard from "./pages/TemplateCreationWizard";
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
@@ -165,6 +166,11 @@ function App() {
             <Route
               path="/workflow-process/:id"
               element={<ViewProcess />}
+            />
+
+            <Route
+              path="/create-template"
+              element={<TemplateCreationWizard />}
             />
 
             {/* =========================

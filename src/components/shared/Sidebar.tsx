@@ -55,6 +55,11 @@ function Sidebar({
         icon: LayoutDashboard,
         to: "/",
       },
+      {
+        label: "Template",
+        icon: CheckSquare,
+        to: "/create-template",
+      },
     ]
     : [
       {
