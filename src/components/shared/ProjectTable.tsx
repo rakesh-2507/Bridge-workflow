@@ -88,9 +88,6 @@ function ProjectTable({ projects }: ProjectTableProps) {
                 Template
               </th>
 
-              <th className="px-6 py-4 font-semibold">
-                Status
-              </th>
 
             </tr>
           </thead>
@@ -145,13 +142,6 @@ function ProjectTable({ projects }: ProjectTableProps) {
 
                   <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
                     {project.tid || "—"}
-                  </td>
-
-                  {/* Status */}
-                  <td className="px-6 py-4">
-                    <StatusBadge
-                      status={project.status}
-                    />
                   </td>
 
                 </tr>
