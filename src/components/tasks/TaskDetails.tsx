@@ -24,8 +24,10 @@ import {
     saveFolderFile,
 } from "../../api/tasks";
 
-import type { TaskFile } from "../../api/tasks";
-import type { Task as TaskType } from "../../types/task";
+import type {
+    Task as TaskType,
+    TaskFile,
+} from "../../types/task";
 
 import TaskStatus from "./TaskStatus";
 
@@ -56,6 +58,24 @@ interface AttributeForm {
 /* =========================================================
  * File Helpers
  * ========================================================= */
+
+/**
+ * Backend file response:
+ *
+ * {
+ *   pffid: 83,
+ *   projectid: 66,
+ *   fid: 240,
+ *   filename: "reference.pdf",
+ *   filesize: 52974,
+ *   MIME: "application/pdf",
+ *   download_url: "...",
+ *   view_url: "..."
+ * }
+ *
+ * Some older APIs may use project_id / folder_id,
+ * so both formats are supported.
+ */
 
 function getFileId(file: TaskFile): number | null {
     const value = Number(file.pffid);
@@ -106,6 +126,10 @@ function TaskDetails({
     onEdit,
     onDeleted,
 }: TaskDetailsProps) {
+    /* =====================================================
+     * Delete
+     * ===================================================== */
+
     const [showDeleteConfirm, setShowDeleteConfirm] =
         useState(false);
 
@@ -115,11 +139,19 @@ function TaskDetails({
     const [deleteError, setDeleteError] =
         useState("");
 
+    /* =====================================================
+     * Attributes
+     * ===================================================== */
+
     const [showAttributes, setShowAttributes] =
         useState(false);
 
     const [attributeForm, setAttributeForm] =
         useState<AttributeForm | null>(null);
+
+    /* =====================================================
+     * Task Files
+     * ===================================================== */
 
     const [taskFiles, setTaskFiles] =
         useState<TaskFile[]>([]);
@@ -129,6 +161,10 @@ function TaskDetails({
 
     const [filesError, setFilesError] =
         useState("");
+
+    /* =====================================================
+     * Workflow Actions
+     * ===================================================== */
 
     const [actionLoading, setActionLoading] =
         useState<
@@ -141,9 +177,11 @@ function TaskDetails({
     const [actionError, setActionError] =
         useState("");
 
-    const [actionComment, setActionComment] = useState("");
+    const [actionComment, setActionComment] =
+        useState("");
+
     /* =====================================================
-     * File Preview Modal
+     * File Preview
      * ===================================================== */
 
     const [viewingFile, setViewingFile] =
@@ -160,6 +198,10 @@ function TaskDetails({
 
     const viewingBlobUrlRef =
         useRef<string | null>(null);
+
+    /* =====================================================
+     * Blob URL Helper
+     * ===================================================== */
 
     function replaceViewingBlobUrl(
         url: string | null,
@@ -234,6 +276,19 @@ function TaskDetails({
 
     /* =====================================================
      * Load Task Files
+     *
+     * IMPORTANT:
+     *
+     * GET /api/gettask/{task_id}
+     *
+     * returns:
+     *
+     * data.bridge_task_files
+     * data.project_folder_files
+     *
+     * getTaskFiles() intentionally returns ONLY
+     * bridge_task_files so the same file is not displayed
+     * twice.
      * ===================================================== */
 
     useEffect(() => {
@@ -258,7 +313,11 @@ function TaskDetails({
                     await getTaskFiles(task.task_id);
 
                 if (!cancelled) {
-                    setTaskFiles(files);
+                    setTaskFiles(
+                        Array.isArray(files)
+                            ? files
+                            : [],
+                    );
                 }
             } catch (error) {
                 if (!cancelled) {
@@ -314,7 +373,7 @@ function TaskDetails({
     }
 
     /* =====================================================
-     * Approve / Reject
+     * Workflow Action
      * ===================================================== */
 
     async function handleTaskAction(
@@ -334,7 +393,8 @@ function TaskDetails({
                     task.task_id,
                     {
                         action,
-                        comment: actionComment.trim(),
+                        comment:
+                            actionComment.trim(),
                     },
                 );
 
@@ -379,12 +439,17 @@ function TaskDetails({
             start_date: task.start_date,
             end_date: task.end_date,
             status: task.status ?? 0,
-            created_date: task.created_date ?? "",
-            updated_date: task.updated_date ?? "",
-            task_description: task.task_description,
-            levels: [...task.levels],
+            created_date:
+                task.created_date ?? "",
+            updated_date:
+                task.updated_date ?? "",
+            task_description:
+                task.task_description,
+            levels: Array.isArray(task.levels)
+                ? [...task.levels]
+                : [],
             key_params: {
-                ...task.key_params,
+                ...(task.key_params ?? {}),
             },
         });
 
@@ -444,17 +509,20 @@ function TaskDetails({
     async function handleViewFile(
         file: TaskFile,
     ) {
-        const projectId = getFileProjectId(
-            file,
-            task?.project_id,
-        );
+        const projectId =
+            getFileProjectId(
+                file,
+                task?.project_id,
+            );
 
-        const folderId = getFileFolderId(
-            file,
-            task?.folder_id,
-        );
+        const folderId =
+            getFileFolderId(
+                file,
+                task?.folder_id,
+            );
 
-        const fileId = getFileId(file);
+        const fileId =
+            getFileId(file);
 
         if (
             projectId === null ||
@@ -475,24 +543,15 @@ function TaskDetails({
         setViewingFileLoading(true);
 
         try {
-            /*
-             * viewFolderFile opens a new window, so we don't
-             * use it here.
-             *
-             * Instead use save/download API indirectly through
-             * the same endpoint and create a Blob URL locally.
-             *
-             * The helper below is implemented with fetch through
-             * viewFolderFile's endpoint in api/tasks.ts.
-             */
-
-            const response = await fetch(
-                `${getApiBaseUrl()}/api/${projectId}/folders/${folderId}/files/${fileId}/download`,
-                {
-                    method: "GET",
-                    headers: getAuthHeaders(),
-                },
-            );
+            const response =
+                await fetch(
+                    `${getApiBaseUrl()}/api/${projectId}/folders/${folderId}/files/${fileId}/download`,
+                    {
+                        method: "GET",
+                        headers:
+                            getAuthHeaders(),
+                    },
+                );
 
             if (!response.ok) {
                 throw new Error(
@@ -500,12 +559,17 @@ function TaskDetails({
                 );
             }
 
-            const blob = await response.blob();
+            const blob =
+                await response.blob();
 
             const blobUrl =
-                URL.createObjectURL(blob);
+                URL.createObjectURL(
+                    blob,
+                );
 
-            replaceViewingBlobUrl(blobUrl);
+            replaceViewingBlobUrl(
+                blobUrl,
+            );
         } catch (error) {
             console.error(
                 "Failed to preview file:",
@@ -532,22 +596,29 @@ function TaskDetails({
         setViewingFileLoading(false);
     }
 
+    /* =====================================================
+     * Download From Preview Modal
+     * ===================================================== */
+
     async function handleModalDownload() {
         if (!viewingFile) {
             return;
         }
 
-        const projectId = getFileProjectId(
-            viewingFile,
-            task?.project_id,
-        );
+        const projectId =
+            getFileProjectId(
+                viewingFile,
+                task?.project_id,
+            );
 
-        const folderId = getFileFolderId(
-            viewingFile,
-            task?.folder_id,
-        );
+        const folderId =
+            getFileFolderId(
+                viewingFile,
+                task?.folder_id,
+            );
 
-        const fileId = getFileId(viewingFile);
+        const fileId =
+            getFileId(viewingFile);
 
         if (
             projectId === null ||
@@ -587,7 +658,8 @@ function TaskDetails({
                     </h3>
 
                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                        Select a task to view its details.
+                        Select a task to view its
+                        details.
                     </p>
                 </div>
             </div>
@@ -605,11 +677,15 @@ function TaskDetails({
                     <div className="min-w-0">
                         <div className="flex items-center gap-3">
                             <h2 className="truncate text-lg font-semibold text-slate-900 dark:text-white">
-                                Task #{task.task_id}
+                                Task #
+                                {task.task_id}
                             </h2>
 
                             <TaskStatus
-                                status={task.status ?? 0}
+                                status={
+                                    task.status ??
+                                    0
+                                }
                             />
                         </div>
 
@@ -632,7 +708,9 @@ function TaskDetails({
 
                         <button
                             type="button"
-                            onClick={openAttributes}
+                            onClick={
+                                openAttributes
+                            }
                             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                             <SlidersHorizontal className="h-4 w-4" />
@@ -642,7 +720,10 @@ function TaskDetails({
                         <button
                             type="button"
                             onClick={() => {
-                                setDeleteError("");
+                                setDeleteError(
+                                    "",
+                                );
+
                                 setShowDeleteConfirm(
                                     true,
                                 );
@@ -659,19 +740,23 @@ function TaskDetails({
                     CONTENT
                 ====================================================== */}
 
-                <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto lg:grid-cols-[minmax(0,1fr)_340px] scrollbar-hide">
+                <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto scrollbar-hide lg:grid-cols-[minmax(0,1fr)_340px]">
                     <div className="min-w-0 space-y-5 p-5">
                         {/* Dates */}
 
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <DateInfo
                                 label="Start Date"
-                                value={task.start_date}
+                                value={
+                                    task.start_date
+                                }
                             />
 
                             <DateInfo
                                 label="End Date"
-                                value={task.end_date}
+                                value={
+                                    task.end_date
+                                }
                             />
                         </div>
 
@@ -747,7 +832,9 @@ function TaskDetails({
                             </div>
                         </section>
 
-                        {/* Task Files */}
+                        {/* =====================================================
+                            TASK FILES
+                        ====================================================== */}
 
                         <section>
                             <div className="mb-3 flex items-center justify-between">
@@ -755,11 +842,15 @@ function TaskDetails({
                                     Task Files
                                 </h3>
 
-                                {taskFiles.length > 0 && (
+                                {taskFiles.length >
+                                    0 && (
                                     <span className="text-xs text-slate-500 dark:text-slate-400">
-                                        {taskFiles.length} file
+                                        {
+                                            taskFiles.length
+                                        }{" "}
+                                        file
                                         {taskFiles.length !==
-                                            1
+                                        1
                                             ? "s"
                                             : ""}
                                     </span>
@@ -779,22 +870,26 @@ function TaskDetails({
                                     {filesError}
                                 </div>
                             ) : taskFiles.length ===
-                                0 ? (
+                              0 ? (
                                 <div className="rounded-lg border border-dashed border-slate-300 py-8 text-center dark:border-slate-700">
                                     <File className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-600" />
 
                                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                                        No files attached to
-                                        this task.
+                                        No files attached
+                                        to this task.
                                     </p>
                                 </div>
                             ) : (
                                 <div className="space-y-2">
                                     {taskFiles.map(
-                                        (file) => (
+                                        (
+                                            file,
+                                        ) => (
                                             <TaskFileItem
                                                 key={`${file.pffid}-${file.filename}`}
-                                                file={file}
+                                                file={
+                                                    file
+                                                }
                                                 projectId={
                                                     task.project_id
                                                 }
@@ -811,151 +906,171 @@ function TaskDetails({
                             )}
                         </section>
 
-                        {/* Workflow Actions */}
+                        {/* =====================================================
+                            WORKFLOW ACTIONS
+                        ====================================================== */}
 
                         {(hasApproveAction ||
                             hasRejectAction ||
                             hasBackwardAction) && (
-                                <section>
-                                    <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">
-                                        Actions
-                                    </h3>
+                            <section>
+                                <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">
+                                    Actions
+                                </h3>
 
-                                    {actionMessage && (
-                                        <div className="mb-3 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-400">
-                                            <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                                {actionMessage && (
+                                    <div className="mb-3 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-400">
+                                        <Check className="mt-0.5 h-4 w-4 shrink-0" />
 
-                                            <span>
-                                                {
-                                                    actionMessage
-                                                }
-                                            </span>
-                                        </div>
-                                    )}
-
-                                    {actionError && (
-                                        <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">
-                                            <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
-
-                                            <span>
-                                                {actionError}
-                                            </span>
-                                        </div>
-                                    )}
-
-                                    <div className="mb-4">
-                                        <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">
-                                            Comment
-                                            <span className="ml-1 font-normal text-slate-400">
-                                                (optional)
-                                            </span>
-                                        </label>
-
-                                        <textarea
-                                            value={actionComment}
-                                            onChange={(event) =>
-                                                setActionComment(event.target.value)
+                                        <span>
+                                            {
+                                                actionMessage
                                             }
+                                        </span>
+                                    </div>
+                                )}
+
+                                {actionError && (
+                                    <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">
+                                        <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+
+                                        <span>
+                                            {
+                                                actionError
+                                            }
+                                        </span>
+                                    </div>
+                                )}
+
+                                <div className="mb-4">
+                                    <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                                        Comment
+                                        <span className="ml-1 font-normal text-slate-400">
+                                            (optional)
+                                        </span>
+                                    </label>
+
+                                    <textarea
+                                        value={
+                                            actionComment
+                                        }
+                                        onChange={(
+                                            event,
+                                        ) =>
+                                            setActionComment(
+                                                event
+                                                    .target
+                                                    .value,
+                                            )
+                                        }
+                                        disabled={
+                                            !canTakeAction ||
+                                            actionLoading !==
+                                                null
+                                        }
+                                        rows={
+                                            3
+                                        }
+                                        placeholder="Add a comment for this approval, rejection, or backward action..."
+                                        className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
+                                    />
+                                </div>
+
+                                <div className="flex flex-wrap gap-3">
+                                    {hasApproveAction && (
+                                        <button
+                                            type="button"
                                             disabled={
                                                 !canTakeAction ||
-                                                actionLoading !== null
+                                                actionLoading !==
+                                                    null
                                             }
-                                            rows={3}
-                                            placeholder="Add a comment for this approval or rejection..."
-                                            className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
-                                        />
-                                    </div>
+                                            onClick={() =>
+                                                void handleTaskAction(
+                                                    "approve",
+                                                )
+                                            }
+                                            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {actionLoading ===
+                                            "approve" ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Check className="h-4 w-4" />
+                                            )}
 
-                                    <div className="flex flex-wrap gap-3">
-                                        {hasApproveAction && (
-                                            <button
-                                                type="button"
-                                                disabled={
-                                                    !canTakeAction ||
-                                                    actionLoading !==
-                                                    null
-                                                }
-                                                onClick={() =>
-                                                    void handleTaskAction(
-                                                        "approve",
-                                                    )
-                                                }
-                                                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                            >
-                                                {actionLoading ===
-                                                    "approve" ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                    <Check className="h-4 w-4" />
-                                                )}
-
-                                                Approve
-                                            </button>
-                                        )}
-
-                                        {hasRejectAction && (
-                                            <button
-                                                type="button"
-                                                disabled={
-                                                    !canTakeAction ||
-                                                    actionLoading !==
-                                                    null
-                                                }
-                                                onClick={() =>
-                                                    void handleTaskAction(
-                                                        "reject",
-                                                    )
-                                                }
-                                                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                            >
-                                                {actionLoading ===
-                                                    "reject" ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                    <XCircle className="h-4 w-4" />
-                                                )}
-
-                                                Reject
-                                            </button>
-                                        )}
-
-                                        {hasBackwardAction && (
-                                            <button
-                                                type="button"
-                                                disabled={
-                                                    !canTakeAction ||
-                                                    actionLoading !== null
-                                                }
-                                                onClick={() =>
-                                                    void handleTaskAction(
-                                                        "backward",
-                                                    )
-                                                }
-                                                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                            >
-                                                {actionLoading ===
-                                                    "backward" ? (
-                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                    <Undo2 className="h-4 w-4" />
-                                                )}
-
-                                                Backward
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {!canTakeAction && (
-                                        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                            This task is no longer
-                                            available for action.
-                                        </p>
+                                            Approve
+                                        </button>
                                     )}
-                                </section>
-                            )}
+
+                                    {hasRejectAction && (
+                                        <button
+                                            type="button"
+                                            disabled={
+                                                !canTakeAction ||
+                                                actionLoading !==
+                                                    null
+                                            }
+                                            onClick={() =>
+                                                void handleTaskAction(
+                                                    "reject",
+                                                )
+                                            }
+                                            className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {actionLoading ===
+                                            "reject" ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <XCircle className="h-4 w-4" />
+                                            )}
+
+                                            Reject
+                                        </button>
+                                    )}
+
+                                    {hasBackwardAction && (
+                                        <button
+                                            type="button"
+                                            disabled={
+                                                !canTakeAction ||
+                                                actionLoading !==
+                                                    null
+                                            }
+                                            onClick={() =>
+                                                void handleTaskAction(
+                                                    "backward",
+                                                )
+                                            }
+                                            className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {actionLoading ===
+                                            "backward" ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Undo2 className="h-4 w-4" />
+                                            )}
+
+                                            Backward
+                                        </button>
+                                    )}
+                                </div>
+
+                                {!canTakeAction && (
+                                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                        This task is
+                                        no longer
+                                        available for
+                                        action.
+                                    </p>
+                                )}
+                            </section>
+                        )}
                     </div>
 
-                    {/* RIGHT - WORKFLOW TRACKING */}
+                    {/* =====================================================
+                        RIGHT - WORKFLOW TRACKING
+                    ====================================================== */}
 
                     <div className="border-t border-slate-200 bg-slate-50/50 p-5 dark:border-slate-800 dark:bg-slate-950/30 lg:border-l lg:border-t-0">
                         <WorkflowTracking
@@ -964,7 +1079,9 @@ function TaskDetails({
                     </div>
                 </div>
 
-                {/* DELETE CONFIRMATION */}
+                {/* =====================================================
+                    DELETE CONFIRMATION
+                ====================================================== */}
 
                 {showDeleteConfirm && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -976,9 +1093,13 @@ function TaskDetails({
                                     </h3>
 
                                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                        Are you sure you want
-                                        to delete Task #
-                                        {task.task_id}?
+                                        Are you sure
+                                        you want to
+                                        delete Task #
+                                        {
+                                            task.task_id
+                                        }
+                                        ?
                                     </p>
                                 </div>
 
@@ -1000,7 +1121,9 @@ function TaskDetails({
 
                             {deleteError && (
                                 <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-400">
-                                    {deleteError}
+                                    {
+                                        deleteError
+                                    }
                                 </div>
                             )}
 
@@ -1041,7 +1164,9 @@ function TaskDetails({
                     </div>
                 )}
 
-                {/* ATTRIBUTES MODAL */}
+                {/* =====================================================
+                    ATTRIBUTES MODAL
+                ====================================================== */}
 
                 {showAttributes &&
                     attributeForm && (
@@ -1054,7 +1179,8 @@ function TaskDetails({
                                         </h3>
 
                                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                            View and edit task
+                                            View and edit
+                                            task
                                             attributes.
                                         </p>
                                     </div>
@@ -1160,7 +1286,7 @@ function TaskDetails({
                                                 updateAttribute(
                                                     "end_date",
                                                     value ||
-                                                    null,
+                                                        null,
                                                 )
                                             }
                                         />
@@ -1243,9 +1369,10 @@ function TaskDetails({
                                         {Object.keys(
                                             attributeForm.key_params,
                                         ).length ===
-                                            0 ? (
+                                        0 ? (
                                             <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                                                No key parameters
+                                                No key
+                                                parameters
                                                 available.
                                             </div>
                                         ) : (
@@ -1318,12 +1445,18 @@ function TaskDetails({
             {viewingFile && (
                 <FileViewerModal
                     file={viewingFile}
-                    fileUrl={viewingFileUrl}
+                    fileUrl={
+                        viewingFileUrl
+                    }
                     isLoading={
                         viewingFileLoading
                     }
-                    error={viewingFileError}
-                    onClose={closeFileViewer}
+                    error={
+                        viewingFileError
+                    }
+                    onClose={
+                        closeFileViewer
+                    }
                     onDownload={() =>
                         void handleModalDownload()
                     }
@@ -1346,40 +1479,51 @@ function WorkflowTracking({
         ? task.levels
         : [];
 
-    const keyParams = task.key_params ?? {};
+    const keyParams =
+        task.key_params ?? {};
 
     const workflowLevelIndex =
         typeof keyParams.workflow_level_index ===
-            "number"
+        "number"
             ? keyParams.workflow_level_index
             : typeof keyParams.workflow_level_index ===
                 "string"
                 ? Number(
-                    keyParams.workflow_level_index,
-                )
+                      keyParams.workflow_level_index,
+                  )
                 : 0;
 
     const workflowLevelLabel =
         typeof keyParams.workflow_level_label ===
-            "string"
+        "string"
             ? keyParams.workflow_level_label
-            : typeof keyParams.label === "string"
+            : typeof keyParams.label ===
+                "string"
                 ? keyParams.label
                 : "";
 
     const workflowConfigId =
         typeof keyParams.workflow_config_id ===
-            "string"
+        "string"
             ? keyParams.workflow_config_id
-            : "";
+            : typeof keyParams.workflow_config_id ===
+                "number"
+                ? String(
+                      keyParams.workflow_config_id,
+                  )
+                : "";
 
-    const currentLevelIndex = Math.max(
-        0,
-        Math.min(
-            workflowLevelIndex,
-            Math.max(levels.length - 1, 0),
-        ),
-    );
+    const currentLevelIndex =
+        Math.max(
+            0,
+            Math.min(
+                workflowLevelIndex,
+                Math.max(
+                    levels.length - 1,
+                    0,
+                ),
+            ),
+        );
 
     const isCompleted =
         task.status === 1 ||
@@ -1388,7 +1532,8 @@ function WorkflowTracking({
     const isRejected =
         task.status === 2 ||
         Boolean(
-            keyParams.workflow_rejected === true,
+            keyParams.workflow_rejected ===
+                true,
         );
 
     const progress =
@@ -1397,13 +1542,14 @@ function WorkflowTracking({
             : isCompleted
                 ? 100
                 : Math.round(
-                    (currentLevelIndex /
-                        Math.max(
-                            levels.length - 1,
-                            1,
-                        )) *
-                    100,
-                );
+                      (currentLevelIndex /
+                          Math.max(
+                              levels.length -
+                                  1,
+                              1,
+                          )) *
+                          100,
+                  );
 
     const statusLabel =
         task.status === 1
@@ -1422,10 +1568,12 @@ function WorkflowTracking({
                 </h3>
 
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Current workflow progress and task
-                    level.
+                    Current workflow progress
+                    and task level.
                 </p>
             </div>
+
+            {/* Progress */}
 
             <div>
                 <div className="mb-2 flex items-center justify-between">
@@ -1454,6 +1602,8 @@ function WorkflowTracking({
                 </div>
             </div>
 
+            {/* Status */}
+
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                     Status
@@ -1467,11 +1617,15 @@ function WorkflowTracking({
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         Current level:{" "}
                         <span className="font-medium text-slate-700 dark:text-slate-300">
-                            {workflowLevelLabel}
+                            {
+                                workflowLevelLabel
+                            }
                         </span>
                     </p>
                 )}
             </div>
+
+            {/* Workflow Levels */}
 
             <div>
                 <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -1480,26 +1634,30 @@ function WorkflowTracking({
 
                 {levels.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                        No workflow levels available.
+                        No workflow levels
+                        available.
                     </div>
                 ) : (
                     <div className="space-y-0">
                         {levels.map(
-                            (level, index) => {
+                            (
+                                level,
+                                index,
+                            ) => {
                                 const completed =
                                     isCompleted ||
                                     index <
-                                    currentLevelIndex;
+                                        currentLevelIndex;
 
                                 const current =
                                     !isCompleted &&
                                     index ===
-                                    currentLevelIndex;
+                                        currentLevelIndex;
 
                                 const rejected =
                                     isRejected &&
                                     index ===
-                                    currentLevelIndex;
+                                        currentLevelIndex;
 
                                 return (
                                     <div
@@ -1508,14 +1666,15 @@ function WorkflowTracking({
                                     >
                                         {index <
                                             levels.length -
-                                            1 && (
-                                                <div
-                                                    className={`absolute left-[9px] top-5 h-[calc(100%-4px)] w-px ${completed
+                                                1 && (
+                                            <div
+                                                className={`absolute left-[9px] top-5 h-[calc(100%-4px)] w-px ${
+                                                    completed
                                                         ? "bg-cyan-500"
                                                         : "bg-slate-200 dark:bg-slate-700"
-                                                        }`}
-                                                />
-                                            )}
+                                                }`}
+                                            />
+                                        )}
 
                                         <div className="relative z-10 flex h-5 w-5 shrink-0 items-center justify-center">
                                             {rejected ? (
@@ -1533,15 +1692,18 @@ function WorkflowTracking({
 
                                         <div className="pb-5">
                                             <p
-                                                className={`text-sm font-medium ${rejected
-                                                    ? "text-red-600 dark:text-red-400"
-                                                    : completed ||
-                                                        current
-                                                        ? "text-slate-800 dark:text-slate-200"
-                                                        : "text-slate-400 dark:text-slate-500"
-                                                    }`}
+                                                className={`text-sm font-medium ${
+                                                    rejected
+                                                        ? "text-red-600 dark:text-red-400"
+                                                        : completed ||
+                                                            current
+                                                            ? "text-slate-800 dark:text-slate-200"
+                                                            : "text-slate-400 dark:text-slate-500"
+                                                }`}
                                             >
-                                                {level}
+                                                {
+                                                    level
+                                                }
                                             </p>
 
                                             <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
@@ -1562,10 +1724,14 @@ function WorkflowTracking({
                 )}
             </div>
 
+            {/* Workflow Metadata */}
+
             <div className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
                 <ReadOnlyField
                     label="Task ID"
-                    value={task.task_id}
+                    value={
+                        task.task_id
+                    }
                 />
 
                 {workflowConfigId && (
@@ -1602,30 +1768,32 @@ function TaskFileItem({
         >(null);
 
     /*
-     * IMPORTANT:
+     * Backend:
      *
-     * API response uses:
-     *   projectid
-     *   fid
+     * projectid
+     * fid
+     * pffid
      *
-     * not:
-     *   project_id
-     *   folder_id
+     * Older/frontend formats:
      *
-     * So resolve both formats.
+     * project_id
+     * folder_id
      */
 
-    const projectId = getFileProjectId(
-        file,
-        taskProjectId,
-    );
+    const projectId =
+        getFileProjectId(
+            file,
+            taskProjectId,
+        );
 
-    const folderId = getFileFolderId(
-        file,
-        taskFolderId,
-    );
+    const folderId =
+        getFileFolderId(
+            file,
+            taskFolderId,
+        );
 
-    const fileId = getFileId(file);
+    const fileId =
+        getFileId(file);
 
     async function handleView() {
         if (
@@ -1702,7 +1870,9 @@ function TaskFileItem({
             <div className="min-w-0 flex-1">
                 <p
                     className="truncate text-sm font-medium text-slate-800 dark:text-slate-200"
-                    title={file.filename}
+                    title={
+                        file.filename
+                    }
                 >
                     {file.filename}
                 </p>
@@ -1716,20 +1886,22 @@ function TaskFileItem({
 
                     {file.MIME &&
                         file.filesize !=
-                        null && (
-                            <span>•</span>
+                            null && (
+                            <span>
+                                •
+                            </span>
                         )}
 
                     {file.filesize !=
                         null && (
-                            <span>
-                                {formatFileSize(
-                                    Number(
-                                        file.filesize,
-                                    ),
-                                )}
-                            </span>
-                        )}
+                        <span>
+                            {formatFileSize(
+                                Number(
+                                    file.filesize,
+                                ),
+                            )}
+                        </span>
+                    )}
                 </div>
             </div>
 
@@ -1740,13 +1912,14 @@ function TaskFileItem({
                         void handleView()
                     }
                     disabled={
-                        loading !== null
+                        loading !==
+                        null
                     }
                     title="View file"
                     className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                     {loading ===
-                        "view" ? (
+                    "view" ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                         <Eye className="h-4 w-4" />
@@ -1763,13 +1936,14 @@ function TaskFileItem({
                         void handleDownload()
                     }
                     disabled={
-                        loading !== null
+                        loading !==
+                        null
                     }
                     title="Download file"
                     className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-cyan-600 px-3 text-sm font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {loading ===
-                        "download" ? (
+                    "download" ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                         <Download className="h-4 w-4" />
@@ -1804,33 +1978,42 @@ function FileViewerModal({
     onDownload: () => void;
 }) {
     const mimeType =
-        typeof file.MIME === "string"
+        typeof file.MIME ===
+        "string"
             ? file.MIME.toLowerCase()
             : "";
 
     const filename =
-        file.filename || "File";
+        file.filename ||
+        "File";
 
     const isPdf =
-        mimeType === "application/pdf" ||
+        mimeType ===
+            "application/pdf" ||
         filename
             .toLowerCase()
             .endsWith(".pdf");
 
     const isImage =
-        mimeType.startsWith("image/") ||
+        mimeType.startsWith(
+            "image/",
+        ) ||
         /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(
             filename,
         );
 
     const isVideo =
-        mimeType.startsWith("video/") ||
+        mimeType.startsWith(
+            "video/",
+        ) ||
         /\.(mp4|webm|ogg|mov)$/i.test(
             filename,
         );
 
     const isAudio =
-        mimeType.startsWith("audio/") ||
+        mimeType.startsWith(
+            "audio/",
+        ) ||
         /\.(mp3|wav|ogg|m4a|aac)$/i.test(
             filename,
         );
@@ -1844,7 +2027,9 @@ function FileViewerModal({
                     <div className="min-w-0">
                         <h3
                             className="truncate text-base font-semibold text-slate-900 dark:text-white"
-                            title={filename}
+                            title={
+                                filename
+                            }
                         >
                             {filename}
                         </h3>
@@ -1855,15 +2040,15 @@ function FileViewerModal({
 
                             {file.filesize !=
                                 null && (
-                                    <>
-                                        {" • "}
-                                        {formatFileSize(
-                                            Number(
-                                                file.filesize,
-                                            ),
-                                        )}
-                                    </>
-                                )}
+                                <>
+                                    {" • "}
+                                    {formatFileSize(
+                                        Number(
+                                            file.filesize,
+                                        ),
+                                    )}
+                                </>
+                            )}
                         </p>
                     </div>
 
@@ -1873,7 +2058,9 @@ function FileViewerModal({
                             onClick={
                                 onDownload
                             }
-                            disabled={isLoading}
+                            disabled={
+                                isLoading
+                            }
                             className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             <Download className="h-4 w-4" />
@@ -1883,7 +2070,9 @@ function FileViewerModal({
 
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={
+                                onClose
+                            }
                             className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                             title="Close"
                         >
@@ -1901,7 +2090,8 @@ function FileViewerModal({
                                 <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-500" />
 
                                 <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-                                    Loading file preview...
+                                    Loading file
+                                    preview...
                                 </p>
                             </div>
                         </div>
@@ -1911,7 +2101,8 @@ function FileViewerModal({
                                 <XCircle className="mx-auto h-10 w-10 text-red-500" />
 
                                 <h4 className="mt-3 text-sm font-semibold text-slate-800 dark:text-white">
-                                    Unable to preview
+                                    Unable to
+                                    preview
                                     file
                                 </h4>
 
@@ -1928,7 +2119,8 @@ function FileViewerModal({
                                 >
                                     <Download className="h-4 w-4" />
 
-                                    Download File
+                                    Download
+                                    File
                                 </button>
                             </div>
                         </div>
@@ -1938,8 +2130,11 @@ function FileViewerModal({
                                 <File className="mx-auto h-12 w-12 text-slate-300 dark:text-slate-600" />
 
                                 <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-                                    Preview is not available
-                                    for this file.
+                                    Preview is
+                                    not
+                                    available
+                                    for this
+                                    file.
                                 </p>
 
                                 <button
@@ -1951,33 +2146,47 @@ function FileViewerModal({
                                 >
                                     <Download className="h-4 w-4" />
 
-                                    Download File
+                                    Download
+                                    File
                                 </button>
                             </div>
                         </div>
                     ) : isPdf ? (
                         <iframe
-                            src={fileUrl}
-                            title={filename}
+                            src={
+                                fileUrl
+                            }
+                            title={
+                                filename
+                            }
                             className="h-full w-full border-0"
                         />
                     ) : isImage ? (
                         <div className="flex h-full items-center justify-center overflow-auto p-6">
                             <img
-                                src={fileUrl}
-                                alt={filename}
+                                src={
+                                    fileUrl
+                                }
+                                alt={
+                                    filename
+                                }
                                 className="max-h-full max-w-full object-contain"
                             />
                         </div>
                     ) : isVideo ? (
                         <div className="flex h-full items-center justify-center p-6">
                             <video
-                                src={fileUrl}
+                                src={
+                                    fileUrl
+                                }
                                 controls
                                 className="max-h-full max-w-full"
                             >
-                                Your browser does not
-                                support video playback.
+                                Your browser
+                                does not
+                                support
+                                video
+                                playback.
                             </video>
                         </div>
                     ) : isAudio ? (
@@ -1986,11 +2195,15 @@ function FileViewerModal({
                                 <FileText className="mx-auto h-12 w-12 text-slate-400" />
 
                                 <p className="mt-3 text-center text-sm font-medium text-slate-800 dark:text-white">
-                                    {filename}
+                                    {
+                                        filename
+                                    }
                                 </p>
 
                                 <audio
-                                    src={fileUrl}
+                                    src={
+                                        fileUrl
+                                    }
                                     controls
                                     className="mt-5 w-full"
                                 />
@@ -2002,13 +2215,19 @@ function FileViewerModal({
                                 <File className="mx-auto h-16 w-16 text-slate-300 dark:text-slate-600" />
 
                                 <h4 className="mt-4 text-base font-semibold text-slate-800 dark:text-white">
-                                    Preview not supported
+                                    Preview
+                                    not
+                                    supported
                                 </h4>
 
                                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                                    This file type cannot
-                                    be displayed directly in
-                                    the browser.
+                                    This file
+                                    type
+                                    cannot be
+                                    displayed
+                                    directly
+                                    in the
+                                    browser.
                                 </p>
 
                                 <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
@@ -2025,7 +2244,8 @@ function FileViewerModal({
                                 >
                                     <Download className="h-4 w-4" />
 
-                                    Download File
+                                    Download
+                                    File
                                 </button>
                             </div>
                         </div>
@@ -2085,7 +2305,8 @@ function AttributeInput({
                 value={value}
                 onChange={(event) =>
                     onChange(
-                        event.target.value,
+                        event.target
+                            .value,
                     )
                 }
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
@@ -2118,7 +2339,8 @@ function AttributeTextarea({
                 value={value}
                 onChange={(event) =>
                     onChange(
-                        event.target.value,
+                        event.target
+                            .value,
                     )
                 }
                 className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
@@ -2144,11 +2366,18 @@ function KeyParameterField({
         typeof value === "string"
             ? value
             : Array.isArray(value)
-                ? value.join(", ")
+                ? value.join(
+                      ", ",
+                  )
                 : value !== null &&
-                    typeof value === "object"
-                    ? JSON.stringify(value)
-                    : String(value ?? "");
+                    typeof value ===
+                        "object"
+                    ? JSON.stringify(
+                          value,
+                      )
+                    : String(
+                          value ?? "",
+                      );
 
     return (
         <AttributeTextarea
@@ -2178,10 +2407,13 @@ function ReadOnlyField({
 
             <div className="min-h-[38px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
                 {value === null ||
-                    value === undefined ||
-                    value === ""
+                value ===
+                    undefined ||
+                value === ""
                     ? "-"
-                    : String(value)}
+                    : String(
+                          value,
+                      )}
             </div>
         </div>
     );
@@ -2196,7 +2428,10 @@ function DateInfo({
     value,
 }: {
     label: string;
-    value: string | null | undefined;
+    value:
+        | string
+        | null
+        | undefined;
 }) {
     return (
         <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-950">
@@ -2225,7 +2460,9 @@ function formatFileSize(
     bytes: number,
 ): string {
     if (
-        !Number.isFinite(bytes) ||
+        !Number.isFinite(
+            bytes,
+        ) ||
         bytes <= 0
     ) {
         return "0 B";
@@ -2241,14 +2478,17 @@ function formatFileSize(
     const index = Math.min(
         Math.floor(
             Math.log(bytes) /
-            Math.log(1024),
+                Math.log(1024),
         ),
         units.length - 1,
     );
 
     const size =
         bytes /
-        Math.pow(1024, index);
+        Math.pow(
+            1024,
+            index,
+        );
 
     return `${size.toFixed(
         index === 0 ? 0 : 1,
