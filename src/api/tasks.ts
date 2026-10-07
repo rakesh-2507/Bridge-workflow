@@ -10,6 +10,8 @@ import type {
   TaskActionResponse,
 } from "../types/task";
 
+export type { TaskFile } from "../types/task";
+
 export async function getTaskFiles(taskId: number): Promise<TaskFile[]> {
   const response = await apiRequest<unknown>(
     `/api/gettask/${taskId}`,
