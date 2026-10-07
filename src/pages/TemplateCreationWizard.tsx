@@ -1,2334 +1,2567 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ChangeEvent, ReactNode } from "react";
-
 import {
-    ArrowLeft,
-    ArrowRight,
-    Check,
-    CheckCircle2,
-    ChevronDown,
-    ChevronRight,
-    FileText,
-    Folder,
-    FolderPlus,
-    Plus,
-    RotateCcw,
-    Upload,
-    UserPlus,
-    X,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Folder,
+  FolderPlus,
+  Plus,
+  RotateCcw,
+  Upload,
+  UserPlus,
+  X,
 } from "lucide-react";
-
 import { useNavigate } from "react-router-dom";
 
 type WizardStep = "source" | "details" | "folders" | "roles";
+type SourceFormat = "markdown" | "text";
+type WorkflowScope = "PROJECT" | "FOLDER";
 
 interface TemplateFolder {
-    id: string;
-    name: string;
-    description: string;
-    parentId: string | null;
-    roles: string[];
+  id: string;
+  name: string;
+  description: string;
+  parentId: string | null;
+  roles: string[];
 }
 
 interface TemplateDraft {
-    name: string;
-    description: string;
-    projectTypeId: number | null;
-    workflowConfigId: number | null;
-    workflowScope: "PROJECT" | "FOLDER";
-    folders: TemplateFolder[];
+  name: string;
+  description: string;
+  projectTypeId: number;
+  workflowConfigId: number;
+  workflowScope: WorkflowScope;
+  folders: TemplateFolder[];
 }
 
 interface MockProjectType {
-    id: number;
-    name: string;
+  id: number;
+  name: string;
+  description: string;
 }
 
 interface MockWorkflow {
-    id: number;
-    name: string;
-    status: "ACTIVE" | "INACTIVE";
+  id: number;
+  name: string;
+  status: "ACTIVE" | "INACTIVE";
+  description: string;
 }
 
 interface ParsedFolder {
-    name: string;
-    parentIndex: number | null;
+  name: string;
+  parentIndex: number | null;
+  path: string;
+}
+
+interface ParsedRoleAssignment {
+  role: string;
+  folderTargets: string[];
 }
 
 interface ParsedSource {
-    templateName: string;
-    description: string;
-    folders: ParsedFolder[];
+  templateName: string;
+  description: string;
+  projectTypeName: string;
+  workflowName: string;
+  workflowScope: WorkflowScope;
+  folders: ParsedFolder[];
+  roles: string[];
+  roleAssignments: ParsedRoleAssignment[];
 }
 
-const MOCK_TEXT = `# Magazine Publishing
+const MOCK_TEXT = `Manuscript
+  Draft
+  Final
+Review
+  Content Review
+  Copy Editing
+Approval
+  Final Approval`;
 
-## Manuscript
-### Draft
-### Final
+const MOCK_MARKDOWN = `# Magazine Publishing
 
-## Review
-### Content Review
-### Copy Editing
+Description: Magazine publishing project template
+Project Type: Magazine Publishing
+Workflow: Standard Publishing Workflow
+Workflow Scope: PROJECT
 
-## Approval
-### Final Approval
-`;
+## Folders
+
+### Manuscript
+#### Draft
+#### Final
+
+### Review
+#### Content Review
+#### Copy Editing
+
+### Approval
+#### Final Approval
+
+## Roles
+
+- Author
+- Editor
+- Reviewer
+- Copy Editor
+- Approver
+- Project Manager
+
+## Assignments
+
+- Author: Manuscript, Manuscript/Draft
+- Editor: Manuscript/Final
+- Reviewer: Review, Review/Content Review
+- Copy Editor: Review/Copy Editing
+- Approver: Approval, Approval/Final Approval
+- Project Manager: Manuscript, Review, Approval`;
 
 const MOCK_PROJECT_TYPES: MockProjectType[] = [
-    {
-        id: 1,
-        name: "Magazine Publishing",
-    },
-    {
-        id: 2,
-        name: "Content Management",
-    },
-    {
-        id: 3,
-        name: "Document Review",
-    },
-    {
-        id: 4,
-        name: "Editorial Workflow",
-    },
+  {
+    id: 1,
+    name: "Magazine Publishing",
+    description: "Manage magazine content and publishing workflows.",
+  },
+  {
+    id: 2,
+    name: "Content Management",
+    description: "Organize and manage content production.",
+  },
+  {
+    id: 3,
+    name: "Document Review",
+    description: "Coordinate document review and approval.",
+  },
+  {
+    id: 4,
+    name: "Editorial Workflow",
+    description: "Manage editorial production processes.",
+  },
 ];
 
 const MOCK_WORKFLOWS: MockWorkflow[] = [
-    {
-        id: 101,
-        name: "Standard Publishing Workflow",
-        status: "ACTIVE",
-    },
-    {
-        id: 102,
-        name: "Editorial Review Workflow",
-        status: "ACTIVE",
-    },
-    {
-        id: 103,
-        name: "Document Approval Workflow",
-        status: "ACTIVE",
-    },
-    {
-        id: 104,
-        name: "Archived Workflow",
-        status: "INACTIVE",
-    },
-];
-
-const MOCK_ROLES: string[] = [
-    "Author",
-    "Editor",
-    "Reviewer",
-    "Copy Editor",
-    "Approver",
-    "Project Manager",
+  {
+    id: 101,
+    name: "Standard Publishing Workflow",
+    status: "ACTIVE",
+    description: "Standard workflow for publishing projects.",
+  },
+  {
+    id: 102,
+    name: "Editorial Review Workflow",
+    status: "ACTIVE",
+    description: "Editorial review and approval process.",
+  },
+  {
+    id: 103,
+    name: "Document Approval Workflow",
+    status: "ACTIVE",
+    description: "Document review and final approval process.",
+  },
+  {
+    id: 104,
+    name: "Archived Workflow",
+    status: "INACTIVE",
+    description: "Archived workflow configuration.",
+  },
 ];
 
 const STEPS: Array<{
-    id: WizardStep;
-    label: string;
-    description: string;
+  id: WizardStep;
+  label: string;
+  description: string;
 }> = [
-    {
-        id: "source",
-        label: "Source",
-        description: "Upload or enter structure",
-    },
-    {
-        id: "details",
-        label: "Template Details",
-        description: "Review generated details",
-    },
-    {
-        id: "folders",
-        label: "Folders",
-        description: "Review folder structure",
-    },
-    {
-        id: "roles",
-        label: "Roles",
-        description: "Assign folder roles",
-    },
+  {
+    id: "source",
+    label: "Source",
+    description: "Choose template input",
+  },
+  {
+    id: "details",
+    label: "Details",
+    description: "Review template details",
+  },
+  {
+    id: "folders",
+    label: "Folders",
+    description: "Organize folder structure",
+  },
+  {
+    id: "roles",
+    label: "Roles",
+    description: "Create and assign roles",
+  },
 ];
 
 function createId(): string {
-    return `${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 9)}`;
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-/**
- * Parses a Markdown-style folder structure.
- *
- * Example:
- *
- * # Magazine Publishing
- *
- * ## Manuscript
- * ### Draft
- * ### Final
- *
- * ## Review
- * ### Content Review
- *
- * #### Nested Folder
- */
-function parseFolderText(text: string): ParsedSource {
-    const lines = text
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(Boolean);
+function getIndentLevel(line: string): number {
+  const leadingWhitespace = line.match(/^[\t ]*/)?.[0] ?? "";
 
-    let templateName = "Untitled Template";
+  return leadingWhitespace.replace(/\t/g, "  ").length;
+}
 
-    const folders: ParsedFolder[] = [];
+function normalizeText(value: string): string {
+  return value.trim().toLowerCase();
+}
 
-    const stack: Array<{
-        level: number;
-        index: number;
-    }> = [];
+function normalizeFolderTarget(value: string): string {
+  return value
+    .trim()
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "")
+    .replace(/\s*\/\s*/g, "/")
+    .toLowerCase();
+}
 
-    for (const line of lines) {
-        const heading = line.match(/^(#{1,6})\s+(.+)$/);
+function parseTextSource(
+  text: string,
+  templateNumber = 1,
+): ParsedSource {
+  const lines = text
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
 
-        if (!heading) {
-            continue;
-        }
+  const folders: ParsedFolder[] = [];
+  const stack: Array<{ indent: number; index: number }> = [];
 
-        const level = heading[1].length;
-        const name = heading[2].trim();
+  for (const line of lines) {
+    const name = line.trim();
 
-        if (level === 1 && folders.length === 0) {
-            templateName = name;
-            continue;
-        }
-
-        while (
-            stack.length > 0 &&
-            stack[stack.length - 1].level >= level
-        ) {
-            stack.pop();
-        }
-
-        const parentIndex =
-            stack.length > 0
-                ? stack[stack.length - 1].index
-                : null;
-
-        const folderIndex = folders.length;
-
-        folders.push({
-            name,
-            parentIndex,
-        });
-
-        stack.push({
-            level,
-            index: folderIndex,
-        });
+    if (!name) {
+      continue;
     }
 
-    return {
-        templateName,
-        description: `Project template for ${templateName}.`,
-        folders,
-    };
+    const indent = getIndentLevel(line);
+
+    while (
+      stack.length > 0 &&
+      stack[stack.length - 1].indent >= indent
+    ) {
+      stack.pop();
+    }
+
+    const parentIndex =
+      stack.length > 0
+        ? stack[stack.length - 1].index
+        : null;
+
+    const folderIndex = folders.length;
+
+    folders.push({
+      name,
+      parentIndex,
+      path: "",
+    });
+
+    stack.push({
+      indent,
+      index: folderIndex,
+    });
+  }
+
+  const folderPaths = buildParsedFolderPaths(folders);
+
+  return {
+    templateName: `Template ${templateNumber}`,
+    description:
+      folders.length > 0
+        ? `Automatically generated project template containing ${folders.length} folder${folders.length === 1 ? "" : "s"}.`
+        : "Automatically generated project template.",
+    projectTypeName: MOCK_PROJECT_TYPES[0].name,
+    workflowName:
+      MOCK_WORKFLOWS.find((workflow) => workflow.status === "ACTIVE")
+        ?.name ?? "",
+    workflowScope: "PROJECT",
+    folders: folderPaths,
+    roles: [],
+    roleAssignments: [],
+  };
 }
 
-function buildDraftFromText(text: string): TemplateDraft {
-    const parsed: ParsedSource = parseFolderText(text);
+function buildParsedFolderPaths(
+  folders: ParsedFolder[],
+): ParsedFolder[] {
+  return folders.map((folder, folderIndex) => ({
+    ...folder,
+    path: buildFolderPathFromIndexes(
+      folders,
+      folderIndex,
+    ),
+  }));
+}
+function buildFolderPathFromIndexes(
+  folders: ParsedFolder[],
+  index: number,
+): string {
+  const folder = folders[index];
 
-    /*
-     * First pass:
-     * Create all folder objects without parentId.
-     *
-     * This avoids the previous:
-     * "Cannot access 'folders' before initialization"
-     * error.
-     */
-    const folders: TemplateFolder[] = parsed.folders.map(
-        (folder: ParsedFolder) => ({
-            id: createId(),
-            name: folder.name,
-            description: `${folder.name} folder for ${parsed.templateName}.`,
-            parentId: null,
-            roles: [],
-        }),
+  if (!folder) {
+    return "";
+  }
+
+  if (folder.parentIndex === null) {
+    return folder.name;
+  }
+
+  return `${buildFolderPathFromIndexes(
+    folders,
+    folder.parentIndex,
+  )}/${folder.name}`;
+}
+
+function parseMarkdownSource(
+  text: string,
+  templateNumber = 1,
+): ParsedSource {
+  const lines = text.split(/\r?\n/);
+
+  let templateName = "";
+  let description = "";
+  let projectTypeName = "";
+  let workflowName = "";
+  let workflowScope: WorkflowScope = "PROJECT";
+
+  let section:
+    | "root"
+    | "folders"
+    | "roles"
+    | "assignments" = "root";
+
+  const folders: ParsedFolder[] = [];
+  const roles: string[] = [];
+  const roleAssignments: ParsedRoleAssignment[] = [];
+
+  const folderStack: Array<{
+    level: number;
+    index: number;
+  }> = [];
+
+  const addRole = (role: string) => {
+    const cleanRole = role.trim();
+
+    if (!cleanRole) {
+      return;
+    }
+
+    if (
+      !roles.some(
+        (existingRole) =>
+          normalizeText(existingRole) === normalizeText(cleanRole),
+      )
+    ) {
+      roles.push(cleanRole);
+    }
+  };
+
+  const addAssignment = (
+    role: string,
+    targets: string[],
+  ) => {
+    const cleanRole = role.trim();
+    const cleanTargets = targets
+      .map((target) => target.trim())
+      .filter(Boolean);
+
+    if (!cleanRole || cleanTargets.length === 0) {
+      return;
+    }
+
+    addRole(cleanRole);
+
+    const existing = roleAssignments.find(
+      (assignment) =>
+        normalizeText(assignment.role) ===
+        normalizeText(cleanRole),
     );
 
-    /*
-     * Second pass:
-     * Now that folders exists, resolve parent references.
-     */
-    parsed.folders.forEach(
-        (folder: ParsedFolder, index: number) => {
-            if (folder.parentIndex === null) {
-                return;
-            }
+    if (existing) {
+      for (const target of cleanTargets) {
+        if (
+          !existing.folderTargets.some(
+            (existingTarget) =>
+              normalizeFolderTarget(existingTarget) ===
+              normalizeFolderTarget(target),
+          )
+        ) {
+          existing.folderTargets.push(target);
+        }
+      }
 
-            const parent = folders[folder.parentIndex];
-            const currentFolder = folders[index];
+      return;
+    }
 
-            if (!parent || !currentFolder) {
-                return;
-            }
+    roleAssignments.push({
+      role: cleanRole,
+      folderTargets: cleanTargets,
+    });
+  };
 
-            currentFolder.parentId = parent.id;
-            currentFolder.description =
-                `${currentFolder.name} folder under ${parent.name}.`;
-        },
+  const addFolder = (
+    name: string,
+    level: number,
+  ) => {
+    const cleanName = name.trim();
+
+    if (!cleanName) {
+      return;
+    }
+
+    while (
+      folderStack.length > 0 &&
+      folderStack[folderStack.length - 1].level >= level
+    ) {
+      folderStack.pop();
+    }
+
+    const parentIndex =
+      folderStack.length > 0
+        ? folderStack[folderStack.length - 1].index
+        : null;
+
+    const index = folders.length;
+
+    folders.push({
+      name: cleanName,
+      parentIndex,
+      path: "",
+    });
+
+    folderStack.push({
+      level,
+      index,
+    });
+  };
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    const metadataMatch = trimmed.match(
+      /^(Description|Project Type|Workflow|Workflow Scope)\s*:\s*(.+)$/i,
     );
 
-    const defaultProjectType =
-        MOCK_PROJECT_TYPES[0] ?? null;
+    if (metadataMatch) {
+      const key = metadataMatch[1].toLowerCase();
+      const value = metadataMatch[2].trim();
 
-    const defaultWorkflow =
-        MOCK_WORKFLOWS.find(
-            workflow =>
-                workflow.status === "ACTIVE",
-        ) ?? null;
+      if (key === "description") {
+        description = value;
+      } else if (key === "project type") {
+        projectTypeName = value;
+      } else if (key === "workflow") {
+        workflowName = value;
+      } else if (key === "workflow scope") {
+        workflowScope =
+          normalizeText(value) === "folder"
+            ? "FOLDER"
+            : "PROJECT";
+      }
 
-    return {
-        name: parsed.templateName,
-        description: parsed.description,
-        projectTypeId:
-            defaultProjectType?.id ?? null,
-        workflowConfigId:
-            defaultWorkflow?.id ?? null,
-        workflowScope: "PROJECT",
-        folders,
-    };
+      continue;
+    }
+
+    const headingMatch = trimmed.match(
+      /^(#{1,6})\s+(.+)$/,
+    );
+
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const title = headingMatch[2].trim();
+      const normalizedTitle = normalizeText(title);
+
+      if (level === 1) {
+        templateName = title;
+        continue;
+      }
+
+      if (
+        level === 2 &&
+        normalizedTitle === "folders"
+      ) {
+        section = "folders";
+        folderStack.length = 0;
+        continue;
+      }
+
+      if (
+        level === 2 &&
+        normalizedTitle === "roles"
+      ) {
+        section = "roles";
+        folderStack.length = 0;
+        continue;
+      }
+
+      if (
+        level === 2 &&
+        (
+          normalizedTitle === "assignments" ||
+          normalizedTitle === "role assignments" ||
+          normalizedTitle === "role assignment"
+        )
+      ) {
+        section = "assignments";
+        folderStack.length = 0;
+        continue;
+      }
+
+      if (
+        section === "folders" ||
+        (
+          section === "root" &&
+          level >= 2
+        )
+      ) {
+        addFolder(title, level);
+      }
+
+      continue;
+    }
+
+    if (section === "roles") {
+      const roleMatch = trimmed.match(
+        /^[-*]\s+(.+)$/,
+      );
+
+      if (roleMatch) {
+        const roleValue = roleMatch[1].trim();
+
+        const inlineAssignment = roleValue.match(
+          /^([^:]+):\s*(.+)$/,
+        );
+
+        if (inlineAssignment) {
+          addAssignment(
+            inlineAssignment[1],
+            inlineAssignment[2].split(","),
+          );
+        } else {
+          addRole(roleValue);
+        }
+      }
+
+      continue;
+    }
+
+    if (section === "assignments") {
+      const assignmentMatch = trimmed.match(
+        /^[-*]\s+([^:]+):\s*(.+)$/,
+      );
+
+      if (assignmentMatch) {
+        addAssignment(
+          assignmentMatch[1],
+          assignmentMatch[2].split(","),
+        );
+      }
+
+      continue;
+    }
+
+    if (section === "folders") {
+      const folderRoleMatch = trimmed.match(
+        /^Roles?\s*:\s*(.+)$/i,
+      );
+
+      if (
+        folderRoleMatch &&
+        folders.length > 0
+      ) {
+        const currentFolder =
+          folders[folders.length - 1];
+
+        for (const role of folderRoleMatch[1].split(",")) {
+          const cleanRole = role.trim();
+
+          if (!cleanRole) {
+            continue;
+          }
+
+          addAssignment(
+            cleanRole,
+            [currentFolder.name],
+          );
+        }
+      }
+    }
+  }
+
+  const parsedFolders =
+    buildParsedFolderPaths(folders);
+
+  return {
+    templateName:
+      templateName || `Template ${templateNumber}`,
+    description:
+      description ||
+      `Project template for ${
+        templateName || `Template ${templateNumber}`
+      }.`,
+    projectTypeName:
+      projectTypeName || MOCK_PROJECT_TYPES[0].name,
+    workflowName:
+      workflowName ||
+      MOCK_WORKFLOWS.find(
+        (workflow) => workflow.status === "ACTIVE",
+      )?.name ||
+      "",
+    workflowScope,
+    folders: parsedFolders,
+    roles,
+    roleAssignments,
+  };
+}
+
+function applyRoleAssignments(
+  folders: TemplateFolder[],
+  assignments: ParsedRoleAssignment[],
+): TemplateFolder[] {
+  const result = folders.map((folder) => ({
+    ...folder,
+    roles: [] as string[],
+  }));
+
+  for (const assignment of assignments) {
+    for (const target of assignment.folderTargets) {
+      const normalizedTarget =
+        normalizeFolderTarget(target);
+
+      const exactPathMatches = result.filter(
+        (folder) =>
+          normalizeFolderTarget(
+            getFolderPathFromTemplateFolders(
+              result,
+              folder.id,
+            ),
+          ) === normalizedTarget,
+      );
+
+      const matches =
+        exactPathMatches.length > 0
+          ? exactPathMatches
+          : result.filter(
+              (folder) =>
+                normalizeText(folder.name) ===
+                normalizeText(target),
+            );
+
+      for (const folder of matches) {
+        const roleAlreadyAssigned = folder.roles.some(
+          (role) =>
+            normalizeText(role) ===
+            normalizeText(assignment.role),
+        );
+
+        if (!roleAlreadyAssigned) {
+          folder.roles = [
+            ...folder.roles,
+            assignment.role,
+          ];
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+function getFolderPathFromTemplateFolders(
+  folders: TemplateFolder[],
+  folderId: string,
+): string {
+  const folder = folders.find(
+    (item) => item.id === folderId,
+  );
+
+  if (!folder) {
+    return "";
+  }
+
+  if (!folder.parentId) {
+    return folder.name;
+  }
+
+  return `${getFolderPathFromTemplateFolders(
+    folders,
+    folder.parentId,
+  )}/${folder.name}`;
+}
+
+function buildDraftFromParsed(
+  parsed: ParsedSource,
+  templateNumber = 1,
+): TemplateDraft {
+  const projectType =
+    MOCK_PROJECT_TYPES.find(
+      (item) =>
+        normalizeText(item.name) ===
+        normalizeText(parsed.projectTypeName),
+    ) ?? MOCK_PROJECT_TYPES[0];
+
+  const activeWorkflows =
+    MOCK_WORKFLOWS.filter(
+      (workflow) => workflow.status === "ACTIVE",
+    );
+
+  const workflow =
+    activeWorkflows.find(
+      (item) =>
+        normalizeText(item.name) ===
+        normalizeText(parsed.workflowName),
+    ) ??
+    activeWorkflows[0] ??
+    MOCK_WORKFLOWS[0];
+
+  const folders: TemplateFolder[] =
+    parsed.folders.map((folder) => ({
+      id: createId(),
+      name: folder.name,
+      description: `Folder for ${folder.name}.`,
+      parentId:
+        folder.parentIndex === null
+          ? null
+          : "",
+      roles: [],
+    }));
+
+  parsed.folders.forEach((parsedFolder, index) => {
+    if (parsedFolder.parentIndex !== null) {
+      folders[index].parentId =
+        folders[parsedFolder.parentIndex]?.id ?? null;
+    }
+  });
+
+  const foldersWithAssignments =
+    applyRoleAssignments(
+      folders,
+      parsed.roleAssignments,
+    );
+
+  return {
+    name:
+      parsed.templateName ||
+      `Template ${templateNumber}`,
+    description:
+      parsed.description ||
+      `Project template containing ${folders.length} folders.`,
+    projectTypeId: projectType.id,
+    workflowConfigId: workflow.id,
+    workflowScope: parsed.workflowScope,
+    folders: foldersWithAssignments,
+  };
+}
+
+function buildInitialDraft(): TemplateDraft {
+  return buildDraftFromParsed(
+    parseTextSource(MOCK_TEXT, 1),
+    1,
+  );
 }
 
 export default function TemplateCreationWizard() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
 
-    const fileInputRef =
-        useRef<HTMLInputElement | null>(null);
+  const [currentStep, setCurrentStep] =
+    useState<WizardStep>("source");
 
-    const [currentStep, setCurrentStep] =
-        useState<WizardStep>("source");
+  const [sourceFormat, setSourceFormat] =
+    useState<SourceFormat>("text");
 
-    const [sourceText, setSourceText] =
-        useState<string>(MOCK_TEXT);
+  const [sourceContents, setSourceContents] =
+    useState<Record<SourceFormat, string>>({
+      text: MOCK_TEXT,
+      markdown: MOCK_MARKDOWN,
+    });
 
-    const [uploadedFileName, setUploadedFileName] =
-        useState<string>("");
+  const [uploadedFileName, setUploadedFileName] =
+    useState("");
 
-    const [draft, setDraft] =
-        useState<TemplateDraft>(() =>
-            buildDraftFromText(MOCK_TEXT),
-        );
+  const [templateNumber, setTemplateNumber] =
+    useState(1);
 
-    const [roles, setRoles] =
-        useState<string[]>(MOCK_ROLES);
-
-    const [newRole, setNewRole] =
-        useState<string>("");
-
-    const [selectedFolderId, setSelectedFolderId] =
-        useState<string | null>(() =>
-            buildDraftFromText(MOCK_TEXT)
-                .folders[0]?.id ?? null,
-        );
-
-    const [creatingTemplate, setCreatingTemplate] =
-        useState<boolean>(false);
-
-    const [error, setError] =
-        useState<string>("");
-
-    const [success, setSuccess] =
-        useState<string>("");
-
-    const [expandedFolders, setExpandedFolders] =
-        useState<Record<string, boolean>>(() => {
-            const initialDraft =
-                buildDraftFromText(MOCK_TEXT);
-
-            return Object.fromEntries(
-                initialDraft.folders.map(
-                    folder => [
-                        folder.id,
-                        true,
-                    ],
-                ),
-            );
-        });
-
-    const currentStepIndex = STEPS.findIndex(
-        step => step.id === currentStep,
+  const [draft, setDraft] =
+    useState<TemplateDraft>(() =>
+      buildInitialDraft(),
     );
 
-    const selectedFolder = useMemo(
-        () =>
-            draft.folders.find(
-                folder =>
-                    folder.id ===
-                    selectedFolderId,
-            ),
-        [
-            draft.folders,
-            selectedFolderId,
-        ],
-    );
+  const [roles, setRoles] = useState<string[]>(
+    [],
+  );
 
-    const activeWorkflows = useMemo(
-        () =>
-            MOCK_WORKFLOWS.filter(
-                workflow =>
-                    workflow.status ===
-                    "ACTIVE",
-            ),
-        [],
-    );
+  const [newRole, setNewRole] =
+    useState("");
 
-    function getChildren(
-        parentId: string,
-    ): TemplateFolder[] {
-        return draft.folders.filter(
-            folder =>
-                folder.parentId ===
-                parentId,
-        );
+  const [selectedFolderId, setSelectedFolderId] =
+    useState<string | null>(null);
+
+  const [creatingTemplate, setCreatingTemplate] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
+
+  const [expandedFolders, setExpandedFolders] =
+    useState<Record<string, boolean>>({});
+
+  const sourceText = sourceContents[sourceFormat];
+
+  const activeWorkflows = useMemo(
+    () =>
+      MOCK_WORKFLOWS.filter(
+        (workflow) => workflow.status === "ACTIVE",
+      ),
+    [],
+  );
+
+  const selectedProjectType = useMemo(
+    () =>
+      MOCK_PROJECT_TYPES.find(
+        (projectType) =>
+          projectType.id === draft.projectTypeId,
+      ),
+    [draft.projectTypeId],
+  );
+
+  const selectedWorkflow = useMemo(
+    () =>
+      MOCK_WORKFLOWS.find(
+        (workflow) =>
+          workflow.id === draft.workflowConfigId,
+      ),
+    [draft.workflowConfigId],
+  );
+
+  const selectedFolder = useMemo(
+    () =>
+      draft.folders.find(
+        (folder) =>
+          folder.id === selectedFolderId,
+      ),
+    [draft.folders, selectedFolderId],
+  );
+
+  const currentStepIndex = STEPS.findIndex(
+    (step) => step.id === currentStep,
+  );
+
+  const updateSourceText = (value: string) => {
+    setSourceContents((previous) => ({
+      ...previous,
+      [sourceFormat]: value,
+    }));
+
+    setError("");
+    setSuccess("");
+  };
+
+  const handleSourceFormatChange = (
+    format: SourceFormat,
+  ) => {
+    setSourceFormat(format);
+    setUploadedFileName("");
+    setError("");
+    setSuccess("");
+  };
+
+  const handleFileUpload = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
     }
 
-    function updateDraft<
-        K extends keyof TemplateDraft,
-    >(
-        field: K,
-        value: TemplateDraft[K],
-    ) {
-        setDraft(previous => ({
-            ...previous,
-            [field]: value,
-        }));
+    const extension =
+      file.name.split(".").pop()?.toLowerCase();
+
+    const format: SourceFormat =
+      extension === "md" ||
+      extension === "markdown"
+        ? "markdown"
+        : "text";
+
+    try {
+      const content = await file.text();
+
+      setSourceFormat(format);
+
+      setSourceContents((previous) => ({
+        ...previous,
+        [format]: content,
+      }));
+
+      setUploadedFileName(file.name);
+      setError("");
+      setSuccess("");
+    } catch {
+      setError(
+        "Unable to read the selected file.",
+      );
     }
 
-    async function handleFileUpload(
-        event: ChangeEvent<HTMLInputElement>,
-    ) {
-        const file =
-            event.target.files?.[0];
+    event.target.value = "";
+  };
 
-        if (!file) {
-            return;
-        }
+  const loadMockData = () => {
+    const mockContent =
+      sourceFormat === "markdown"
+        ? MOCK_MARKDOWN
+        : MOCK_TEXT;
 
-        setError("");
-        setSuccess("");
+    setSourceContents((previous) => ({
+      ...previous,
+      [sourceFormat]: mockContent,
+    }));
 
-        const extension =
-            file.name
-                .split(".")
-                .pop()
-                ?.toLowerCase();
+    setUploadedFileName("");
+    setError("");
+    setSuccess("");
+  };
 
+  const getNextTemplateNumber = () =>
+    templateNumber + 1;
+
+  const handleGenerateTemplate = () => {
+    setError("");
+    setSuccess("");
+
+    if (!sourceText.trim()) {
+      setError(
+        sourceFormat === "markdown"
+          ? "Enter Markdown content before continuing."
+          : "Enter a folder structure before continuing.",
+      );
+      return;
+    }
+
+    const nextTemplateNumber =
+      getNextTemplateNumber();
+
+    const parsed =
+      sourceFormat === "markdown"
+        ? parseMarkdownSource(
+            sourceText,
+            nextTemplateNumber,
+          )
+        : parseTextSource(
+            sourceText,
+            nextTemplateNumber,
+          );
+
+    if (parsed.folders.length === 0) {
+      setError(
+        sourceFormat === "markdown"
+          ? "No folders were found in the Markdown source. Add a Folders section with at least one folder."
+          : "No folders were found. Add at least one folder to the text input.",
+      );
+      return;
+    }
+
+    const nextDraft =
+      buildDraftFromParsed(
+        parsed,
+        nextTemplateNumber,
+      );
+
+    setDraft(nextDraft);
+
+    setRoles(
+      sourceFormat === "markdown"
+        ? parsed.roles
+        : [],
+    );
+
+    setTemplateNumber(
+      nextTemplateNumber,
+    );
+
+    setSelectedFolderId(
+      nextDraft.folders[0]?.id ?? null,
+    );
+
+    setExpandedFolders(
+      Object.fromEntries(
+        nextDraft.folders.map((folder) => [
+          folder.id,
+          true,
+        ]),
+      ),
+    );
+
+    setCurrentStep("details");
+  };
+
+  const handleReset = () => {
+    const initialDraft =
+      buildInitialDraft();
+
+    setCurrentStep("source");
+    setSourceFormat("text");
+
+    setSourceContents({
+      text: MOCK_TEXT,
+      markdown: MOCK_MARKDOWN,
+    });
+
+    setUploadedFileName("");
+    setTemplateNumber(1);
+    setDraft(initialDraft);
+    setRoles([]);
+    setNewRole("");
+    setSelectedFolderId(
+      initialDraft.folders[0]?.id ?? null,
+    );
+    setCreatingTemplate(false);
+    setError("");
+    setSuccess("");
+    setExpandedFolders(
+      Object.fromEntries(
+        initialDraft.folders.map((folder) => [
+          folder.id,
+          true,
+        ]),
+      ),
+    );
+  };
+
+  const updateDraft = (
+    updates: Partial<TemplateDraft>,
+  ) => {
+    setDraft((previous) => ({
+      ...previous,
+      ...updates,
+    }));
+  };
+
+  const updateFolder = (
+    folderId: string,
+    updates: Partial<TemplateFolder>,
+  ) => {
+    setDraft((previous) => ({
+      ...previous,
+      folders: previous.folders.map(
+        (folder) =>
+          folder.id === folderId
+            ? {
+                ...folder,
+                ...updates,
+              }
+            : folder,
+      ),
+    }));
+  };
+
+  const addFolder = (
+    parentId: string | null = null,
+  ) => {
+    const newFolder: TemplateFolder = {
+      id: createId(),
+      name: "New Folder",
+      description: "New template folder.",
+      parentId,
+      roles: [],
+    };
+
+    setDraft((previous) => ({
+      ...previous,
+      folders: [
+        ...previous.folders,
+        newFolder,
+      ],
+    }));
+
+    setSelectedFolderId(newFolder.id);
+
+    if (parentId) {
+      setExpandedFolders((previous) => ({
+        ...previous,
+        [parentId]: true,
+      }));
+    }
+  };
+
+  const deleteFolder = (
+    folderId: string,
+  ) => {
+    const folderIdsToDelete = new Set<string>([
+      folderId,
+    ]);
+
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+
+      for (const folder of draft.folders) {
         if (
-            extension !== "md" &&
-            extension !== "markdown" &&
-            extension !== "txt"
+          folder.parentId &&
+          folderIdsToDelete.has(
+            folder.parentId,
+          ) &&
+          !folderIdsToDelete.has(folder.id)
         ) {
-            setError(
-                "Please upload a Markdown (.md) or text (.txt) file.",
-            );
-
-            event.target.value = "";
-            return;
+          folderIdsToDelete.add(folder.id);
+          changed = true;
         }
-
-        try {
-            const content =
-                await file.text();
-
-            setSourceText(content);
-            setUploadedFileName(
-                file.name,
-            );
-        } catch {
-            setError(
-                "Unable to read the selected file.",
-            );
-        }
-
-        event.target.value = "";
+      }
     }
 
-    function loadMockData() {
-        setSourceText(MOCK_TEXT);
-        setUploadedFileName("");
-        setError("");
-        setSuccess("");
-    }
+    const remainingFolders =
+      draft.folders.filter(
+        (folder) =>
+          !folderIdsToDelete.has(folder.id),
+      );
 
-    function handleGenerateTemplate() {
-        setError("");
-        setSuccess("");
+    setDraft((previous) => ({
+      ...previous,
+      folders: remainingFolders,
+    }));
 
-        if (!sourceText.trim()) {
-            setError(
-                "Please enter a folder structure or upload a file.",
-            );
-            return;
-        }
-
-        const parsed =
-            buildDraftFromText(
-                sourceText,
-            );
-
-        if (!parsed.name.trim()) {
-            setError(
-                "Template name could not be detected.",
-            );
-            return;
-        }
-
-        if (
-            parsed.folders.length === 0
-        ) {
-            setError(
-                "No folders were found. Use ## for folders and ### for subfolders.",
-            );
-            return;
-        }
-
-        setDraft(parsed);
-
-        const initialExpanded: Record<
-            string,
-            boolean
-        > = {};
-
-        parsed.folders.forEach(
-            folder => {
-                initialExpanded[
-                    folder.id
-                ] = true;
-            },
-        );
-
-        setExpandedFolders(
-            initialExpanded,
-        );
-
-        setSelectedFolderId(
-            parsed.folders[0]?.id ??
-                null,
-        );
-
-        setCurrentStep("details");
-    }
-
-    function updateFolderName(
-        folderId: string,
-        value: string,
+    if (
+      selectedFolderId &&
+      folderIdsToDelete.has(selectedFolderId)
     ) {
-        setDraft(previous => ({
-            ...previous,
-            folders:
-                previous.folders.map(
-                    folder =>
-                        folder.id ===
-                        folderId
-                            ? {
-                                ...folder,
-                                name: value,
-                            }
-                            : folder,
-                ),
-        }));
+      setSelectedFolderId(
+        remainingFolders[0]?.id ?? null,
+      );
+    }
+  };
+
+  const toggleFolderExpanded = (
+    folderId: string,
+  ) => {
+    setExpandedFolders((previous) => ({
+      ...previous,
+      [folderId]: !previous[folderId],
+    }));
+  };
+
+  const addRole = () => {
+    const role = newRole.trim();
+
+    if (!role) {
+      return;
     }
 
-    function updateFolderDescription(
-        folderId: string,
-        value: string,
+    const alreadyExists = roles.some(
+      (existingRole) =>
+        normalizeText(existingRole) ===
+        normalizeText(role),
+    );
+
+    if (alreadyExists) {
+      setError(
+        "A role with this name already exists.",
+      );
+      return;
+    }
+
+    setRoles((previous) => [
+      ...previous,
+      role,
+    ]);
+
+    setNewRole("");
+    setError("");
+  };
+
+  const removeRole = (
+    roleToRemove: string,
+  ) => {
+    setRoles((previous) =>
+      previous.filter(
+        (role) => role !== roleToRemove,
+      ),
+    );
+
+    setDraft((previous) => ({
+      ...previous,
+      folders: previous.folders.map(
+        (folder) => ({
+          ...folder,
+          roles: folder.roles.filter(
+            (role) =>
+              role !== roleToRemove,
+          ),
+        }),
+      ),
+    }));
+  };
+
+  const toggleRoleAssignment = (
+    folderId: string,
+    role: string,
+  ) => {
+    setDraft((previous) => ({
+      ...previous,
+      folders: previous.folders.map(
+        (folder) => {
+          if (folder.id !== folderId) {
+            return folder;
+          }
+
+          const hasRole =
+            folder.roles.includes(role);
+
+          return {
+            ...folder,
+            roles: hasRole
+              ? folder.roles.filter(
+                  (item) => item !== role,
+                )
+              : [...folder.roles, role],
+          };
+        },
+      ),
+    }));
+  };
+
+  const validateStep = (
+    step: WizardStep,
+  ): boolean => {
+    setError("");
+
+    if (step === "source") {
+      if (!sourceText.trim()) {
+        setError(
+          "Please provide source content.",
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    if (step === "details") {
+      if (!draft.name.trim()) {
+        setError(
+          "Template name is required.",
+        );
+        return false;
+      }
+
+      if (!draft.description.trim()) {
+        setError(
+          "Template description is required.",
+        );
+        return false;
+      }
+
+      if (!draft.projectTypeId) {
+        setError(
+          "Please select a project type.",
+        );
+        return false;
+      }
+
+      if (!draft.workflowConfigId) {
+        setError(
+          "Please select a workflow.",
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    if (step === "folders") {
+      if (draft.folders.length === 0) {
+        setError(
+          "At least one folder is required.",
+        );
+        return false;
+      }
+
+      const invalidFolder =
+        draft.folders.find(
+          (folder) => !folder.name.trim(),
+        );
+
+      if (invalidFolder) {
+        setError(
+          "Every folder must have a name.",
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    if (step === "roles") {
+      if (roles.length === 0) {
+        setError(
+          "Create at least one role.",
+        );
+        return false;
+      }
+
+      const unassignedFolder =
+        draft.folders.find(
+          (folder) =>
+            folder.roles.length === 0,
+        );
+
+      if (unassignedFolder) {
+        setError(
+          `Assign at least one role to "${unassignedFolder.name}".`,
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    return true;
+  };
+
+  const goNext = () => {
+    if (!validateStep(currentStep)) {
+      return;
+    }
+
+    const nextIndex =
+      currentStepIndex + 1;
+
+    if (nextIndex >= STEPS.length) {
+      return;
+    }
+
+    const nextStep =
+      STEPS[nextIndex].id;
+
+    if (
+      nextStep === "roles" &&
+      !selectedFolderId
     ) {
-        setDraft(previous => ({
-            ...previous,
-            folders:
-                previous.folders.map(
-                    folder =>
-                        folder.id ===
-                        folderId
-                            ? {
-                                ...folder,
-                                description:
-                                    value,
-                            }
-                            : folder,
-                ),
-        }));
+      setSelectedFolderId(
+        draft.folders[0]?.id ?? null,
+      );
     }
 
-    function toggleFolder(
-        folderId: string,
-    ) {
-        setExpandedFolders(
-            previous => ({
-                ...previous,
-                [folderId]:
-                    !previous[
-                        folderId
-                    ],
-            }),
-        );
+    setCurrentStep(nextStep);
+    setError("");
+  };
+
+  const goBack = () => {
+    const previousIndex =
+      currentStepIndex - 1;
+
+    if (previousIndex < 0) {
+      return;
     }
 
-    function addRootFolder() {
-        const folder: TemplateFolder = {
-            id: createId(),
-            name: "New Folder",
-            description: "New folder",
-            parentId: null,
-            roles: [],
-        };
+    setCurrentStep(
+      STEPS[previousIndex].id,
+    );
+    setError("");
+  };
 
-        setDraft(previous => ({
-            ...previous,
-            folders: [
-                ...previous.folders,
-                folder,
-            ],
-        }));
-
-        setExpandedFolders(
-            previous => ({
-                ...previous,
-                [folder.id]: true,
-            }),
-        );
-
-        setSelectedFolderId(
-            folder.id,
-        );
+  const handleCreateTemplate = async () => {
+    if (!validateStep("roles")) {
+      return;
     }
 
-    function addChildFolder(
-        parentId: string,
-    ) {
-        const parent =
-            draft.folders.find(
-                folder =>
-                    folder.id ===
-                    parentId,
-            );
+    setCreatingTemplate(true);
+    setError("");
+    setSuccess("");
 
-        const folder: TemplateFolder = {
-            id: createId(),
-            name: "New Subfolder",
-            description: parent
-                ? `New subfolder under ${parent.name}.`
-                : "New subfolder",
-            parentId,
-            roles: [],
-        };
+    const payload = {
+      ...draft,
+      sourceFormat,
+      roles,
+    };
 
-        setDraft(previous => ({
-            ...previous,
-            folders: [
-                ...previous.folders,
-                folder,
-            ],
-        }));
+    console.log(
+      "Mock template creation payload:",
+      payload,
+    );
 
-        setExpandedFolders(
-            previous => ({
-                ...previous,
-                [parentId]: true,
-                [folder.id]: true,
-            }),
-        );
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 1200);
+    });
 
-        setSelectedFolderId(
-            folder.id,
-        );
+    setCreatingTemplate(false);
+    setSuccess(
+      "Template created successfully.",
+    );
+
+    window.setTimeout(() => {
+      navigate("/workflow-process");
+    }, 700);
+  };
+
+  const getChildFolders = (
+    parentId: string | null,
+  ) =>
+    draft.folders.filter(
+      (folder) =>
+        folder.parentId === parentId,
+    );
+
+  const renderFolderTree = (
+    parentId: string | null,
+    depth = 0,
+  ): ReactNode => {
+    const children =
+      getChildFolders(parentId);
+
+    if (children.length === 0) {
+      return null;
     }
 
-    function deleteFolder(
-        folderId: string,
-    ) {
-        const idsToDelete =
-            new Set<string>([
-                folderId,
-            ]);
+    return children.map((folder) => {
+      const hasChildren =
+        draft.folders.some(
+          (child) =>
+            child.parentId === folder.id,
+        );
 
-        let changed = true;
+      const expanded =
+        expandedFolders[folder.id] ?? true;
 
-        while (changed) {
-            changed = false;
+      const isSelected =
+        selectedFolderId === folder.id;
 
-            for (const folder of draft.folders) {
-                if (
-                    folder.parentId &&
-                    idsToDelete.has(
-                        folder.parentId,
-                    ) &&
-                    !idsToDelete.has(
-                        folder.id,
-                    )
-                ) {
-                    idsToDelete.add(
-                        folder.id,
-                    );
-
-                    changed = true;
+      return (
+        <div key={folder.id}>
+          <div
+            className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
+              isSelected
+                ? "bg-blue-50 ring-1 ring-blue-200"
+                : "hover:bg-gray-50"
+            }`}
+            style={{
+              marginLeft: depth * 24,
+            }}
+          >
+            {hasChildren ? (
+              <button
+                type="button"
+                onClick={() =>
+                  toggleFolderExpanded(
+                    folder.id,
+                  )
                 }
-            }
-        }
-
-        setDraft(previous => ({
-            ...previous,
-            folders:
-                previous.folders.filter(
-                    folder =>
-                        !idsToDelete.has(
-                            folder.id,
-                        ),
-                ),
-        }));
-
-        setExpandedFolders(
-            previous => {
-                const next = {
-                    ...previous,
-                };
-
-                idsToDelete.forEach(
-                    id => {
-                        delete next[id];
-                    },
-                );
-
-                return next;
-            },
-        );
-
-        if (
-            selectedFolderId &&
-            idsToDelete.has(
-                selectedFolderId,
-            )
-        ) {
-            const remaining =
-                draft.folders.find(
-                    folder =>
-                        !idsToDelete.has(
-                            folder.id,
-                        ),
-                );
-
-            setSelectedFolderId(
-                remaining?.id ??
-                    null,
-            );
-        }
-    }
-
-    function addRole() {
-        const role =
-            newRole.trim();
-
-        if (!role) {
-            return;
-        }
-
-        const exists =
-            roles.some(
-                existing =>
-                    existing.toLowerCase() ===
-                    role.toLowerCase(),
-            );
-
-        if (exists) {
-            setNewRole("");
-            return;
-        }
-
-        setRoles(previous => [
-            ...previous,
-            role,
-        ]);
-
-        setNewRole("");
-    }
-
-    function removeRole(
-        role: string,
-    ) {
-        setRoles(previous =>
-            previous.filter(
-                item =>
-                    item !== role,
-            ),
-        );
-
-        setDraft(previous => ({
-            ...previous,
-            folders:
-                previous.folders.map(
-                    folder => ({
-                        ...folder,
-                        roles:
-                            folder.roles.filter(
-                                item =>
-                                    item !==
-                                    role,
-                            ),
-                    }),
-                ),
-        }));
-    }
-
-    function toggleRole(
-        folderId: string,
-        role: string,
-    ) {
-        setDraft(previous => ({
-            ...previous,
-            folders:
-                previous.folders.map(
-                    folder => {
-                        if (
-                            folder.id !==
-                            folderId
-                        ) {
-                            return folder;
-                        }
-
-                        const assigned =
-                            folder.roles.includes(
-                                role,
-                            );
-
-                        return {
-                            ...folder,
-                            roles: assigned
-                                ? folder.roles.filter(
-                                    item =>
-                                        item !==
-                                        role,
-                                )
-                                : [
-                                    ...folder.roles,
-                                    role,
-                                ],
-                        };
-                    },
-                ),
-        }));
-    }
-
-    function resetWizard() {
-        const initialDraft =
-            buildDraftFromText(
-                MOCK_TEXT,
-            );
-
-        setSourceText(MOCK_TEXT);
-        setUploadedFileName("");
-        setDraft(initialDraft);
-        setRoles(MOCK_ROLES);
-        setNewRole("");
-
-        setSelectedFolderId(
-            initialDraft
-                .folders[0]?.id ??
-                null,
-        );
-
-        setExpandedFolders(
-            Object.fromEntries(
-                initialDraft.folders.map(
-                    folder => [
-                        folder.id,
-                        true,
-                    ],
-                ),
-            ),
-        );
-
-        setError("");
-        setSuccess("");
-        setCreatingTemplate(false);
-        setCurrentStep("source");
-    }
-
-    function validateDetails(): boolean {
-        if (!draft.name.trim()) {
-            setError(
-                "Template name is required.",
-            );
-            return false;
-        }
-
-        if (
-            !draft.description.trim()
-        ) {
-            setError(
-                "Template description is required.",
-            );
-            return false;
-        }
-
-        if (
-            draft.projectTypeId ===
-            null
-        ) {
-            setError(
-                "Please select a project type.",
-            );
-            return false;
-        }
-
-        if (
-            draft.workflowConfigId ===
-            null
-        ) {
-            setError(
-                "Please select a workflow.",
-            );
-            return false;
-        }
-
-        return true;
-    }
-
-    function validateFolders(): boolean {
-        if (
-            draft.folders.length ===
-            0
-        ) {
-            setError(
-                "At least one folder is required.",
-            );
-            return false;
-        }
-
-        for (const folder of draft.folders) {
-            if (
-                !folder.name.trim()
-            ) {
-                setError(
-                    "Every folder must have a name.",
-                );
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    function validateRoles(): boolean {
-        if (roles.length === 0) {
-            setError(
-                "Please add at least one role.",
-            );
-            return false;
-        }
-
-        const foldersWithoutRoles =
-            draft.folders.filter(
-                folder =>
-                    folder.roles.length ===
-                    0,
-            );
-
-        if (
-            foldersWithoutRoles.length >
-            0
-        ) {
-            setError(
-                `Please assign at least one role to: ${foldersWithoutRoles
-                    .map(
-                        folder =>
-                            folder.name,
-                    )
-                    .join(", ")}`,
-            );
-
-            return false;
-        }
-
-        return true;
-    }
-
-    async function handleCreateTemplate() {
-        setError("");
-        setSuccess("");
-
-        if (!validateDetails()) {
-            setCurrentStep("details");
-            return;
-        }
-
-        if (!validateFolders()) {
-            setCurrentStep("folders");
-            return;
-        }
-
-        if (!validateRoles()) {
-            setCurrentStep("roles");
-            return;
-        }
-
-        setCreatingTemplate(true);
-
-        try {
-            await new Promise<void>(
-                resolve =>
-                    setTimeout(
-                        resolve,
-                        1200,
-                    ),
-            );
-
-            console.log(
-                "MOCK PROJECT TEMPLATE CREATED:",
-                {
-                    project_template: {
-                        name: draft.name.trim(),
-                        description:
-                            draft.description.trim(),
-                        project_type_id:
-                            draft.projectTypeId,
-                        workflow_config_id:
-                            draft.workflowConfigId,
-                        workflow_scope:
-                            draft.workflowScope,
-                    },
-                    folders:
-                        draft.folders.map(
-                            folder => ({
-                                name: folder.name.trim(),
-                                description:
-                                    folder.description.trim(),
-                                parent_folder_index:
-                                    folder.parentId ===
-                                    null
-                                        ? null
-                                        : draft.folders.findIndex(
-                                            item =>
-                                                item.id ===
-                                                folder.parentId,
-                                        ),
-                                roles: folder.roles,
-                            }),
-                        ),
-                },
-            );
-
-            setSuccess(
-                "Project template created successfully using mock data.",
-            );
-
-            setTimeout(() => {
-                navigate(
-                    "/workflow-process",
-                );
-            }, 1000);
-        } catch {
-            setError(
-                "Unable to create the mock project template.",
-            );
-        } finally {
-            setCreatingTemplate(false);
-        }
-    }
-
-    function goNext() {
-        setError("");
-
-        if (
-            currentStep ===
-            "source"
-        ) {
-            handleGenerateTemplate();
-            return;
-        }
-
-        if (
-            currentStep ===
-            "details"
-        ) {
-            if (
-                !validateDetails()
-            ) {
-                return;
-            }
-
-            setCurrentStep(
-                "folders",
-            );
-            return;
-        }
-
-        if (
-            currentStep ===
-            "folders"
-        ) {
-            if (
-                !validateFolders()
-            ) {
-                return;
-            }
-
-            setSelectedFolderId(
-                draft.folders[0]?.id ??
-                    null,
-            );
-
-            setCurrentStep(
-                "roles",
-            );
-        }
-    }
-
-    function goBack() {
-        setError("");
-
-        if (
-            currentStep ===
-            "details"
-        ) {
-            setCurrentStep(
-                "source",
-            );
-            return;
-        }
-
-        if (
-            currentStep ===
-            "folders"
-        ) {
-            setCurrentStep(
-                "details",
-            );
-            return;
-        }
-
-        if (
-            currentStep ===
-            "roles"
-        ) {
-            setCurrentStep(
-                "folders",
-            );
-        }
-    }
-
-    function renderFolderTree(
-        parentId: string | null,
-        level = 0,
-    ): ReactNode {
-        const folders =
-            draft.folders.filter(
-                folder =>
-                    folder.parentId ===
-                    parentId,
-            );
-
-        return folders.map(
-            folder => {
-                const children =
-                    getChildren(
-                        folder.id,
-                    );
-
-                const expanded =
-                    expandedFolders[
-                        folder.id
-                    ] ?? true;
-
-                return (
-                    <div
-                        key={
-                            folder.id
-                        }
-                    >
-                        <div
-                            className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-slate-100 dark:hover:bg-slate-800"
-                            style={{
-                                paddingLeft: `${level * 24 + 8}px`,
-                            }}
-                        >
-                            {children.length >
-                            0 ? (
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        toggleFolder(
-                                            folder.id,
-                                        )
-                                    }
-                                    className="rounded p-1 hover:bg-slate-200 dark:hover:bg-slate-700"
-                                >
-                                    {expanded ? (
-                                        <ChevronDown className="h-4 w-4" />
-                                    ) : (
-                                        <ChevronRight className="h-4 w-4" />
-                                    )}
-                                </button>
-                            ) : (
-                                <span className="w-6" />
-                            )}
-
-                            <Folder className="h-4 w-4 text-amber-500" />
-
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setSelectedFolderId(
-                                        folder.id,
-                                    )
-                                }
-                                className={`flex-1 text-left text-sm ${
-                                    selectedFolderId ===
-                                    folder.id
-                                        ? "font-semibold text-blue-600"
-                                        : "text-slate-700 dark:text-slate-200"
-                                }`}
-                            >
-                                {
-                                    folder.name
-                                }
-                            </button>
-
-                            <span className="text-xs text-slate-400">
-                                {
-                                    folder
-                                        .roles
-                                        .length
-                                }{" "}
-                                roles
-                            </span>
-                        </div>
-
-                        {expanded &&
-                            renderFolderTree(
-                                folder.id,
-                                level + 1,
-                            )}
-                    </div>
-                );
-            },
-        );
-    }
-
-    const selectedProjectType =
-        MOCK_PROJECT_TYPES.find(
-            type =>
-                type.id ===
-                draft.projectTypeId,
-        );
-
-    const selectedWorkflow =
-        activeWorkflows.find(
-            workflow =>
-                workflow.id ===
-                draft.workflowConfigId,
-        );
-
-    return (
-        <div className="min-h-screen bg-slate-50 p-6 dark:bg-slate-950">
-            <div className="mx-auto max-w-7xl">
-                <div className="mb-8">
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-                                Create Project
-                                Template
-                            </h1>
-
-                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                Build a
-                                template from
-                                a Markdown or
-                                text folder
-                                structure,
-                                configure its
-                                details,
-                                review
-                                folders, and
-                                assign roles.
-                            </p>
-
-                            <div className="mt-3 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                                Demo Mode —
-                                Mock Data Only
-                            </div>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={
-                                resetWizard
-                            }
-                            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                        >
-                            <RotateCcw className="h-4 w-4" />
-                            Reset
-                        </button>
-                    </div>
-                </div>
-
-                <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-                    <div className="grid grid-cols-4 gap-2">
-                        {STEPS.map(
-                            (
-                                step,
-                                stepIndex,
-                            ) => {
-                                const active =
-                                    stepIndex ===
-                                    currentStepIndex;
-
-                                const completed =
-                                    stepIndex <
-                                    currentStepIndex;
-
-                                return (
-                                    <button
-                                        key={
-                                            step.id
-                                        }
-                                        type="button"
-                                        onClick={() => {
-                                            if (
-                                                stepIndex <=
-                                                currentStepIndex
-                                            ) {
-                                                setCurrentStep(
-                                                    step.id,
-                                                );
-                                            }
-                                        }}
-                                        disabled={
-                                            stepIndex >
-                                            currentStepIndex
-                                        }
-                                        className="text-left disabled:cursor-not-allowed"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div
-                                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-                                                    completed
-                                                        ? "bg-green-600 text-white"
-                                                        : active
-                                                            ? "bg-blue-600 text-white"
-                                                            : "bg-slate-100 text-slate-500 dark:bg-slate-800"
-                                                }`}
-                                            >
-                                                {completed ? (
-                                                    <Check className="h-4 w-4" />
-                                                ) : (
-                                                    stepIndex +
-                                                    1
-                                                )}
-                                            </div>
-
-                                            <div className="hidden min-w-0 sm:block">
-                                                <div
-                                                    className={`text-sm font-semibold ${
-                                                        active
-                                                            ? "text-blue-600"
-                                                            : "text-slate-700 dark:text-slate-200"
-                                                    }`}
-                                                >
-                                                    {
-                                                        step.label
-                                                    }
-                                                </div>
-
-                                                <div className="text-xs text-slate-400">
-                                                    {
-                                                        step.description
-                                                    }
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {stepIndex <
-                                            STEPS.length -
-                                            1 && (
-                                            <div className="mt-4 hidden h-px bg-slate-200 dark:bg-slate-800 lg:block" />
-                                        )}
-                                    </button>
-                                );
-                            },
-                        )}
-                    </div>
-                </div>
-
-                {error && (
-                    <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-                        <X className="mt-0.5 h-4 w-4 shrink-0" />
-                        <span>
-                            {error}
-                        </span>
-                    </div>
+                className="rounded p-1 text-gray-500 hover:bg-gray-200"
+              >
+                {expanded ? (
+                  <ChevronDown size={16} />
+                ) : (
+                  <ChevronRight size={16} />
                 )}
-
-                {success && (
-                    <div className="mb-6 flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                        <span>
-                            {success}
-                        </span>
-                    </div>
-                )}
-
-                <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                    {currentStep ===
-                        "source" && (
-                        <div className="p-6">
-                            <div className="mb-6">
-                                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                                    Define Folder
-                                    Structure
-                                </h2>
-
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Upload a
-                                    Markdown/text
-                                    file or enter
-                                    your folder
-                                    structure
-                                    manually.
-                                </p>
-                            </div>
-
-                            <div className="mb-5 flex flex-wrap gap-3">
-                                <input
-                                    ref={
-                                        fileInputRef
-                                    }
-                                    type="file"
-                                    accept=".md,.markdown,.txt,text/plain,text/markdown"
-                                    className="hidden"
-                                    onChange={
-                                        handleFileUpload
-                                    }
-                                />
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        fileInputRef.current?.click()
-                                    }
-                                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                                >
-                                    <Upload className="h-4 w-4" />
-                                    Upload File
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={
-                                        loadMockData
-                                    }
-                                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300"
-                                >
-                                    <FileText className="h-4 w-4" />
-                                    Load Mock
-                                    Data
-                                </button>
-
-                                {uploadedFileName && (
-                                    <div className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                        <FileText className="h-4 w-4" />
-                                        {
-                                            uploadedFileName
-                                        }
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="grid gap-6 lg:grid-cols-2">
-                                <div>
-                                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
-                                        Folder
-                                        Structure
-                                    </label>
-
-                                    <textarea
-                                        value={
-                                            sourceText
-                                        }
-                                        onChange={event =>
-                                            setSourceText(
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        rows={20}
-                                        className="w-full resize-none rounded-xl border border-slate-300 bg-slate-950 px-4 py-4 font-mono text-sm leading-6 text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700"
-                                    />
-                                </div>
-
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950">
-                                    <h3 className="mb-4 font-semibold text-slate-900 dark:text-white">
-                                        Text Format
-                                    </h3>
-
-                                    <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
-                                        <div>
-                                            <code className="rounded bg-slate-200 px-2 py-1 dark:bg-slate-800">
-                                                # Template
-                                                Name
-                                            </code>
-                                        </div>
-
-                                        <div>
-                                            <code className="rounded bg-slate-200 px-2 py-1 dark:bg-slate-800">
-                                                ## Folder
-                                            </code>
-                                        </div>
-
-                                        <div>
-                                            <code className="rounded bg-slate-200 px-2 py-1 dark:bg-slate-800">
-                                                ###
-                                                Subfolder
-                                            </code>
-                                        </div>
-
-                                        <div>
-                                            <code className="rounded bg-slate-200 px-2 py-1 dark:bg-slate-800">
-                                                ####
-                                                Nested
-                                                Folder
-                                            </code>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
-                                        <strong>
-                                            How it
-                                            works
-                                        </strong>
-
-                                        <p className="mt-2">
-                                            The first
-                                            # heading
-                                            becomes
-                                            the
-                                            template
-                                            name.
-                                            ##, ###,
-                                            #### etc.
-                                            become
-                                            folders
-                                            and
-                                            nested
-                                            folders.
-                                        </p>
-
-                                        <p className="mt-2">
-                                            Project
-                                            type,
-                                            workflow,
-                                            descriptions,
-                                            and roles
-                                            are
-                                            populated
-                                            from mock
-                                            data.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {currentStep ===
-                        "details" && (
-                        <div className="p-6">
-                            <div className="mb-6">
-                                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                                    Template
-                                    Details
-                                </h2>
-
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Review the
-                                    automatically
-                                    generated
-                                    template
-                                    details.
-                                </p>
-                            </div>
-
-                            <div className="grid gap-5 md:grid-cols-2">
-                                <div className="md:col-span-2">
-                                    <label className="mb-2 block text-sm font-medium">
-                                        Template Name
-                                    </label>
-
-                                    <input
-                                        value={
-                                            draft.name
-                                        }
-                                        onChange={event =>
-                                            updateDraft(
-                                                "name",
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950"
-                                    />
-                                </div>
-
-                                <div className="md:col-span-2">
-                                    <label className="mb-2 block text-sm font-medium">
-                                        Description
-                                    </label>
-
-                                    <textarea
-                                        value={
-                                            draft.description
-                                        }
-                                        onChange={event =>
-                                            updateDraft(
-                                                "description",
-                                                event
-                                                    .target
-                                                    .value,
-                                            )
-                                        }
-                                        rows={4}
-                                        className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="mb-2 block text-sm font-medium">
-                                        Project Type
-                                    </label>
-
-                                    <select
-                                        value={
-                                            draft.projectTypeId ??
-                                            ""
-                                        }
-                                        onChange={event =>
-                                            updateDraft(
-                                                "projectTypeId",
-                                                event
-                                                    .target
-                                                    .value
-                                                    ? Number(
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    )
-                                                    : null,
-                                            )
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-4 py-3 dark:border-slate-700 dark:bg-slate-950"
-                                    >
-                                        <option value="">
-                                            Select Project
-                                            Type
-                                        </option>
-
-                                        {MOCK_PROJECT_TYPES.map(
-                                            type => (
-                                                <option
-                                                    key={
-                                                        type.id
-                                                    }
-                                                    value={
-                                                        type.id
-                                                    }
-                                                >
-                                                    {
-                                                        type.name
-                                                    }
-                                                </option>
-                                            ),
-                                        )}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="mb-2 block text-sm font-medium">
-                                        Workflow
-                                    </label>
-
-                                    <select
-                                        value={
-                                            draft.workflowConfigId ??
-                                            ""
-                                        }
-                                        onChange={event =>
-                                            updateDraft(
-                                                "workflowConfigId",
-                                                event
-                                                    .target
-                                                    .value
-                                                    ? Number(
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    )
-                                                    : null,
-                                            )
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-4 py-3 dark:border-slate-700 dark:bg-slate-950"
-                                    >
-                                        <option value="">
-                                            Select Workflow
-                                        </option>
-
-                                        {activeWorkflows.map(
-                                            workflow => (
-                                                <option
-                                                    key={
-                                                        workflow.id
-                                                    }
-                                                    value={
-                                                        workflow.id
-                                                    }
-                                                >
-                                                    {
-                                                        workflow.name
-                                                    }
-                                                </option>
-                                            ),
-                                        )}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="mb-2 block text-sm font-medium">
-                                        Workflow Scope
-                                    </label>
-
-                                    <select
-                                        value={
-                                            draft.workflowScope
-                                        }
-                                        onChange={event =>
-                                            updateDraft(
-                                                "workflowScope",
-                                                event
-                                                    .target
-                                                    .value as
-                                                    | "PROJECT"
-                                                    | "FOLDER",
-                                            )
-                                        }
-                                        className="w-full rounded-lg border border-slate-300 px-4 py-3 dark:border-slate-700 dark:bg-slate-950"
-                                    >
-                                        <option value="PROJECT">
-                                            Project
-                                        </option>
-
-                                        <option value="FOLDER">
-                                            Folder
-                                        </option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950">
-                                <div className="mb-4 text-sm font-semibold">
-                                    Mock Generated
-                                    Summary
-                                </div>
-
-                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                                    <div>
-                                        <div className="text-xs text-slate-400">
-                                            Project Type
-                                        </div>
-
-                                        <div className="mt-1 font-semibold">
-                                            {selectedProjectType?.name ??
-                                                "Not selected"}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-xs text-slate-400">
-                                            Workflow
-                                        </div>
-
-                                        <div className="mt-1 font-semibold">
-                                            {selectedWorkflow?.name ??
-                                                "Not selected"}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-xs text-slate-400">
-                                            Folders
-                                        </div>
-
-                                        <div className="mt-1 text-xl font-bold">
-                                            {
-                                                draft
-                                                    .folders
-                                                    .length
-                                            }
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-xs text-slate-400">
-                                            Roles
-                                        </div>
-
-                                        <div className="mt-1 text-xl font-bold">
-                                            {
-                                                roles.length
-                                            }
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {currentStep ===
-                        "folders" && (
-                        <div className="p-6">
-                            <div className="mb-6 flex items-start justify-between gap-4">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                                        Folders &
-                                        Subfolders
-                                    </h2>
-
-                                    <p className="mt-1 text-sm text-slate-500">
-                                        Review and
-                                        modify the
-                                        generated
-                                        folder
-                                        hierarchy.
-                                    </p>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={
-                                        addRootFolder
-                                    }
-                                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                                >
-                                    <FolderPlus className="h-4 w-4" />
-                                    Add Folder
-                                </button>
-                            </div>
-
-                            <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
-                                    <div className="mb-3 px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                        Folder Tree
-                                    </div>
-
-                                    {draft.folders
-                                        .length ===
-                                    0 ? (
-                                        <div className="p-5 text-center text-sm text-slate-400">
-                                            No folders
-                                        </div>
-                                    ) : (
-                                        renderFolderTree(
-                                            null,
-                                        )
-                                    )}
-                                </div>
-
-                                <div className="space-y-4">
-                                    {draft.folders.map(
-                                        folder => {
-                                            const children =
-                                                getChildren(
-                                                    folder.id,
-                                                );
-
-                                            const parent =
-                                                folder.parentId
-                                                    ? draft.folders.find(
-                                                        item =>
-                                                            item.id ===
-                                                            folder.parentId,
-                                                    )
-                                                    : null;
-
-                                            return (
-                                                <div
-                                                    key={
-                                                        folder.id
-                                                    }
-                                                    className={`rounded-xl border p-5 ${
-                                                        selectedFolderId ===
-                                                        folder.id
-                                                            ? "border-blue-400 bg-blue-50/30 dark:border-blue-700 dark:bg-blue-950/10"
-                                                            : "border-slate-200 dark:border-slate-800"
-                                                    }`}
-                                                >
-                                                    <div className="flex items-start gap-3">
-                                                        <Folder className="mt-2 h-5 w-5 shrink-0 text-amber-500" />
-
-                                                        <div className="min-w-0 flex-1">
-                                                            <label className="mb-2 block text-xs font-medium uppercase text-slate-400">
-                                                                Folder
-                                                                Name
-                                                            </label>
-
-                                                            <input
-                                                                value={
-                                                                    folder.name
-                                                                }
-                                                                onChange={event =>
-                                                                    updateFolderName(
-                                                                        folder.id,
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-                                                            />
-
-                                                            <label className="mb-2 mt-4 block text-xs font-medium uppercase text-slate-400">
-                                                                Description
-                                                            </label>
-
-                                                            <input
-                                                                value={
-                                                                    folder.description
-                                                                }
-                                                                onChange={event =>
-                                                                    updateFolderDescription(
-                                                                        folder.id,
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-                                                            />
-
-                                                            <div className="mt-4 flex flex-wrap gap-2">
-                                                                {parent && (
-                                                                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                                                        Parent:{" "}
-                                                                        {
-                                                                            parent.name
-                                                                        }
-                                                                    </span>
-                                                                )}
-
-                                                                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
-                                                                    {
-                                                                        children.length
-                                                                    }{" "}
-                                                                    subfolder
-                                                                    {children.length !==
-                                                                    1
-                                                                        ? "s"
-                                                                        : ""}
-                                                                </span>
-
-                                                                <span className="rounded-full bg-green-50 px-3 py-1 text-xs text-green-600 dark:bg-green-950/30 dark:text-green-300">
-                                                                    {
-                                                                        folder
-                                                                            .roles
-                                                                            .length
-                                                                    }{" "}
-                                                                    roles
-                                                                </span>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="flex gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    addChildFolder(
-                                                                        folder.id,
-                                                                    )
-                                                                }
-                                                                title="Add subfolder"
-                                                                className="rounded-lg border border-slate-300 p-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
-                                                            >
-                                                                <Plus className="h-4 w-4" />
-                                                            </button>
-
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    deleteFolder(
-                                                                        folder.id,
-                                                                    )
-                                                                }
-                                                                title="Delete folder"
-                                                                className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:hover:bg-red-950/30"
-                                                            >
-                                                                <X className="h-4 w-4" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        },
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {currentStep ===
-                        "roles" && (
-                        <div className="p-6">
-                            <div className="mb-6">
-                                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                                    Roles &
-                                    Assignment
-                                </h2>
-
-                                <p className="mt-1 text-sm text-slate-500">
-                                    Select a folder
-                                    and assign
-                                    one or more
-                                    mock roles.
-                                </p>
-                            </div>
-
-                            <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
-                                    <div className="mb-3 px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                        Folders
-                                    </div>
-
-                                    {draft.folders.map(
-                                        folder => (
-                                            <button
-                                                key={
-                                                    folder.id
-                                                }
-                                                type="button"
-                                                onClick={() =>
-                                                    setSelectedFolderId(
-                                                        folder.id,
-                                                    )
-                                                }
-                                                className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left ${
-                                                    selectedFolderId ===
-                                                    folder.id
-                                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
-                                                        : "hover:bg-white dark:hover:bg-slate-900"
-                                                }`}
-                                            >
-                                                <Folder className="h-4 w-4 text-amber-500" />
-
-                                                <span className="flex-1 truncate text-sm font-medium">
-                                                    {
-                                                        folder.name
-                                                    }
-                                                </span>
-
-                                                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs dark:bg-slate-800">
-                                                    {
-                                                        folder
-                                                            .roles
-                                                            .length
-                                                    }
-                                                </span>
-                                            </button>
-                                        ),
-                                    )}
-                                </div>
-
-                                <div>
-                                    {selectedFolder ? (
-                                        <>
-                                            <div className="mb-5">
-                                                <div className="text-xs uppercase tracking-wide text-slate-400">
-                                                    Assigning
-                                                    roles
-                                                    to
-                                                </div>
-
-                                                <h3 className="mt-1 text-xl font-semibold text-slate-900 dark:text-white">
-                                                    {
-                                                        selectedFolder.name
-                                                    }
-                                                </h3>
-                                            </div>
-
-                                            <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                                {roles.map(
-                                                    role => {
-                                                        const assigned =
-                                                            selectedFolder.roles.includes(
-                                                                role,
-                                                            );
-
-                                                        return (
-                                                            <button
-                                                                key={
-                                                                    role
-                                                                }
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    toggleRole(
-                                                                        selectedFolder.id,
-                                                                        role,
-                                                                    )
-                                                                }
-                                                                className={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
-                                                                    assigned
-                                                                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-                                                                        : "border-slate-200 hover:border-slate-300 dark:border-slate-800"
-                                                                }`}
-                                                            >
-                                                                <div
-                                                                    className={`flex h-5 w-5 items-center justify-center rounded border ${
-                                                                        assigned
-                                                                            ? "border-blue-600 bg-blue-600 text-white"
-                                                                            : "border-slate-300 dark:border-slate-600"
-                                                                    }`}
-                                                                >
-                                                                    {assigned && (
-                                                                        <Check className="h-3 w-3" />
-                                                                    )}
-                                                                </div>
-
-                                                                <UserPlus className="h-4 w-4 text-slate-400" />
-
-                                                                <span className="text-sm font-medium">
-                                                                    {
-                                                                        role
-                                                                    }
-                                                                </span>
-                                                            </button>
-                                                        );
-                                                    },
-                                                )}
-                                            </div>
-
-                                            <div className="rounded-xl border border-dashed border-slate-300 p-5 dark:border-slate-700">
-                                                <div className="mb-3 text-sm font-semibold">
-                                                    Add New
-                                                    Role
-                                                </div>
-
-                                                <div className="flex gap-3">
-                                                    <input
-                                                        value={
-                                                            newRole
-                                                        }
-                                                        onChange={event =>
-                                                            setNewRole(
-                                                                event
-                                                                    .target
-                                                                    .value,
-                                                            )
-                                                        }
-                                                        onKeyDown={event => {
-                                                            if (
-                                                                event.key ===
-                                                                "Enter"
-                                                            ) {
-                                                                event.preventDefault();
-                                                                addRole();
-                                                            }
-                                                        }}
-                                                        placeholder="e.g. Legal Reviewer"
-                                                        className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
-                                                    />
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={
-                                                            addRole
-                                                        }
-                                                        className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900"
-                                                    >
-                                                        <Plus className="h-4 w-4" />
-                                                        Add Role
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-5">
-                                                <div className="mb-3 text-sm font-semibold">
-                                                    Available
-                                                    Roles
-                                                </div>
-
-                                                <div className="flex flex-wrap gap-2">
-                                                    {roles.map(
-                                                        role => (
-                                                            <div
-                                                                key={
-                                                                    role
-                                                                }
-                                                                className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                                                            >
-                                                                {
-                                                                    role
-                                                                }
-
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        removeRole(
-                                                                            role,
-                                                                        )
-                                                                    }
-                                                                    className="text-slate-400 hover:text-red-500"
-                                                                >
-                                                                    <X className="h-3 w-3" />
-                                                                </button>
-                                                            </div>
-                                                        ),
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="flex min-h-[300px] items-center justify-center rounded-xl border border-dashed border-slate-300 text-sm text-slate-400 dark:border-slate-700">
-                                            Select a
-                                            folder to
-                                            assign
-                                            roles.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950">
-                                <div className="mb-4 font-semibold">
-                                    Assignment
-                                    Summary
-                                </div>
-
-                                <div className="grid gap-3 md:grid-cols-2">
-                                    {draft.folders.map(
-                                        folder => (
-                                            <div
-                                                key={
-                                                    folder.id
-                                                }
-                                                className="flex items-center justify-between rounded-lg bg-white px-4 py-3 dark:bg-slate-900"
-                                            >
-                                                <span className="text-sm font-medium">
-                                                    {
-                                                        folder.name
-                                                    }
-                                                </span>
-
-                                                <div className="flex max-w-[60%] flex-wrap justify-end gap-1">
-                                                    {folder.roles
-                                                        .length ===
-                                                    0 ? (
-                                                        <span className="text-xs text-red-500">
-                                                            No
-                                                            roles
-                                                        </span>
-                                                    ) : (
-                                                        folder.roles.map(
-                                                            role => (
-                                                                <span
-                                                                    key={
-                                                                        role
-                                                                    }
-                                                                    className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-600 dark:bg-blue-950/40 dark:text-blue-300"
-                                                                >
-                                                                    {
-                                                                        role
-                                                                    }
-                                                                </span>
-                                                            ),
-                                                        )
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ),
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                <div className="mt-6 flex items-center justify-between">
-                    <button
-                        type="button"
-                        onClick={
-                            goBack
-                        }
-                        disabled={
-                            currentStepIndex ===
-                                0 ||
-                            creatingTemplate
-                        }
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                    >
-                        <ArrowLeft className="h-4 w-4" />
-                        Back
-                    </button>
-
-                    <div className="text-sm text-slate-400">
-                        Step{" "}
-                        {currentStepIndex +
-                            1}{" "}
-                        of{" "}
-                        {STEPS.length}
-                    </div>
-
-                    {currentStep !==
-                    "roles" ? (
-                        <button
-                            type="button"
-                            onClick={
-                                goNext
-                            }
-                            disabled={
-                                creatingTemplate
-                            }
-                            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Continue
-                            <ArrowRight className="h-4 w-4" />
-                        </button>
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={
-                                handleCreateTemplate
-                            }
-                            disabled={
-                                creatingTemplate
-                            }
-                            className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            {creatingTemplate ? (
-                                <>
-                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                    Creating...
-                                </>
-                            ) : (
-                                <>
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    Create
-                                    Template
-                                </>
-                            )}
-                        </button>
-                    )}
-                </div>
-            </div>
+              </button>
+            ) : (
+              <span className="w-6" />
+            )}
+
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedFolderId(
+                  folder.id,
+                )
+              }
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            >
+              <Folder
+                size={17}
+                className="shrink-0 text-amber-500"
+              />
+
+              <span className="truncate font-medium text-gray-800">
+                {folder.name}
+              </span>
+
+              {folder.roles.length > 0 && (
+                <span className="ml-auto shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                  {folder.roles.length} role
+                  {folder.roles.length === 1
+                    ? ""
+                    : "s"}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                addFolder(folder.id)
+              }
+              title="Add child folder"
+              className="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-800"
+            >
+              <Plus size={15} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                deleteFolder(folder.id)
+              }
+              title="Delete folder"
+              className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {hasChildren &&
+            expanded &&
+            renderFolderTree(
+              folder.id,
+              depth + 1,
+            )}
         </div>
-    );
+      );
+    });
+  };
+
+  const renderStepIndicator = () => (
+    <div className="mb-8">
+      <div className="flex items-start justify-between">
+        {STEPS.map((step, index) => {
+          const isActive =
+            step.id === currentStep;
+
+          const isCompleted =
+            index < currentStepIndex;
+
+          return (
+            <div
+              key={step.id}
+              className="flex flex-1 items-start"
+            >
+              <div className="flex flex-col items-center">
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-semibold ${
+                    isCompleted
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : isActive
+                        ? "border-blue-600 bg-white text-blue-600"
+                        : "border-gray-300 bg-white text-gray-400"
+                  }`}
+                >
+                  {isCompleted ? (
+                    <Check size={18} />
+                  ) : (
+                    index + 1
+                  )}
+                </div>
+
+                <div className="mt-2 text-center">
+                  <div
+                    className={`text-sm font-semibold ${
+                      isActive ||
+                      isCompleted
+                        ? "text-gray-900"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {step.label}
+                  </div>
+
+                  <div className="hidden text-xs text-gray-500 md:block">
+                    {step.description}
+                  </div>
+                </div>
+              </div>
+
+              {index < STEPS.length - 1 && (
+                <div
+                  className={`mt-5 h-0.5 flex-1 ${
+                    index < currentStepIndex
+                      ? "bg-blue-600"
+                      : "bg-gray-200"
+                  }`}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const renderSourceStep = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900">
+          Choose template source
+        </h2>
+
+        <p className="mt-1 text-sm text-gray-500">
+          Select how the template structure
+          should be created.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <button
+          type="button"
+          onClick={() =>
+            handleSourceFormatChange(
+              "markdown",
+            )
+          }
+          className={`rounded-xl border-2 p-5 text-left transition ${
+            sourceFormat === "markdown"
+              ? "border-blue-600 bg-blue-50"
+              : "border-gray-200 hover:border-gray-300"
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div
+              className={`rounded-lg p-3 ${
+                sourceFormat === "markdown"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              <FileText size={22} />
+            </div>
+
+            <div>
+              <div className="font-semibold text-gray-900">
+                Markdown
+              </div>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Define the template, folders,
+                roles, and optional role
+                assignments in Markdown.
+              </p>
+            </div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            handleSourceFormatChange("text")
+          }
+          className={`rounded-xl border-2 p-5 text-left transition ${
+            sourceFormat === "text"
+              ? "border-blue-600 bg-blue-50"
+              : "border-gray-200 hover:border-gray-300"
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div
+              className={`rounded-lg p-3 ${
+                sourceFormat === "text"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              <Folder size={22} />
+            </div>
+
+            <div>
+              <div className="font-semibold text-gray-900">
+                Text
+              </div>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Define only the folder
+                hierarchy. Template details
+                are generated automatically
+                and roles are created in the
+                final step.
+              </p>
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
+          <div>
+            <h3 className="font-semibold text-gray-900">
+              {sourceFormat === "markdown"
+                ? "Markdown template definition"
+                : "Folder structure"}
+            </h3>
+
+            <p className="mt-1 text-xs text-gray-500">
+              {uploadedFileName ||
+                "Paste content or upload a file."}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              <Upload size={16} />
+              Upload
+              <input
+                type="file"
+                accept=".md,.markdown,.txt"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={loadMockData}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <RotateCcw size={16} />
+              Load mock
+            </button>
+          </div>
+        </div>
+
+        <div className="p-5">
+          <textarea
+            value={sourceText}
+            onChange={(event) =>
+              updateSourceText(
+                event.target.value,
+              )
+            }
+            rows={18}
+            spellCheck={false}
+            className="w-full resize-y rounded-lg border border-gray-300 bg-gray-50 p-4 font-mono text-sm text-gray-800 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            placeholder={
+              sourceFormat === "markdown"
+                ? "# Template Name\n\nDescription: ...\nProject Type: ...\nWorkflow: ...\n\n## Folders\n### Folder\n#### Subfolder\n\n## Roles\n- Author\n- Editor\n\n## Assignments\n- Author: Folder\n- Editor: Folder/Subfolder"
+                : "Folder\n  Subfolder\n    Nested Folder"
+            }
+          />
+        </div>
+      </div>
+
+      {sourceFormat === "markdown" ? (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+          <h3 className="font-semibold text-blue-900">
+            Markdown format
+          </h3>
+
+          <pre className="mt-3 overflow-x-auto rounded-lg bg-white p-4 text-xs leading-6 text-gray-700">
+{`# Template Name
+
+Description: Template description
+Project Type: Magazine Publishing
+Workflow: Standard Publishing Workflow
+Workflow Scope: PROJECT
+
+## Folders
+
+### Manuscript
+#### Draft
+#### Final
+
+### Review
+#### Content Review
+
+## Roles
+
+- Author
+- Editor
+- Reviewer
+
+## Assignments
+
+- Author: Manuscript, Manuscript/Draft
+- Editor: Review
+- Reviewer: Review/Content Review`}
+          </pre>
+
+          <p className="mt-3 text-xs text-blue-800">
+            Roles from Markdown are carried
+            into the final Roles step, where
+            their folder assignments can still
+            be changed.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+          <h3 className="font-semibold text-gray-900">
+            Text format
+          </h3>
+
+          <pre className="mt-3 rounded-lg bg-white p-4 text-xs leading-6 text-gray-700">
+{`Manuscript
+  Draft
+  Final
+Review
+  Content Review
+  Copy Editing
+Approval
+  Final Approval`}
+          </pre>
+
+          <p className="mt-3 text-xs text-gray-600">
+            Indentation determines folder
+            nesting. Template details are
+            generated automatically, and roles
+            start empty so they can be created
+            and assigned in the final step.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderDetailsStep = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900">
+          Template details
+        </h2>
+
+        <p className="mt-1 text-sm text-gray-500">
+          Review and edit the generated or
+          Markdown-provided template details.
+        </p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="lg:col-span-2">
+          <label className="mb-2 block text-sm font-medium text-gray-700">
+            Template name
+          </label>
+
+          <input
+            value={draft.name}
+            onChange={(event) =>
+              updateDraft({
+                name: event.target.value,
+              })
+            }
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            placeholder="Template name"
+          />
+        </div>
+
+        <div className="lg:col-span-2">
+          <label className="mb-2 block text-sm font-medium text-gray-700">
+            Description
+          </label>
+
+          <textarea
+            value={draft.description}
+            onChange={(event) =>
+              updateDraft({
+                description:
+                  event.target.value,
+              })
+            }
+            rows={4}
+            className="w-full resize-y rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            placeholder="Template description"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700">
+            Project type
+          </label>
+
+          <select
+            value={draft.projectTypeId}
+            onChange={(event) =>
+              updateDraft({
+                projectTypeId: Number(
+                  event.target.value,
+                ),
+              })
+            }
+            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            {MOCK_PROJECT_TYPES.map(
+              (projectType) => (
+                <option
+                  key={projectType.id}
+                  value={projectType.id}
+                >
+                  {projectType.name}
+                </option>
+              ),
+            )}
+          </select>
+
+          {selectedProjectType && (
+            <p className="mt-2 text-xs text-gray-500">
+              {selectedProjectType.description}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700">
+            Workflow
+          </label>
+
+          <select
+            value={draft.workflowConfigId}
+            onChange={(event) =>
+              updateDraft({
+                workflowConfigId: Number(
+                  event.target.value,
+                ),
+              })
+            }
+            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            {activeWorkflows.map(
+              (workflow) => (
+                <option
+                  key={workflow.id}
+                  value={workflow.id}
+                >
+                  {workflow.name}
+                </option>
+              ),
+            )}
+          </select>
+
+          {selectedWorkflow && (
+            <p className="mt-2 text-xs text-gray-500">
+              {selectedWorkflow.description}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700">
+            Workflow scope
+          </label>
+
+          <select
+            value={draft.workflowScope}
+            onChange={(event) =>
+              updateDraft({
+                workflowScope:
+                  event.target.value as WorkflowScope,
+              })
+            }
+            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="PROJECT">
+              Project
+            </option>
+            <option value="FOLDER">
+              Folder
+            </option>
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700">
+            Source
+          </label>
+
+          <div className="flex h-[46px] items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm text-gray-700">
+            {sourceFormat === "markdown" ? (
+              <>
+                <FileText
+                  size={17}
+                  className="text-blue-600"
+                />
+                Markdown
+              </>
+            ) : (
+              <>
+                <Folder
+                  size={17}
+                  className="text-amber-500"
+                />
+                Text
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            Folders
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-gray-900">
+            {draft.folders.length}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            Roles
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-gray-900">
+            {roles.length}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            Workflow
+          </div>
+          <div className="mt-1 truncate text-sm font-semibold text-gray-900">
+            {selectedWorkflow?.name ??
+              "Not selected"}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderFoldersStep = () => (
+    <div className="space-y-6">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">
+            Folder structure
+          </h2>
+
+          <p className="mt-1 text-sm text-gray-500">
+            Review the generated folder
+            hierarchy and make any required
+            changes.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => addFolder(null)}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+        >
+          <FolderPlus size={17} />
+          Add root folder
+        </button>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
+          {draft.folders.length > 0 ? (
+            renderFolderTree(null)
+          ) : (
+            <div className="flex min-h-48 items-center justify-center text-center text-sm text-gray-500">
+              No folders yet.
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+          {selectedFolder ? (
+            <>
+              <div className="flex items-center gap-2">
+                <Folder
+                  size={19}
+                  className="text-amber-500"
+                />
+
+                <h3 className="font-semibold text-gray-900">
+                  Folder details
+                </h3>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Name
+                  </label>
+
+                  <input
+                    value={selectedFolder.name}
+                    onChange={(event) =>
+                      updateFolder(
+                        selectedFolder.id,
+                        {
+                          name: event.target.value,
+                        },
+                      )
+                    }
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Description
+                  </label>
+
+                  <textarea
+                    value={
+                      selectedFolder.description
+                    }
+                    onChange={(event) =>
+                      updateFolder(
+                        selectedFolder.id,
+                        {
+                          description:
+                            event.target.value,
+                        },
+                      )
+                    }
+                    rows={5}
+                    className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Parent
+                  </label>
+
+                  <select
+                    value={
+                      selectedFolder.parentId ??
+                      ""
+                    }
+                    onChange={(event) => {
+                      const newParentId =
+                        event.target.value ||
+                        null;
+
+                      if (
+                        newParentId ===
+                        selectedFolder.id
+                      ) {
+                        return;
+                      }
+
+                      updateFolder(
+                        selectedFolder.id,
+                        {
+                          parentId:
+                            newParentId,
+                        },
+                      );
+                    }}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="">
+                      Root folder
+                    </option>
+
+                    {draft.folders
+                      .filter(
+                        (folder) =>
+                          folder.id !==
+                          selectedFolder.id,
+                      )
+                      .map((folder) => (
+                        <option
+                          key={folder.id}
+                          value={folder.id}
+                        >
+                          {folder.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    addFolder(
+                      selectedFolder.id,
+                    )
+                  }
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  <Plus size={16} />
+                  Add child folder
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    deleteFolder(
+                      selectedFolder.id,
+                    )
+                  }
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                >
+                  <X size={16} />
+                  Delete folder
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex min-h-64 items-center justify-center text-center text-sm text-gray-500">
+              Select a folder to edit its
+              details.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderRolesStep = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900">
+          Roles and assignments
+        </h2>
+
+        <p className="mt-1 text-sm text-gray-500">
+          {sourceFormat === "markdown"
+            ? "Markdown roles have been loaded below. You can add, remove, and reassign them before creating the template."
+            : "Create the project roles here and assign at least one role to every folder."}
+        </p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 p-4">
+            <div className="flex items-center gap-2">
+              <UserPlus
+                size={18}
+                className="text-blue-600"
+              />
+
+              <h3 className="font-semibold text-gray-900">
+                Roles
+              </h3>
+            </div>
+
+            <p className="mt-1 text-xs text-gray-500">
+              {roles.length} role
+              {roles.length === 1 ? "" : "s"}{" "}
+              created
+            </p>
+          </div>
+
+          <div className="p-4">
+            <div className="flex gap-2">
+              <input
+                value={newRole}
+                onChange={(event) =>
+                  setNewRole(
+                    event.target.value,
+                  )
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addRole();
+                  }
+                }}
+                placeholder="Role name"
+                className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+
+              <button
+                type="button"
+                onClick={addRole}
+                className="rounded-lg bg-blue-600 px-3 text-white hover:bg-blue-700"
+                title="Add role"
+              >
+                <Plus size={18} />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {roles.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-300 p-5 text-center text-sm text-gray-500">
+                  No roles yet.
+                  <br />
+                  Add the first role above.
+                </div>
+              ) : (
+                roles.map((role) => (
+                  <div
+                    key={role}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2.5"
+                  >
+                    <span className="truncate text-sm font-medium text-gray-800">
+                      {role}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        removeRole(role)
+                      }
+                      className="shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                      title={`Remove ${role}`}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 p-4">
+            <h3 className="font-semibold text-gray-900">
+              Folder assignments
+            </h3>
+
+            <p className="mt-1 text-xs text-gray-500">
+              Select the roles that should have
+              access to each folder.
+            </p>
+          </div>
+
+          <div className="divide-y divide-gray-100">
+            {draft.folders.map((folder) => (
+              <div
+                key={folder.id}
+                className="p-4"
+              >
+                <div className="flex items-center gap-2">
+                  <Folder
+                    size={17}
+                    className="text-amber-500"
+                  />
+
+                  <div>
+                    <div className="font-medium text-gray-900">
+                      {folder.name}
+                    </div>
+
+                    <div className="text-xs text-gray-500">
+                      {getFolderPathFromTemplateFolders(
+                        draft.folders,
+                        folder.id,
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {roles.length === 0 ? (
+                  <div className="mt-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
+                    Create a role to assign
+                    it to this folder.
+                  </div>
+                ) : (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {roles.map((role) => {
+                      const assigned =
+                        folder.roles.includes(
+                          role,
+                        );
+
+                      return (
+                        <button
+                          key={`${folder.id}-${role}`}
+                          type="button"
+                          onClick={() =>
+                            toggleRoleAssignment(
+                              folder.id,
+                              role,
+                            )
+                          }
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                            assigned
+                              ? "border-blue-600 bg-blue-600 text-white"
+                              : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                          }`}
+                        >
+                          {assigned && (
+                            <Check size={13} />
+                          )}
+                          {role}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-gray-500">
+              Total roles
+            </div>
+
+            <div className="mt-1 text-xl font-semibold text-gray-900">
+              {roles.length}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wide text-gray-500">
+              Folders
+            </div>
+
+            <div className="mt-1 text-xl font-semibold text-gray-900">
+              {draft.folders.length}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wide text-gray-500">
+              Assigned folders
+            </div>
+
+            <div className="mt-1 text-xl font-semibold text-gray-900">
+              {
+                draft.folders.filter(
+                  (folder) =>
+                    folder.roles.length > 0,
+                ).length
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case "source":
+        return renderSourceStep();
+
+      case "details":
+        return renderDetailsStep();
+
+      case "folders":
+        return renderFoldersStep();
+
+      case "roles":
+        return renderRolesStep();
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Create Template
+            </h1>
+
+            <p className="mt-1 text-sm text-gray-500">
+              Build a reusable project template
+              from Markdown or a folder structure.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleReset}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <RotateCcw size={16} />
+            Reset
+          </button>
+        </div>
+
+        {renderStepIndicator()}
+
+        {error && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <X
+              size={18}
+              className="mt-0.5 shrink-0"
+            />
+
+            <div>{error}</div>
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+            <CheckCircle2
+              size={18}
+              className="mt-0.5 shrink-0"
+            />
+
+            <div>{success}</div>
+          </div>
+        )}
+
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div className="p-5 sm:p-8">
+            {renderCurrentStep()}
+          </div>
+
+          <div className="flex flex-col-reverse justify-between gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4 sm:flex-row sm:px-8">
+            <div>
+              {currentStepIndex > 0 && (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  disabled={creatingTemplate}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ArrowLeft size={17} />
+                  Back
+                </button>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              {currentStep === "source" && (
+                <button
+                  type="button"
+                  onClick={handleGenerateTemplate}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                >
+                  Generate Template
+                  <ArrowRight size={17} />
+                </button>
+              )}
+
+              {currentStep !== "source" &&
+                currentStep !== "roles" && (
+                  <button
+                    type="button"
+                    onClick={goNext}
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+                  >
+                    Continue
+                    <ArrowRight size={17} />
+                  </button>
+                )}
+
+              {currentStep === "roles" && (
+                <button
+                  type="button"
+                  onClick={handleCreateTemplate}
+                  disabled={creatingTemplate}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {creatingTemplate ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={17} />
+                      Create Template
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
