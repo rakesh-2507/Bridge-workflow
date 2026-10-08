@@ -77,7 +77,6 @@ export interface ProjectFolder {
   files_count: number;
 }
 
-
 export interface ProjectMember {
   user_id: number;
   user_name: string;
@@ -118,8 +117,13 @@ export async function getProjects() {
   return apiRequest<ProjectsResponse>("/api/getprojects");
 }
 
+/**
+ * Get project details
+ */
 export async function getProject(projectId: number) {
-  return apiRequest<AdminProjectResponse>(`/api/getadminproject/${projectId}`);
+  return apiRequest<AdminProjectResponse>(
+    `/api/getadminproject/${projectId}`,
+  );
 }
 
 /**
@@ -140,6 +144,21 @@ export async function updateProject(
   data: Partial<CreateProjectData>,
 ) {
   return apiRequest<Project>(`/api/updateproject/${projectId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Edit project using the project-template wizard payload.
+ *
+ * PUT /api/editproject/{project_id}
+ */
+export async function editProject(
+  projectId: number,
+  data: CreateProjectFromTemplatePayload,
+) {
+  return apiRequest(`/api/editproject/${projectId}`, {
     method: "PUT",
     body: JSON.stringify(data),
   });

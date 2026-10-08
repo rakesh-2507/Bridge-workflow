@@ -37,6 +37,8 @@ interface ProjectDetailsFormProps {
     onSubmit: (
         data: CreateProjectFromTemplateDetails
     ) => void | Promise<void>;
+
+    isEditMode?: boolean;
 }
 
 interface ProjectType {
@@ -55,6 +57,7 @@ type FieldErrors =
 export default function ProjectDetailsForm({
     initialData,
     onSubmit,
+    isEditMode = false,
 }: ProjectDetailsFormProps) {
     const [formData, setFormData] =
         useState<CreateProjectFromTemplateDetails>(
@@ -81,8 +84,10 @@ export default function ProjectDetailsForm({
     const [isSubmitting, setIsSubmitting] =
         useState(false);
 
-    const [isLoadingTemplateDetails, setIsLoadingTemplateDetails] =
-        useState(false);
+    const [
+        isLoadingTemplateDetails,
+        setIsLoadingTemplateDetails,
+    ] = useState(false);
 
     const [error, setError] =
         useState<string | null>(null);
@@ -123,20 +128,6 @@ export default function ProjectDetailsForm({
                 if (cancelled) {
                     return;
                 }
-
-                /*
-                 * /api/getprojecttemplates currently does not
-                 * expose its successful response schema in Swagger.
-                 *
-                 * The expected structure is:
-                 *
-                 * {
-                 *   templates: [...]
-                 * }
-                 *
-                 * We normalize it here until the backend schema
-                 * is confirmed.
-                 */
 
                 const templateResponse =
                     templatesResponse as {
@@ -251,27 +242,27 @@ export default function ProjectDetailsForm({
     /* =========================================================
      * Template Change
      *
-     * First gets the template from the list.
+     * IMPORTANT:
      *
-     * Then loads:
-     * GET /api/getprojecttemplate/{template_id}
+     * In CREATE mode the template can be changed.
      *
-     * so we get the authoritative workflow_config_id.
+     * In EDIT mode the template is locked because changing
+     * the template could also change the workflow config.
      * ========================================================= */
 
     async function handleTemplateChange(
         templateId: number
     ) {
+        if (isEditMode) {
+            return;
+        }
+
         const selected =
             templates.find(
                 (template) =>
                     template.tid === templateId
             );
 
-        /*
-         * Clear the previous workflow config while the
-         * selected template details are being loaded.
-         */
         setFormData((current) => ({
             ...current,
 
@@ -479,7 +470,8 @@ export default function ProjectDetailsForm({
                 "Please select a template.";
         }
 
-        if (!formData.project_name ||
+        if (
+            !formData.project_name ||
             !formData.project_name.trim()
         ) {
             errors.project_name =
@@ -532,9 +524,8 @@ export default function ProjectDetailsForm({
         }
 
         /*
-         * The selected template must have a workflow
-         * configuration because the next wizard step
-         * uses its workflow levels.
+         * Workflow configuration is required internally,
+         * but it is not editable in edit mode.
          */
         if (
             formData.template_id &&
@@ -653,8 +644,9 @@ export default function ProjectDetailsForm({
                     </div>
 
                     <p className="text-sm text-gray-500">
-                        Select an existing template and
-                        enter the basic project information.
+                        {isEditMode
+                            ? "Update the project information. The existing template and workflow configuration cannot be changed."
+                            : "Select an existing template and enter the basic project information."}
                     </p>
                 </div>
 
@@ -706,6 +698,7 @@ export default function ProjectDetailsForm({
                                     )
                                 }
                                 disabled={
+                                    isEditMode ||
                                     isLoadingTemplateDetails
                                 }
                                 className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100 ${fieldErrors.template_id
@@ -743,6 +736,13 @@ export default function ProjectDetailsForm({
                             )}
                         </div>
 
+                        {isEditMode && (
+                            <p className="mt-1.5 text-xs text-gray-500">
+                                The project template and its workflow configuration
+                                are locked while editing.
+                            </p>
+                        )}
+
                         {fieldErrors.template_id && (
                             <p className="mt-1.5 text-xs text-red-600">
                                 {
@@ -769,7 +769,7 @@ export default function ProjectDetailsForm({
 
                                 {formData.workflow_config_id && (
                                     <p className="mt-2 text-[11px] text-blue-600">
-                                        Workflow configuration loaded.
+                                        Existing workflow configuration is preserved.
                                     </p>
                                 )}
                             </div>

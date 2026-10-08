@@ -40,6 +40,7 @@ import ViewProcess from "./pages/workflow-process/ViewProcess";
 import EditProjectTemplate from "./pages/EditProjectTemplate";
 import MarkdownTemplatePage from "./pages/MarkdownTemplatePage";
 import TemplateCreationWizard from "./pages/TemplateCreationWizard";
+import CreateProjectWizard from "./components/project-create/CreateProjectWizard";
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
@@ -204,6 +205,11 @@ function App() {
             <Route
               path="/project-create"
               element={<ProjectCreation />}
+            />
+
+            <Route
+              path="/projects/:id/edit"
+              element={<CreateProjectWizard mode="edit" />}
             />
 
             {/* =========================

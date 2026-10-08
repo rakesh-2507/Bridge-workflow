@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Check } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Check, Loader2 } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
 
 import ProjectDetailsForm from "./ProjectDetailsForm";
 import FolderScheduleForm from "./FolderScheduleForm";
@@ -15,6 +15,8 @@ import {
 
 import {
   createProjectFromTemplate,
+  editProject,
+  getProject,
 } from "../../api/projects";
 
 import type {
@@ -31,6 +33,12 @@ import type {
 } from "../../api/folders";
 
 type Step = 1 | 2 | 3;
+
+type WizardMode = "create" | "edit";
+
+interface CreateProjectWizardProps {
+  mode?: WizardMode;
+}
 
 const initialProject: CreateProjectFromTemplateDetails = {
   template_id: 0,
@@ -51,18 +59,22 @@ const initialProject: CreateProjectFromTemplateDetails = {
   workflow_config_id: undefined,
 };
 
-export default function CreateProjectWizard() {
+export default function CreateProjectWizard({
+  mode = "create",
+}: CreateProjectWizardProps) {
   const navigate = useNavigate();
+  const { id } = useParams();
+
+  const isEditMode = mode === "edit";
 
   const [step, setStep] = useState<Step>(1);
 
   const [project, setProject] =
     useState<CreateProjectFromTemplateDetails>(
-      initialProject
+      initialProject,
     );
 
-  const [folders, setFolders] =
-    useState<Folder[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
 
   const [folderRoles, setFolderRoles] =
     useState<FolderRolesResponse | null>(null);
@@ -73,18 +85,6 @@ export default function CreateProjectWizard() {
   const [folderAssignments, setFolderAssignments] =
     useState<FolderAssignment[]>([]);
 
-  /*
-   * Workflow levels belonging to the selected
-   * template's workflow configuration.
-   *
-   * These are NOT template roles.
-   *
-   * Example:
-   *
-   * Writer
-   * Reviewer
-   * Editor
-   */
   const [workflowLevels, setWorkflowLevels] =
     useState<WorkflowLevel[]>([]);
 
@@ -94,27 +94,286 @@ export default function CreateProjectWizard() {
   const [isLoadingRoles, setIsLoadingRoles] =
     useState(false);
 
+  const [isLoadingProject, setIsLoadingProject] =
+    useState(isEditMode);
+
   const [isSubmitting, setIsSubmitting] =
     useState(false);
 
   const [error, setError] =
     useState<string | null>(null);
 
-  /* ----------------------------------------
-   * Step 1
-   * ---------------------------------------- */
+  /* =====================================================
+     LOAD EXISTING PROJECT FOR EDIT MODE
+     ===================================================== */
+
+  useEffect(() => {
+    if (!isEditMode) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadExistingProject = async () => {
+      const projectId = Number(id);
+
+      if (!id || !Number.isInteger(projectId)) {
+        setError("Invalid project ID.");
+        setIsLoadingProject(false);
+        return;
+      }
+
+      try {
+        setIsLoadingProject(true);
+        setError(null);
+
+        /*
+         * Get the complete existing project.
+         */
+        const projectResponse =
+          await getProject(projectId);
+
+        if (cancelled) {
+          return;
+        }
+
+        const projectData =
+          projectResponse.data?.project;
+
+        const projectFolders =
+          projectResponse.data?.folders ?? [];
+
+        const members =
+          projectResponse.data?.members ?? [];
+
+        if (!projectData) {
+          throw new Error(
+            "Project details could not be loaded.",
+          );
+        }
+
+        if (!projectData.template_id) {
+          throw new Error(
+            "The existing project does not have a valid template.",
+          );
+        }
+
+        /*
+         * Convert project details into the same
+         * structure used by the create wizard.
+         */
+        const projectDetails: CreateProjectFromTemplateDetails =
+        {
+          template_id:
+            projectData.template_id,
+
+          company_id:
+            projectData.company_id ?? 0,
+
+          project_name:
+            projectData.project_name ?? "",
+
+          project_description:
+            projectData.project_description ?? "",
+
+          start_date:
+            projectData.start_date ?? "",
+
+          end_date:
+            projectData.end_date ?? "",
+
+          member_ids:
+            members.map(
+              (member) => member.user_id,
+            ),
+
+          coordinator:
+            projectData.coordinator ?? 0,
+
+          is_project_manage:
+            projectData.is_project_manage ?? 0,
+
+          projecttype:
+            projectData.projecttype ?? 0,
+
+          workflow_config_id:
+            undefined,
+        };
+
+        /*
+         * Get the complete template.
+         *
+         * This provides:
+         * - workflow_config_id
+         * - workflow levels
+         * - template information
+         */
+        const templateResponse =
+          await getProjectTemplate(
+            projectDetails.template_id,
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        const templateData =
+          templateResponse.data;
+
+        if (!templateData) {
+          throw new Error(
+            "Unable to load the project template.",
+          );
+        }
+
+        /*
+         * Save workflow configuration ID.
+         */
+        projectDetails.workflow_config_id =
+          templateData.template.workflow_config_id;
+
+        /*
+         * Save workflow levels.
+         *
+         * These are independent from
+         * folder roles.
+         */
+        const levels =
+          templateData.workflow_config?.levels ?? [];
+
+        setWorkflowLevels(levels);
+
+        /*
+         * Load actual template folders.
+         */
+        const templateFoldersResponse =
+          await getTemplateFolders(
+            projectDetails.template_id,
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        setFolders(
+          templateFoldersResponse.folders ?? [],
+        );
+
+        /*
+         * Save project details.
+         */
+        setProject(projectDetails);
+
+        /*
+         * Build folder schedules from the
+         * existing project.
+         */
+        const schedules: FolderSchedule[] =
+          projectFolders.map((folder) => ({
+            folder_id:
+              folder.folder_id,
+
+            start_date:
+              folder.start_date ?? "",
+
+            end_date:
+              folder.end_date ?? "",
+          }));
+
+        setFolderSchedules(schedules);
+
+        /*
+         * Load roles configured on the template.
+         */
+        const rolesResponse =
+          await getTemplateFolderRoles(
+            projectDetails.template_id,
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        setFolderRoles(rolesResponse);
+
+        /*
+         * Convert existing project assignments
+         * into the wizard format.
+         *
+         * IMPORTANT:
+         *
+         * workflow_level comes directly from
+         * the API response.
+         *
+         * We never derive it from role.
+         */
+        const assignments: FolderAssignment[] =
+          projectFolders.map((folder) => ({
+            folder_id:
+              folder.folder_id,
+
+            start_date:
+              folder.start_date ?? "",
+
+            end_date:
+              folder.end_date ?? "",
+
+            role_assignments:
+              (folder.assignments ?? []).map(
+                (assignment) => ({
+                  role:
+                    assignment.role,
+
+                  user_id:
+                    assignment.user_id,
+
+                  workflow_level:
+                    assignment.workflow_level ?? "",
+                }),
+              ),
+          }));
+
+        setFolderAssignments(assignments);
+        setStep(1);
+      } catch (err) {
+        console.error(
+          "Failed to load project for editing:",
+          err,
+        );
+
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Unable to load the project.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingProject(false);
+        }
+      }
+    };
+
+    void loadExistingProject();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEditMode]);
+
+  /* =====================================================
+     STEP 1
+     ===================================================== */
 
   const handleProjectSubmit = async (
-    data: CreateProjectFromTemplateDetails
+    data: CreateProjectFromTemplateDetails,
   ) => {
     setError(null);
 
-    /*
-     * A template is required.
-     */
     if (!data.template_id) {
       setError(
-        "Please select a project template."
+        "Please select a project template.",
       );
 
       return;
@@ -124,25 +383,23 @@ export default function CreateProjectWizard() {
       setIsLoadingFolders(true);
 
       /*
-       * Load the COMPLETE selected template.
-       *
-       * This gives us:
-       *
-       * data.template
-       * data.process
-       * data.workflow_config
-       * data.folders
-       *
-       * We specifically use:
-       *
-       * data.workflow_config.levels
-       *
-       * so the workflow levels always belong
-       * to the selected template.
+       * Remember which template was originally
+       * loaded when editing.
+       */
+      const previousTemplateId =
+        project.template_id;
+
+      const templateChanged =
+        isEditMode &&
+        previousTemplateId !== 0 &&
+        previousTemplateId !== data.template_id;
+
+      /*
+       * Load complete template details.
        */
       const templateResponse =
         await getProjectTemplate(
-          data.template_id
+          data.template_id,
         );
 
       const templateData =
@@ -150,79 +407,148 @@ export default function CreateProjectWizard() {
 
       if (!templateData) {
         setError(
-          "Unable to load the selected template details."
+          "Unable to load the selected template details.",
         );
 
         return;
       }
 
       /*
-       * Extract workflow levels from the
-       * selected template.
-       *
-       * Example:
-       *
-       * Writer
-       * Reviewer
-       * Editor
+       * Extract workflow levels.
        */
       const levels =
         templateData.workflow_config?.levels ?? [];
 
       if (levels.length === 0) {
         setError(
-          "The selected workflow does not contain any workflow levels."
+          "The selected workflow does not contain any workflow levels.",
         );
 
         return;
       }
 
-      /*
-       * Save workflow levels for Step 3.
-       */
       setWorkflowLevels(levels);
 
       /*
-       * Save project data.
-       *
-       * Use the workflow_config_id returned by
-       * the actual template API rather than relying
-       * only on the project form.
+       * Save project details.
        */
-      setProject({
+      const updatedProject: CreateProjectFromTemplateDetails =
+      {
         ...data,
         workflow_config_id:
           templateData.template.workflow_config_id,
-      });
+      };
+
+      setProject(updatedProject);
 
       /*
-       * Load template folders.
+       * Load folders belonging to the selected
+       * template.
        */
-      const response =
+      const foldersResponse =
         await getTemplateFolders(
-          data.template_id
+          data.template_id,
         );
 
-      setFolders(response.folders);
+      const templateFolders =
+        foldersResponse.folders ?? [];
+
+      setFolders(templateFolders);
 
       /*
-       * Create initial folder schedules.
+       * If this is CREATE mode, create empty
+       * schedules.
+       *
+       * If this is EDIT mode with the same template,
+       * preserve the existing dates.
+       *
+       * If the template changed, reset everything
+       * because the old folders belong to another
+       * template.
        */
-      const schedules: FolderSchedule[] =
-        response.folders.map((folder) => ({
-          folder_id: folder.fid,
-          start_date: "",
-          end_date: "",
-        }));
+      if (!isEditMode || templateChanged) {
+        const schedules: FolderSchedule[] =
+          templateFolders.map((folder) => ({
+            folder_id:
+              folder.fid,
 
-      setFolderSchedules(schedules);
+            start_date: "",
+            end_date: "",
+          }));
 
-      /*
-       * Clear any old assignments when a
-       * different template is selected.
-       */
-      setFolderAssignments([]);
-      setFolderRoles(null);
+        setFolderSchedules(schedules);
+
+        setFolderAssignments([]);
+
+        setFolderRoles(null);
+      } else {
+        /*
+         * Same template during edit.
+         *
+         * Keep the existing schedules and assignments.
+         *
+         * Add empty entries for any newly available
+         * template folders.
+         */
+        const updatedSchedules: FolderSchedule[] =
+          templateFolders.map((folder) => {
+            const existing =
+              folderSchedules.find(
+                (schedule) =>
+                  schedule.folder_id ===
+                  folder.fid,
+              );
+
+            return {
+              folder_id:
+                folder.fid,
+
+              start_date:
+                existing?.start_date ?? "",
+
+              end_date:
+                existing?.end_date ?? "",
+            };
+          });
+
+        setFolderSchedules(
+          updatedSchedules,
+        );
+
+        setFolderAssignments(
+          (currentAssignments) =>
+            templateFolders.map((folder) => {
+              const existing =
+                currentAssignments.find(
+                  (assignment) =>
+                    assignment.folder_id ===
+                    folder.fid,
+                );
+
+              const schedule =
+                updatedSchedules.find(
+                  (item) =>
+                    item.folder_id ===
+                    folder.fid,
+                );
+
+              return {
+                folder_id:
+                  folder.fid,
+
+                start_date:
+                  schedule?.start_date ?? "",
+
+                end_date:
+                  schedule?.end_date ?? "",
+
+                role_assignments:
+                  existing?.role_assignments ??
+                  [],
+              };
+            }),
+        );
+      }
 
       /*
        * Move to Step 2.
@@ -231,23 +557,23 @@ export default function CreateProjectWizard() {
     } catch (err) {
       console.error(
         "Failed to load template workflow/folders:",
-        err
+        err,
       );
 
       setError(
-        "Unable to load the selected template details."
+        "Unable to load the selected template details.",
       );
     } finally {
       setIsLoadingFolders(false);
     }
   };
 
-  /* ----------------------------------------
-   * Step 2
-   * ---------------------------------------- */
+  /* =====================================================
+     STEP 2
+     ===================================================== */
 
   const handleFolderScheduleSubmit = async (
-    schedules: FolderSchedule[]
+    schedules: FolderSchedule[],
   ) => {
     setError(null);
 
@@ -257,81 +583,78 @@ export default function CreateProjectWizard() {
       setIsLoadingRoles(true);
 
       /*
-       * Load roles configured on the template
-       * folders.
+       * Load roles configured on the template.
        */
       const response =
         await getTemplateFolderRoles(
-          project.template_id
+          project.template_id,
         );
 
       setFolderRoles(response);
 
       /*
-       * Create empty role assignments.
-       *
-       * IMPORTANT:
-       *
-       * We do NOT automatically map:
-       *
-       * role -> workflow level
-       *
-       * Workflow level selection happens
-       * manually in Step 3.
+       * Preserve existing assignments when
+       * editing.
        */
-      const assignments: FolderAssignment[] =
-        schedules.map((schedule) => ({
-          folder_id: schedule.folder_id,
-          start_date: schedule.start_date,
-          end_date: schedule.end_date,
-          role_assignments: [],
-        }));
+      setFolderAssignments(
+        (current) =>
+          schedules.map((schedule) => {
+            const existing =
+              current.find(
+                (assignment) =>
+                  assignment.folder_id ===
+                  schedule.folder_id,
+              );
 
-      setFolderAssignments(assignments);
+            return {
+              folder_id:
+                schedule.folder_id,
 
-      /*
-       * Move to Step 3.
-       */
+              start_date:
+                schedule.start_date,
+
+              end_date:
+                schedule.end_date,
+
+              role_assignments:
+                existing?.role_assignments ??
+                [],
+            };
+          }),
+      );
+
       setStep(3);
     } catch (err) {
       console.error(
         "Failed to load folder roles:",
-        err
+        err,
       );
 
       setError(
-        "Unable to load the roles for the selected template."
+        "Unable to load the roles for the selected template.",
       );
     } finally {
       setIsLoadingRoles(false);
     }
   };
 
-  /* ----------------------------------------
-   * Step 3
-   * ---------------------------------------- */
+  /* =====================================================
+     STEP 3
+     ===================================================== */
 
   const handleCreateProject = async (
-    assignments: FolderAssignment[]
+    assignments: FolderAssignment[],
   ) => {
     setError(null);
 
     /*
-     * Save the latest assignments in state.
+     * Save the latest assignments.
      */
     setFolderAssignments(assignments);
 
     /*
-     * Validate workflow levels before sending.
-     *
-     * Every role assignment must have:
-     *
-     * role
-     * user_id
-     * workflow_level
-     *
-     * The workflow level must be selected
-     * manually in FolderAssignmentForm.
+     * Every assignment must have a manually
+     * selected workflow level.
      */
     for (const folder of assignments) {
       for (const roleAssignment of folder.role_assignments) {
@@ -340,7 +663,7 @@ export default function CreateProjectWizard() {
           !roleAssignment.workflow_level.trim()
         ) {
           setError(
-            `Please select a workflow level for role "${roleAssignment.role}".`
+            `Please select a workflow level for role "${roleAssignment.role}".`,
           );
 
           return;
@@ -349,24 +672,13 @@ export default function CreateProjectWizard() {
     }
 
     /*
-     * Build the exact API payload.
+     * Build the common payload used by both:
      *
-     * IMPORTANT:
-     *
-     * workflow_level comes ONLY from the
-     * manually selected workflow level.
-     *
-     * We do NOT do:
-     *
-     * workflow_level: role
-     *
-     * and we do NOT do:
-     *
-     * workflow_level:
-     *   assignment.workflow_level ||
-     *   assignment.role
+     * CREATE
+     * EDIT
      */
-    const payload: CreateProjectFromTemplatePayload = {
+    const payload: CreateProjectFromTemplatePayload =
+    {
       project: {
         template_id:
           project.template_id,
@@ -400,77 +712,129 @@ export default function CreateProjectWizard() {
       },
 
       folder_assignments:
-        assignments.map((assignment) => ({
-          folder_id:
-            assignment.folder_id,
+        assignments.map(
+          (assignment) => ({
+            folder_id:
+              assignment.folder_id,
 
-          start_date:
-            assignment.start_date,
+            start_date:
+              assignment.start_date,
 
-          end_date:
-            assignment.end_date,
+            end_date:
+              assignment.end_date,
 
-          role_assignments:
-            assignment.role_assignments.map(
-              (roleAssignment) => ({
-                role:
-                  roleAssignment.role,
+            role_assignments:
+              assignment.role_assignments.map(
+                (roleAssignment) => ({
+                  role:
+                    roleAssignment.role,
 
-                user_id:
-                  roleAssignment.user_id,
+                  user_id:
+                    roleAssignment.user_id,
 
-                workflow_level:
-                  roleAssignment.workflow_level,
-              })
-            ),
-        })),
+                  workflow_level:
+                    roleAssignment.workflow_level,
+                }),
+              ),
+          }),
+        ),
     };
 
-    /*
-     * Debug the exact payload sent to the API.
-     */
     console.log(
-      "CREATE PROJECT PAYLOAD:",
+      isEditMode
+        ? "EDIT PROJECT PAYLOAD:"
+        : "CREATE PROJECT PAYLOAD:",
       JSON.stringify(
         payload,
         null,
-        2
-      )
+        2,
+      ),
     );
 
     try {
       setIsSubmitting(true);
 
-      await createProjectFromTemplate(
-        payload
+      /* =================================================
+         CREATE
+         ================================================= */
+
+      if (!isEditMode) {
+        await createProjectFromTemplate(
+          payload,
+        );
+
+        console.log(
+          "Project created successfully.",
+        );
+
+        alert(
+          "Project created successfully!",
+        );
+
+        navigate("/projects");
+
+        return;
+      }
+
+      /* =================================================
+         EDIT
+         ================================================= */
+
+      const projectId = Number(id);
+
+      if (
+        !id ||
+        !Number.isInteger(projectId)
+      ) {
+        setError(
+          "Invalid project ID.",
+        );
+
+        return;
+      }
+
+      /*
+       * PUT /api/editproject/{project_id}
+       */
+      await editProject(
+        projectId,
+        payload,
       );
 
       console.log(
-        "Project created successfully"
+        "Project updated successfully.",
       );
 
       alert(
-        "Project created successfully!"
+        "Project updated successfully!",
       );
 
-      navigate("/projects");
+      navigate(
+        `/projects/${projectId}`,
+      );
     } catch (err) {
       console.error(
-        "Failed to create project:",
-        err
+        isEditMode
+          ? "Failed to update project:"
+          : "Failed to create project:",
+        err,
       );
 
       setError(
-        "Unable to create the project. Please try again."
+        err instanceof Error
+          ? err.message
+          : isEditMode
+            ? "Unable to update the project. Please try again."
+            : "Unable to create the project. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  /* ----------------------------------------
-   * Back
-   * ---------------------------------------- */
+  /* =====================================================
+     BACK
+     ===================================================== */
 
   const handleBack = () => {
     setError(null);
@@ -485,9 +849,30 @@ export default function CreateProjectWizard() {
     }
   };
 
-  /* ----------------------------------------
-   * Steps
-   * ---------------------------------------- */
+  /* =====================================================
+     LOADING EDIT PROJECT
+     ===================================================== */
+
+  if (isLoadingProject) {
+    return (
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="rounded-xl border border-gray-200 bg-white px-6 py-16 text-center shadow-sm">
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <Loader2
+              size={18}
+              className="animate-spin"
+            />
+
+            Loading project...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* =====================================================
+     STEPS
+     ===================================================== */
 
   const steps = [
     {
@@ -504,26 +889,31 @@ export default function CreateProjectWizard() {
     },
   ];
 
-  /* ----------------------------------------
-   * UI
-   * ---------------------------------------- */
+  /* =====================================================
+     UI
+     ===================================================== */
 
   return (
     <div className="mx-auto w-full max-w-6xl">
 
       {/* Header */}
+
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-gray-900">
-          Create Project
+          {isEditMode
+            ? "Edit Project"
+            : "Create Project"}
         </h1>
 
         <p className="mt-1 text-sm text-gray-500">
-          Create a project from an existing
-          template.
+          {isEditMode
+            ? "Update the project details, folder schedules, members and roles."
+            : "Create a project from an existing template."}
         </p>
       </div>
 
       {/* Step indicator */}
+
       <div className="mb-8">
         <div className="flex items-center">
 
@@ -552,12 +942,11 @@ export default function CreateProjectWizard() {
                       border
                       text-sm
                       font-medium
-                      ${
-                        completed
-                          ? "border-green-600 bg-green-600 text-white"
-                          : active
-                            ? "border-blue-600 bg-blue-600 text-white"
-                            : "border-gray-300 bg-white text-gray-500"
+                      ${completed
+                        ? "border-green-600 bg-green-600 text-white"
+                        : active
+                          ? "border-blue-600 bg-blue-600 text-white"
+                          : "border-gray-300 bg-white text-gray-500"
                       }
                     `}
                   >
@@ -573,10 +962,9 @@ export default function CreateProjectWizard() {
                       className={`
                         text-sm
                         font-medium
-                        ${
-                          active
-                            ? "text-gray-900"
-                            : "text-gray-500"
+                        ${active
+                          ? "text-gray-900"
+                          : "text-gray-500"
                         }
                       `}
                     >
@@ -587,19 +975,18 @@ export default function CreateProjectWizard() {
 
                 {index <
                   steps.length - 1 && (
-                  <div
-                    className={`
+                    <div
+                      className={`
                       mx-4
                       h-px
                       flex-1
-                      ${
-                        step > item.number
+                      ${step > item.number
                           ? "bg-green-600"
                           : "bg-gray-200"
-                      }
+                        }
                     `}
-                  />
-                )}
+                    />
+                  )}
               </div>
             );
           })}
@@ -608,6 +995,7 @@ export default function CreateProjectWizard() {
       </div>
 
       {/* Error */}
+
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -615,19 +1003,21 @@ export default function CreateProjectWizard() {
       )}
 
       {/* Main card */}
+
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
 
         {/* Step 1 */}
+
         {step === 1 && (
           <ProjectDetailsForm
             initialData={project}
-            onSubmit={
-              handleProjectSubmit
-            }
+            isEditMode={isEditMode}
+            onSubmit={handleProjectSubmit}
           />
         )}
 
         {/* Step 2 */}
+
         {step === 2 && (
           <FolderScheduleForm
             folders={folders}
@@ -651,6 +1041,7 @@ export default function CreateProjectWizard() {
         )}
 
         {/* Step 3 */}
+
         {step === 3 && (
           <FolderAssignmentForm
             folders={folders}
@@ -659,32 +1050,19 @@ export default function CreateProjectWizard() {
             initialAssignments={
               folderAssignments
             }
-
-            /*
-             * Workflow levels come from:
-             *
-             * GET /api/getprojecttemplate/{template_id}
-             *
-             * -> data.workflow_config.levels
-             *
-             * They are NOT derived from folder roles.
-             */
             workflowLevels={
               workflowLevels
             }
-
+            isEditMode={
+              isEditMode
+            }
             isLoading={
               isLoadingRoles
             }
-
             isSubmitting={
               isSubmitting
             }
-
-            onBack={
-              handleBack
-            }
-
+            onBack={handleBack}
             onSubmit={
               handleCreateProject
             }

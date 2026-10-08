@@ -294,9 +294,9 @@ function ProjectDetails() {
       file.download_url.startsWith(
         "http://"
       ) ||
-      file.download_url.startsWith(
-        "https://"
-      )
+        file.download_url.startsWith(
+          "https://"
+        )
         ? file.download_url
         : file.download_url;
 
@@ -442,7 +442,7 @@ function ProjectDetails() {
 
   const projectStatus =
     project.status !== undefined &&
-    project.status !== null
+      project.status !== null
       ? String(project.status)
       : "—";
 
@@ -497,9 +497,25 @@ function ProjectDetails() {
               )}
             </div>
 
-            <span className="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-              Status: {projectStatus}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(`/projects/${project.project_id}/edit`, {
+                    state: {
+                      project,
+                    },
+                  })
+                }
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+              >
+                Edit Project
+              </button>
+
+              <span className="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                Status: {projectStatus}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -859,7 +875,7 @@ function ProjectDetails() {
                 }{" "}
                 {
                   selectedFolder.files_count ===
-                  1
+                    1
                     ? "file"
                     : "files"
                 }
@@ -892,171 +908,171 @@ function ProjectDetails() {
 
           {selectedFolder.files.length ===
             0 && (
-            <div className="px-6 py-12 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
-                <svg
-                  className="h-6 w-6 text-gray-500 dark:text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 7h4l2 2h12v10H3V7Z"
-                  />
-                </svg>
-              </div>
+              <div className="px-6 py-12 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
+                  <svg
+                    className="h-6 w-6 text-gray-500 dark:text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 7h4l2 2h12v10H3V7Z"
+                    />
+                  </svg>
+                </div>
 
-              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                No files in this folder.
-              </p>
-            </div>
-          )}
+                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                  No files in this folder.
+                </p>
+              </div>
+            )}
 
           {selectedFolder.files.length >
             0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold">
-                      File Name
-                    </th>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                    <tr>
+                      <th className="px-6 py-4 font-semibold">
+                        File Name
+                      </th>
 
-                    <th className="px-6 py-4 font-semibold">
-                      Type
-                    </th>
+                      <th className="px-6 py-4 font-semibold">
+                        Type
+                      </th>
 
-                    <th className="px-6 py-4 font-semibold">
-                      Size
-                    </th>
+                      <th className="px-6 py-4 font-semibold">
+                        Size
+                      </th>
 
-                    <th className="px-6 py-4 font-semibold">
-                      Uploaded By
-                    </th>
+                      <th className="px-6 py-4 font-semibold">
+                        Uploaded By
+                      </th>
 
-                    <th className="px-6 py-4 font-semibold">
-                      Date
-                    </th>
+                      <th className="px-6 py-4 font-semibold">
+                        Date
+                      </th>
 
-                    <th className="px-6 py-4 text-right font-semibold">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
+                      <th className="px-6 py-4 text-right font-semibold">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
 
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {selectedFolder.files.map(
-                    (file) => (
-                      <tr
-                        key={file.pffid}
-                        className="transition hover:bg-gray-50 dark:hover:bg-gray-900"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
-                              <svg
-                                className="h-5 w-5 text-gray-600 dark:text-gray-300"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"
-                                />
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {selectedFolder.files.map(
+                      (file) => (
+                        <tr
+                          key={file.pffid}
+                          className="transition hover:bg-gray-50 dark:hover:bg-gray-900"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+                                <svg
+                                  className="h-5 w-5 text-gray-600 dark:text-gray-300"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"
+                                  />
 
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M14 3v6h6"
-                                />
-                              </svg>
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M14 3v6h6"
+                                  />
+                                </svg>
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-gray-900 dark:text-white">
+                                  {
+                                    file.filename
+                                  }
+                                </p>
+
+                                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                  File #
+                                  {file.pffid}
+                                </p>
+                              </div>
                             </div>
+                          </td>
 
-                            <div className="min-w-0">
-                              <p className="truncate font-medium text-gray-900 dark:text-white">
-                                {
-                                  file.filename
-                                }
-                              </p>
+                          <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                            {file.MIME ||
+                              "—"}
+                          </td>
 
-                              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                File #
-                                {file.pffid}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-gray-600 dark:text-gray-300">
+                            {formatFileSize(
+                              file.filesize
+                            )}
+                          </td>
 
-                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                          {file.MIME ||
-                            "—"}
-                        </td>
+                          <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
+                            User #
+                            {file.uploaded_by ??
+                              "—"}
+                          </td>
 
-                        <td className="whitespace-nowrap px-6 py-4 text-gray-600 dark:text-gray-300">
-                          {formatFileSize(
-                            file.filesize
-                          )}
-                        </td>
-
-                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300">
-                          User #
-                          {file.uploaded_by ??
-                            "—"}
-                        </td>
-
-                        <td className="whitespace-nowrap px-6 py-4 text-gray-600 dark:text-gray-300">
-                          {file.createddate
-                            ? new Date(
+                          <td className="whitespace-nowrap px-6 py-4 text-gray-600 dark:text-gray-300">
+                            {file.createddate
+                              ? new Date(
                                 file.createddate
                               ).toLocaleDateString()
-                            : "—"}
-                        </td>
+                              : "—"}
+                          </td>
 
-                        <td className="px-6 py-4">
-                          <div className="flex justify-end gap-2">
-                            {file.view_url && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void handleViewFile(
-                                    file
-                                  )
-                                }
-                                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                              >
-                                View
-                              </button>
-                            )}
+                          <td className="px-6 py-4">
+                            <div className="flex justify-end gap-2">
+                              {file.view_url && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void handleViewFile(
+                                      file
+                                    )
+                                  }
+                                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                  View
+                                </button>
+                              )}
 
-                            {file.download_url && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleDownloadFile(
-                                    file
-                                  )
-                                }
-                                className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
-                              >
-                                Download
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                              {file.download_url && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDownloadFile(
+                                      file
+                                    )
+                                  }
+                                  className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                                >
+                                  Download
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
         </div>
       )}
 
@@ -1558,10 +1574,10 @@ function ProjectInfo({
 }: {
   label: string;
   value:
-    | string
-    | number
-    | null
-    | undefined;
+  | string
+  | number
+  | null
+  | undefined;
 }) {
   return (
     <div>
@@ -1571,8 +1587,8 @@ function ProjectInfo({
 
       <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
         {value !== null &&
-        value !== undefined &&
-        value !== ""
+          value !== undefined &&
+          value !== ""
           ? String(value)
           : "—"}
       </p>
