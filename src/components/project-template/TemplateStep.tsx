@@ -928,42 +928,6 @@ function TemplateStep({
         )}
       </div>
 
-      {/* WORKFLOW SCOPE */}
-
-      <div>
-        <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Workflow Scope
-        </label>
-
-        <select
-          value={
-            data.workflow_scope ||
-            "FOLDER"
-          }
-          onChange={(e) =>
-            handleChange(
-              "workflow_scope",
-              e.target.value
-            )
-          }
-          className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 dark:bg-gray-800 dark:text-white"
-          required
-        >
-          <option value="FOLDER">
-            Folder
-          </option>
-
-          <option value="PROJECT">
-            Project
-          </option>
-        </select>
-
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          Select whether the workflow should apply
-          at the folder level or project level.
-        </p>
-      </div>
-
       {/* NEXT */}
 
       <div className="flex justify-end pt-4">

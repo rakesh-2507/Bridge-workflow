@@ -13,7 +13,7 @@ export interface ProjectTemplate {
   name_desc: string;
   projecttype: number;
   workflow_config_id?: string;
-  workflow_scope?: string;
+  workflow_scope?: "FOLDER";
   process_id?: number | null;
 }
 
@@ -31,7 +31,7 @@ export interface ProjectTemplateDetails {
   description: string;
   project_type_id: number;
   workflow_config_id: string;
-  workflow_scope: string;
+  workflow_scope: "FOLDER";
 }
 
 /* ----------------------------------------
@@ -75,7 +75,7 @@ export interface GetProjectTemplateTemplate {
   projecttype: number;
   workflow_config_id: string;
   process_id: number | null;
-  workflow_scope: string;
+  workflow_scope: "FOLDER";
 }
 
 export interface GetProjectTemplateProcess {
