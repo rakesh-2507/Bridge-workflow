@@ -14,6 +14,7 @@ import {
     Folder as FolderIcon,
     CalendarDays,
     Loader2,
+    Lock,
 } from "lucide-react";
 
 import type {
@@ -38,25 +39,8 @@ interface FolderAssignmentFormProps {
     initialAssignments:
     FolderAssignment[];
 
-    /*
-     * Workflow levels from the selected
-     * template's workflow configuration.
-     *
-     * Example:
-     *
-     * Writer
-     * Reviewer
-     * Editor
-     */
     workflowLevels: WorkflowLevel[];
 
-    /*
-     * CREATE:
-     * false
-     *
-     * EDIT:
-     * true
-     */
     isEditMode?: boolean;
 
     isLoading?: boolean;
@@ -89,23 +73,20 @@ interface RoleRow {
 }
 
 /*
- * Build the workflow-level selections from
+ * Build workflow-level selections from
  * the existing assignments.
  *
  * IMPORTANT:
  *
- * workflow_level is taken directly from the
- * assignment data.
+ * Workflow level is always taken directly
+ * from the existing assignment.
  *
- * It is NEVER derived from the role name.
+ * It is never derived from the role name.
  */
 function buildWorkflowLevelSelections(
     assignments: FolderAssignment[],
 ): Record<string, string> {
-    const selections: Record<
-        string,
-        string
-    > = {};
+    const selections: Record<string, string> = {};
 
     for (const assignment of assignments) {
         for (const roleAssignment of assignment.role_assignments) {
@@ -151,13 +132,6 @@ export default function FolderAssignmentForm({
        ASSIGNMENTS
        ===================================================== */
 
-    /*
-     * The wizard only mounts this component after
-     * initialAssignments have been prepared.
-     *
-     * Therefore we do not need an effect to copy
-     * props into state.
-     */
     const [assignments, setAssignments] =
         useState<FolderAssignment[]>(
             initialAssignments,
@@ -187,7 +161,7 @@ export default function FolderAssignmentForm({
     ] = useState<Record<string, string>>({});
 
     /* =====================================================
-       DROPDOWN STATE
+       CREATE MODE DROPDOWN STATE
        ===================================================== */
 
     const [openRole, setOpenRole] =
@@ -195,6 +169,23 @@ export default function FolderAssignmentForm({
 
     const [searchValues, setSearchValues] =
         useState<Record<string, string>>({});
+
+    /* =====================================================
+       EDIT MODE USER / FOLDER ACCESS STATE
+       ===================================================== */
+
+    /*
+     * Selected user in edit mode.
+     */
+    const [selectedEditUserId, setSelectedEditUserId] =
+        useState<number | null>(null);
+
+    /*
+     * Search users on the left side of
+     * the edit-mode access screen.
+     */
+    const [editUserSearch, setEditUserSearch] =
+        useState("");
 
     /* =====================================================
        LOAD USERS
@@ -271,6 +262,77 @@ export default function FolderAssignmentForm({
         },
         [folderRoles],
     );
+
+    /* =====================================================
+       EDIT MODE PROJECT USERS
+       ===================================================== */
+
+    /*
+     * Users currently assigned anywhere in the project.
+     *
+     * We intentionally do NOT use all users from
+     * getUsers() here because edit mode is about
+     * changing folder access for existing project
+     * members.
+     */
+    const assignedEditUsers = useMemo<User[]>(
+        () => {
+            const userIds =
+                new Set<number>();
+
+            for (const assignment of assignments) {
+                for (const roleAssignment of assignment.role_assignments) {
+                    userIds.add(
+                        roleAssignment.user_id,
+                    );
+                }
+            }
+
+            return Array.from(userIds)
+                .map((userId) =>
+                    users.find(
+                        (user) =>
+                            user.uid ===
+                            userId,
+                    ),
+                )
+                .filter(
+                    (
+                        user,
+                    ): user is User =>
+                        Boolean(user),
+                );
+        },
+        [assignments, users],
+    );
+
+    /*
+     * Filter project users in edit mode.
+     */
+    const filteredEditUsers =
+        useMemo<User[]>(
+            () => {
+                const search =
+                    editUserSearch
+                        .trim()
+                        .toLowerCase();
+
+                if (!search) {
+                    return assignedEditUsers;
+                }
+
+                return assignedEditUsers.filter(
+                    (user) =>
+                        getUserName(user)
+                            .toLowerCase()
+                            .includes(search),
+                );
+            },
+            [
+                assignedEditUsers,
+                editUserSearch,
+            ],
+        );
 
     /* =====================================================
        USER NAME
@@ -408,6 +470,158 @@ export default function FolderAssignmentForm({
     }
 
     /* =====================================================
+       CHECK WHETHER USER HAS FOLDER ACCESS
+       ===================================================== */
+
+    function userHasFolderAccess(
+        userId: number,
+        folderId: number,
+    ): boolean {
+        const assignment =
+            assignments.find(
+                (item) =>
+                    item.folder_id ===
+                    folderId,
+            );
+
+        if (!assignment) {
+            return false;
+        }
+
+        return assignment.role_assignments.some(
+            (item) =>
+                item.user_id ===
+                userId,
+        );
+    }
+
+    /* =====================================================
+       GET USER'S EXISTING ROLE
+       ===================================================== */
+
+    function getUserExistingRole(
+        userId: number,
+    ): {
+        role: string;
+        workflow_level: string;
+    } | null {
+        /*
+         * First try to find an existing role
+         * for this user.
+         */
+        for (const assignment of assignments) {
+            const roleAssignment =
+                assignment.role_assignments.find(
+                    (item) =>
+                        item.user_id ===
+                        userId,
+                );
+
+            if (roleAssignment) {
+                return {
+                    role:
+                        roleAssignment.role,
+
+                    workflow_level:
+                        roleAssignment.workflow_level,
+                };
+            }
+        }
+
+        return null;
+    }
+
+    /* =====================================================
+       GET ROLE FOR USER + FOLDER
+       ===================================================== */
+
+    function getRoleForUserFolder(
+        userId: number,
+        folderId: number,
+    ): {
+        role: string;
+        workflow_level: string;
+    } | null {
+        /*
+         * If the user already has an assignment
+         * in this folder, preserve it exactly.
+         */
+        const existingFolder =
+            assignments.find(
+                (assignment) =>
+                    assignment.folder_id ===
+                    folderId,
+            );
+
+        const existingRole =
+            existingFolder?.role_assignments.find(
+                (item) =>
+                    item.user_id ===
+                    userId,
+            );
+
+        if (existingRole) {
+            return {
+                role:
+                    existingRole.role,
+
+                workflow_level:
+                    existingRole.workflow_level,
+            };
+        }
+
+        /*
+         * When granting access to a new folder,
+         * use the user's existing project role.
+         */
+        const userRole =
+            getUserExistingRole(
+                userId,
+            );
+
+        if (userRole) {
+            return userRole;
+        }
+
+        /*
+         * Final fallback:
+         *
+         * Use the first role configured on
+         * the target folder.
+         *
+         * This is only relevant if the user
+         * has no existing assignment anywhere.
+         */
+        const folderRoleData =
+            folderRoles?.folders.find(
+                (item) =>
+                    item.folder_id ===
+                    folderId,
+            );
+
+        const firstRole =
+            folderRoleData?.roles?.[0];
+
+        if (!firstRole) {
+            return null;
+        }
+
+        const workflowLevel =
+            getSelectedWorkflowLevel(
+                folderId,
+                firstRole.role,
+            );
+
+        return {
+            role:
+                firstRole.role,
+
+            workflow_level:
+                workflowLevel,
+        };
+    }
+
+    /* =====================================================
        UPDATE WORKFLOW LEVEL
        ===================================================== */
 
@@ -416,6 +630,10 @@ export default function FolderAssignmentForm({
         role: string,
         workflowLevel: string,
     ) {
+        /*
+         * Workflow mappings are completely
+         * locked while editing.
+         */
         if (isEditMode) {
             return;
         }
@@ -429,7 +647,8 @@ export default function FolderAssignmentForm({
         setWorkflowLevelSelections(
             (current) => ({
                 ...current,
-                [key]: workflowLevel,
+                [key]:
+                    workflowLevel,
             }),
         );
 
@@ -446,6 +665,7 @@ export default function FolderAssignmentForm({
 
                         return {
                             ...assignment,
+
                             role_assignments:
                                 assignment.role_assignments.map(
                                     (item) =>
@@ -507,7 +727,8 @@ export default function FolderAssignmentForm({
                  * Folder does not have an assignment yet.
                  */
                 if (
-                    assignmentIndex === -1
+                    assignmentIndex ===
+                    -1
                 ) {
                     const schedule =
                         schedules.find(
@@ -619,9 +840,6 @@ export default function FolderAssignmentForm({
             },
         );
 
-        /*
-         * Clear validation error.
-         */
         const key =
             getRoleKey(
                 folderId,
@@ -717,10 +935,246 @@ export default function FolderAssignmentForm({
     }
 
     /* =====================================================
+       EDIT MODE: TOGGLE FOLDER ACCESS
+       ===================================================== */
+
+    function toggleFolderAccess(
+        userId: number,
+        folderId: number,
+        hasAccess: boolean,
+    ) {
+        if (isSubmitting) {
+            return;
+        }
+
+        /*
+         * REMOVE ACCESS
+         */
+        if (hasAccess) {
+            setAssignments(
+                (current) =>
+                    current.map(
+                        (assignment) => {
+                            if (
+                                assignment.folder_id !==
+                                folderId
+                            ) {
+                                return assignment;
+                            }
+
+                            return {
+                                ...assignment,
+
+                                role_assignments:
+                                    assignment.role_assignments.filter(
+                                        (item) =>
+                                            item.user_id !==
+                                            userId,
+                                    ),
+                            };
+                        },
+                    ),
+            );
+
+            return;
+        }
+
+        /*
+         * GRANT ACCESS
+         */
+
+        const roleMapping =
+            getRoleForUserFolder(
+                userId,
+                folderId,
+            );
+
+        if (!roleMapping) {
+            setError(
+                "Unable to determine a role for this user on the selected folder.",
+            );
+
+            return;
+        }
+
+        if (
+            !roleMapping.workflow_level
+        ) {
+            setError(
+                "Unable to determine the existing workflow level for this user.",
+            );
+
+            return;
+        }
+
+        setError(null);
+
+        setAssignments(
+            (current) => {
+                const existingIndex =
+                    current.findIndex(
+                        (assignment) =>
+                            assignment.folder_id ===
+                            folderId,
+                    );
+
+                /*
+                 * Create folder assignment.
+                 */
+                if (
+                    existingIndex ===
+                    -1
+                ) {
+                    const schedule =
+                        schedules.find(
+                            (item) =>
+                                item.folder_id ===
+                                folderId,
+                        );
+
+                    const newAssignment:
+                        FolderAssignment = {
+                        folder_id:
+                            folderId,
+
+                        start_date:
+                            schedule?.start_date ??
+                            "",
+
+                        end_date:
+                            schedule?.end_date ??
+                            "",
+
+                        role_assignments: [
+                            {
+                                role:
+                                    roleMapping.role,
+
+                                user_id:
+                                    userId,
+
+                                workflow_level:
+                                    roleMapping.workflow_level,
+                            },
+                        ],
+                    };
+
+                    return [
+                        ...current,
+                        newAssignment,
+                    ];
+                }
+
+                /*
+                 * Add user to existing folder.
+                 */
+                return current.map(
+                    (
+                        assignment,
+                        index,
+                    ) => {
+                        if (
+                            index !==
+                            existingIndex
+                        ) {
+                            return assignment;
+                        }
+
+                        const alreadyExists =
+                            assignment.role_assignments.some(
+                                (item) =>
+                                    item.user_id ===
+                                    userId,
+                            );
+
+                        if (
+                            alreadyExists
+                        ) {
+                            return assignment;
+                        }
+
+                        return {
+                            ...assignment,
+
+                            role_assignments: [
+                                ...assignment.role_assignments,
+
+                                {
+                                    role:
+                                        roleMapping.role,
+
+                                    user_id:
+                                        userId,
+
+                                    workflow_level:
+                                        roleMapping.workflow_level,
+                                },
+                            ],
+                        };
+                    },
+                );
+            },
+        );
+    }
+
+    /* =====================================================
+       EDIT MODE: USER FOLDER ACCESS COUNT
+       ===================================================== */
+
+    function getUserAccessCount(
+        userId: number,
+    ): number {
+        return folders.filter(
+            (folder) =>
+                userHasFolderAccess(
+                    userId,
+                    folder.fid,
+                ),
+        ).length;
+    }
+
+    /* =====================================================
+       EDIT MODE: CURRENT USER
+       ===================================================== */
+
+    const effectiveSelectedEditUserId =
+        selectedEditUserId !== null &&
+            assignedEditUsers.some(
+                (user) => user.uid === selectedEditUserId,
+            )
+            ? selectedEditUserId
+            : assignedEditUsers[0]?.uid ?? null;
+
+    const selectedEditUser =
+        effectiveSelectedEditUserId !== null
+            ? getUser(effectiveSelectedEditUserId)
+            : undefined;
+
+    /* =====================================================
        VALIDATE
        ===================================================== */
 
     function validate(): boolean {
+        /*
+         * Edit mode uses folder-access
+         * selection instead of role-level
+         * validation.
+         */
+        if (isEditMode) {
+            if (
+                assignedEditUsers.length ===
+                0
+            ) {
+                setError(
+                    "No assigned users were found for this project.",
+                );
+
+                return false;
+            }
+
+            return true;
+        }
+
         const errors:
             Record<string, string> = {};
 
@@ -744,9 +1198,6 @@ export default function FolderAssignmentForm({
                         row.role,
                     );
 
-                /*
-                 * Workflow level missing and users missing.
-                 */
                 if (
                     !workflowLevel &&
                     selectedUsers.length ===
@@ -758,9 +1209,6 @@ export default function FolderAssignmentForm({
                     return;
                 }
 
-                /*
-                 * Workflow level missing.
-                 */
                 if (!workflowLevel) {
                     errors[key] =
                         `Please select a workflow level for ${row.role}.`;
@@ -768,9 +1216,6 @@ export default function FolderAssignmentForm({
                     return;
                 }
 
-                /*
-                 * User missing.
-                 */
                 if (
                     selectedUsers.length ===
                     0
@@ -806,6 +1251,10 @@ export default function FolderAssignmentForm({
          * Build complete assignments from
          * current folders + schedules + selected
          * users/workflow levels.
+         *
+         * In edit mode, workflow levels are
+         * ALWAYS preserved from the current
+         * assignment.
          */
         const completeAssignments:
             FolderAssignment[] =
@@ -910,7 +1359,6 @@ export default function FolderAssignmentForm({
 
         return (
             <div className="mb-3">
-
                 <label className="mb-1.5 block text-xs font-medium text-gray-600">
                     Workflow Level{" "}
                     <span className="text-red-500">
@@ -987,13 +1435,12 @@ export default function FolderAssignmentForm({
                             : "No actions configured"}
                     </p>
                 )}
-
             </div>
         );
     }
 
     /* =====================================================
-       RENDER ROLE SELECTOR
+       RENDER ROLE SELECTOR - CREATE MODE
        ===================================================== */
 
     function renderRoleSelector(
@@ -1048,9 +1495,6 @@ export default function FolderAssignmentForm({
                 className="rounded-lg border border-gray-200 bg-white"
             >
                 <div className="px-4 py-3">
-
-                    {/* ROLE NAME */}
-
                     <div className="mb-3 flex items-center justify-between">
                         <div>
                             <label className="text-sm font-medium text-gray-800">
@@ -1074,14 +1518,10 @@ export default function FolderAssignmentForm({
                             )}
                     </div>
 
-                    {/* WORKFLOW LEVEL */}
-
                     {renderWorkflowLevelSelector(
                         folderId,
                         role,
                     )}
-
-                    {/* USERS */}
 
                     <label className="mb-1.5 block text-xs font-medium text-gray-600">
                         Users{" "}
@@ -1090,10 +1530,7 @@ export default function FolderAssignmentForm({
                         </span>
                     </label>
 
-                    {/* USER DROPDOWN */}
-
                     <div className="relative">
-
                         <button
                             type="button"
                             disabled={
@@ -1132,7 +1569,6 @@ export default function FolderAssignmentForm({
               `}
                         >
                             <div className="min-w-0 flex-1">
-
                                 {selectedUsers.length ===
                                     0 ? (
                                     <span className="text-gray-400">
@@ -1140,7 +1576,6 @@ export default function FolderAssignmentForm({
                                     </span>
                                 ) : (
                                     <div className="flex flex-wrap gap-1.5">
-
                                         {selectedUsers
                                             .slice(
                                                 0,
@@ -1196,10 +1631,8 @@ export default function FolderAssignmentForm({
                                                     more
                                                 </span>
                                             )}
-
                                     </div>
                                 )}
-
                             </div>
 
                             <ChevronDown
@@ -1217,17 +1650,10 @@ export default function FolderAssignmentForm({
                             />
                         </button>
 
-                        {/* DROPDOWN MENU */}
-
                         {isOpen && (
                             <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
-
-                                {/* SEARCH */}
-
                                 <div className="border-b border-gray-100 p-2">
-
                                     <div className="relative">
-
                                         <Search
                                             size={16}
                                             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -1239,7 +1665,8 @@ export default function FolderAssignmentForm({
                                             value={
                                                 searchValues[
                                                 key
-                                                ] ?? ""
+                                                ] ??
+                                                ""
                                             }
                                             onChange={(
                                                 event,
@@ -1259,15 +1686,10 @@ export default function FolderAssignmentForm({
                                             placeholder="Search users..."
                                             className="w-full rounded-md border border-gray-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                                         />
-
                                     </div>
-
                                 </div>
 
-                                {/* USER LIST */}
-
                                 <div className="max-h-64 overflow-y-auto p-1">
-
                                     {filteredUsers.length ===
                                         0 ? (
                                         <div className="px-3 py-6 text-center text-sm text-gray-500">
@@ -1313,9 +1735,6 @@ export default function FolderAssignmentForm({
                                                             }
                             `}
                                                     >
-
-                                                        {/* CHECKBOX */}
-
                                                         <span
                                                             className={`
                                 flex
@@ -1345,8 +1764,6 @@ export default function FolderAssignmentForm({
                                                             )}
                                                         </span>
 
-                                                        {/* AVATAR */}
-
                                                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600">
                                                             {getUserName(
                                                                 user,
@@ -1357,10 +1774,7 @@ export default function FolderAssignmentForm({
                                                                 .toUpperCase()}
                                                         </span>
 
-                                                        {/* USER NAME */}
-
                                                         <span className="min-w-0 flex-1">
-
                                                             <span className="block truncate text-sm font-medium text-gray-800">
                                                                 {getUserName(
                                                                     user,
@@ -1374,29 +1788,21 @@ export default function FolderAssignmentForm({
                                                                     }
                                                                 </span>
                                                             )}
-
                                                         </span>
-
-                                                        {/* SELECTED */}
 
                                                         {selected && (
                                                             <span className="text-xs font-medium text-blue-600">
                                                                 Selected
                                                             </span>
                                                         )}
-
                                                     </button>
                                                 );
                                             },
                                         )
                                     )}
-
                                 </div>
 
-                                {/* DROPDOWN FOOTER */}
-
                                 <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-3 py-2">
-
                                     <span className="text-xs text-gray-500">
                                         {
                                             selectedUsers.length
@@ -1425,15 +1831,10 @@ export default function FolderAssignmentForm({
                                     >
                                         Done
                                     </button>
-
                                 </div>
-
                             </div>
                         )}
-
                     </div>
-
-                    {/* VALIDATION */}
 
                     {roleError && (
                         <p className="mt-2 text-xs text-red-600">
@@ -1441,11 +1842,8 @@ export default function FolderAssignmentForm({
                         </p>
                     )}
 
-                    {/* CURRENT MAPPING */}
-
                     {selectedWorkflowLevel && (
                         <div className="mt-3 rounded-md bg-gray-50 px-3 py-2">
-
                             <p className="text-xs text-gray-500">
                                 Workflow mapping
                             </p>
@@ -1462,17 +1860,15 @@ export default function FolderAssignmentForm({
                                     }
                                 </span>
                             </p>
-
                         </div>
                     )}
-
                 </div>
             </div>
         );
     }
 
     /* =====================================================
-       FOLDER RENDERER
+       FOLDER RENDERER - CREATE MODE
        ===================================================== */
 
     function renderFolder(
@@ -1498,13 +1894,7 @@ export default function FolderAssignmentForm({
 
         return (
             <div key={folder.fid}>
-
-                {/* FOLDER */}
-
                 <div className="overflow-visible rounded-xl border border-gray-200 bg-white">
-
-                    {/* HEADER */}
-
                     <div
                         className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-4"
                         style={{
@@ -1514,14 +1904,12 @@ export default function FolderAssignmentForm({
                                 }px`,
                         }}
                     >
-
                         <FolderIcon
                             size={19}
                             className="shrink-0 text-blue-600"
                         />
 
                         <div className="min-w-0 flex-1">
-
                             <p className="text-sm font-semibold text-gray-900">
                                 {folder.fname}
                             </p>
@@ -1533,14 +1921,10 @@ export default function FolderAssignmentForm({
                                     }
                                 </p>
                             )}
-
                         </div>
-
-                        {/* SCHEDULE */}
 
                         {schedule && (
                             <div className="hidden items-center gap-3 text-xs text-gray-500 md:flex">
-
                                 <span className="inline-flex items-center gap-1">
                                     <CalendarDays
                                         size={13}
@@ -1560,26 +1944,19 @@ export default function FolderAssignmentForm({
                                         schedule.end_date
                                     }
                                 </span>
-
                             </div>
                         )}
-
                     </div>
 
-                    {/* ROLES */}
-
                     <div className="space-y-3 p-4">
-
                         {!folderRoleData ||
                             folderRoleData.roles
                                 .length === 0 ? (
                             <div className="rounded-lg border border-dashed border-gray-200 px-4 py-6 text-center">
-
                                 <p className="text-sm text-gray-500">
                                     No roles configured
                                     for this folder.
                                 </p>
-
                             </div>
                         ) : (
                             folderRoleData.roles.map(
@@ -1592,11 +1969,459 @@ export default function FolderAssignmentForm({
                                     ),
                             )
                         )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
+    /* =====================================================
+       EDIT MODE USER ACCESS UI
+       ===================================================== */
+
+    function renderEditMode() {
+        return (
+            <div className="p-6 sm:p-8">
+                {/* HEADER */}
+
+                <div className="mb-6">
+                    <div className="flex items-center gap-2">
+                        <Users
+                            size={20}
+                            className="text-blue-600"
+                        />
+
+                        <h2 className="text-lg font-semibold text-gray-900">
+                            Members & Folder Access
+                        </h2>
                     </div>
 
+                    <p className="mt-1 text-sm text-gray-500">
+                        Select a project member on the left,
+                        then choose which folders that user
+                        can access.
+                    </p>
                 </div>
 
+                {/* ERROR */}
+
+                {error && (
+                    <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {error}
+                    </div>
+                )}
+
+                {/* WORKFLOW LOCK NOTICE */}
+
+                <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4">
+                    <Lock
+                        size={18}
+                        className="mt-0.5 shrink-0 text-amber-600"
+                    />
+
+                    <div>
+                        <p className="text-sm font-medium text-amber-900">
+                            Workflow configuration is locked
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-amber-700">
+                            Existing roles and workflow levels
+                            are preserved. You can only change
+                            folder access for project members.
+                        </p>
+                    </div>
+                </div>
+
+                {/* ACCESS EDITOR */}
+
+                <div className="grid min-h-[520px] grid-cols-1 overflow-hidden rounded-xl border border-gray-200 bg-white lg:grid-cols-[300px_minmax(0,1fr)]">
+                    {/* LEFT - USERS */}
+
+                    <div className="border-b border-gray-200 bg-gray-50 lg:border-b-0 lg:border-r">
+                        <div className="border-b border-gray-200 p-4">
+                            <div className="mb-3 flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900">
+                                        Project Members
+                                    </p>
+
+                                    <p className="mt-0.5 text-xs text-gray-500">
+                                        {
+                                            assignedEditUsers.length
+                                        }{" "}
+                                        assigned users
+                                    </p>
+                                </div>
+
+                                <Users
+                                    size={18}
+                                    className="text-blue-600"
+                                />
+                            </div>
+
+                            {/* SEARCH */}
+
+                            <div className="relative">
+                                <Search
+                                    size={16}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                                />
+
+                                <input
+                                    type="text"
+                                    value={
+                                        editUserSearch
+                                    }
+                                    onChange={(
+                                        event,
+                                    ) =>
+                                        setEditUserSearch(
+                                            event.target
+                                                .value,
+                                        )
+                                    }
+                                    placeholder="Search members..."
+                                    className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                />
+                            </div>
+                        </div>
+
+                        {/* USER LIST */}
+
+                        <div className="max-h-[560px] overflow-y-auto p-2">
+                            {filteredEditUsers.length ===
+                                0 ? (
+                                <div className="px-4 py-10 text-center">
+                                    <Users
+                                        size={28}
+                                        className="mx-auto mb-2 text-gray-300"
+                                    />
+
+                                    <p className="text-sm text-gray-500">
+                                        No project members
+                                        found.
+                                    </p>
+                                </div>
+                            ) : (
+                                filteredEditUsers.map(
+                                    (
+                                        user,
+                                    ) => {
+                                        const selected =
+                                            effectiveSelectedEditUserId === user.uid;
+
+                                        const accessCount =
+                                            getUserAccessCount(
+                                                user.uid,
+                                            );
+
+                                        return (
+                                            <button
+                                                key={
+                                                    user.uid
+                                                }
+                                                type="button"
+                                                onClick={() =>
+                                                    setSelectedEditUserId(
+                                                        user.uid,
+                                                    )
+                                                }
+                                                className={`
+                          mb-1 flex
+                          w-full
+                          items-center
+                          gap-3
+                          rounded-lg
+                          px-3
+                          py-3
+                          text-left
+                          transition
+                          ${selected
+                                                        ? "bg-blue-50 ring-1 ring-blue-200"
+                                                        : "hover:bg-white"
+                                                    }
+                        `}
+                                            >
+                                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
+                                                    {getUserName(
+                                                        user,
+                                                    )
+                                                        .charAt(
+                                                            0,
+                                                        )
+                                                        .toUpperCase()}
+                                                </span>
+
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block truncate text-sm font-medium text-gray-800">
+                                                        {getUserName(
+                                                            user,
+                                                        )}
+                                                    </span>
+
+                                                    {user.username && (
+                                                        <span className="block truncate text-xs text-gray-400">
+                                                            {
+                                                                user.username
+                                                            }
+                                                        </span>
+                                                    )}
+
+                                                    <span className="mt-0.5 block text-xs text-gray-500">
+                                                        {
+                                                            accessCount
+                                                        }{" "}
+                                                        of{" "}
+                                                        {
+                                                            folders.length
+                                                        }{" "}
+                                                        folders
+                                                    </span>
+                                                </span>
+
+                                                {selected && (
+                                                    <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-600" />
+                                                )}
+                                            </button>
+                                        );
+                                    },
+                                )
+                            )}
+                        </div>
+                    </div>
+
+                    {/* RIGHT - FOLDERS */}
+
+                    <div className="min-w-0 bg-white">
+                        <div className="border-b border-gray-200 px-5 py-4">
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900">
+                                        Folder Access
+                                    </p>
+
+                                    {selectedEditUser && (
+                                        <p className="mt-0.5 text-xs text-gray-500">
+                                            Set folder access
+                                            for{" "}
+                                            <span className="font-medium text-gray-700">
+                                                {
+                                                    getUserName(
+                                                        selectedEditUser,
+                                                    )
+                                                }
+                                            </span>
+                                        </p>
+                                    )}
+                                </div>
+
+                                {selectedEditUser && (
+                                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                                        {
+                                            getUserAccessCount(
+                                                selectedEditUser.uid,
+                                            )
+                                        }{" "}
+                                        /{" "}
+                                        {
+                                            folders.length
+                                        }{" "}
+                                        accessible
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        {!selectedEditUser ? (
+                            <div className="flex min-h-[430px] items-center justify-center p-8 text-center">
+                                <div>
+                                    <Users
+                                        size={36}
+                                        className="mx-auto mb-3 text-gray-300"
+                                    />
+
+                                    <p className="text-sm font-medium text-gray-600">
+                                        Select a project member
+                                    </p>
+
+                                    <p className="mt-1 text-xs text-gray-400">
+                                        Choose a user from the
+                                        left to manage folder
+                                        access.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <div className="min-w-[620px]">
+                                    {/* TABLE HEADER */}
+
+                                    <div className="grid grid-cols-[minmax(0,1fr)_120px_120px] items-center border-b border-gray-100 bg-gray-50 px-5 py-3">
+                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            Folder
+                                        </div>
+
+                                        <div className="text-center text-xs font-semibold uppercase tracking-wide text-green-600">
+                                            Access
+                                        </div>
+
+                                        <div className="text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            No Access
+                                        </div>
+                                    </div>
+
+                                    {/* FOLDER ROWS */}
+
+                                    <div className="divide-y divide-gray-100">
+                                        {folders.map(
+                                            (
+                                                folder,
+                                            ) => {
+                                                const hasAccess =
+                                                    userHasFolderAccess(
+                                                        selectedEditUser.uid,
+                                                        folder.fid,
+                                                    );
+
+                                                const schedule =
+                                                    schedules.find(
+                                                        (item) =>
+                                                            item.folder_id ===
+                                                            folder.fid,
+                                                    );
+
+                                                return (
+                                                    <div
+                                                        key={
+                                                            folder.fid
+                                                        }
+                                                        className="grid grid-cols-[minmax(0,1fr)_120px_120px] items-center px-5 py-4 transition hover:bg-gray-50"
+                                                    >
+                                                        {/* FOLDER */}
+
+                                                        <div className="flex min-w-0 items-center gap-3">
+                                                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                                                                <FolderIcon
+                                                                    size={
+                                                                        18
+                                                                    }
+                                                                    className="text-blue-600"
+                                                                />
+                                                            </span>
+
+                                                            <div className="min-w-0">
+                                                                <p className="truncate text-sm font-medium text-gray-800">
+                                                                    {
+                                                                        folder.fname
+                                                                    }
+                                                                </p>
+
+                                                                {folder.fnamedesc && (
+                                                                    <p className="mt-0.5 truncate text-xs text-gray-400">
+                                                                        {
+                                                                            folder.fnamedesc
+                                                                        }
+                                                                    </p>
+                                                                )}
+
+                                                                {schedule && (
+                                                                    <p className="mt-1 flex items-center gap-1 text-xs text-gray-400">
+                                                                        <CalendarDays
+                                                                            size={
+                                                                                12
+                                                                            }
+                                                                        />
+
+                                                                        {
+                                                                            schedule.start_date
+                                                                        }
+
+                                                                        <span>
+                                                                            →
+                                                                        </span>
+
+                                                                        {
+                                                                            schedule.end_date
+                                                                        }
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* ACCESS */}
+
+                                                        <div className="flex justify-center">
+                                                            <label className="inline-flex cursor-pointer items-center justify-center">
+                                                                <input
+                                                                    type="radio"
+                                                                    name={`folder-access-${selectedEditUser.uid}-${folder.fid}`}
+                                                                    checked={
+                                                                        hasAccess
+                                                                    }
+                                                                    disabled={
+                                                                        isSubmitting
+                                                                    }
+                                                                    onChange={() =>
+                                                                        toggleFolderAccess(
+                                                                            selectedEditUser.uid,
+                                                                            folder.fid,
+                                                                            false,
+                                                                        )
+                                                                    }
+                                                                    className="h-5 w-5 accent-green-600"
+                                                                />
+                                                            </label>
+                                                        </div>
+
+                                                        {/* NO ACCESS */}
+
+                                                        <div className="flex justify-center">
+                                                            <label className="inline-flex cursor-pointer items-center justify-center">
+                                                                <input
+                                                                    type="radio"
+                                                                    name={`folder-access-${selectedEditUser.uid}-${folder.fid}`}
+                                                                    checked={
+                                                                        !hasAccess
+                                                                    }
+                                                                    disabled={
+                                                                        isSubmitting
+                                                                    }
+                                                                    onChange={() =>
+                                                                        toggleFolderAccess(
+                                                                            selectedEditUser.uid,
+                                                                            folder.fid,
+                                                                            true,
+                                                                        )
+                                                                    }
+                                                                    className="h-5 w-5 accent-gray-500"
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            },
+                                        )}
+                                    </div>
+
+                                    {folders.length ===
+                                        0 && (
+                                            <div className="px-6 py-12 text-center">
+                                                <FolderIcon
+                                                    size={32}
+                                                    className="mx-auto mb-3 text-gray-300"
+                                                />
+
+                                                <p className="text-sm text-gray-500">
+                                                    No folders found
+                                                    for this project.
+                                                </p>
+                                            </div>
+                                        )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
         );
     }
@@ -1611,9 +2436,7 @@ export default function FolderAssignmentForm({
     ) {
         return (
             <div className="flex min-h-[400px] items-center justify-center">
-
                 <div className="flex items-center gap-3 text-sm text-gray-500">
-
                     <Loader2
                         size={20}
                         className="animate-spin"
@@ -1622,27 +2445,117 @@ export default function FolderAssignmentForm({
                     {isLoading
                         ? "Loading folder roles..."
                         : "Loading users..."}
-
                 </div>
-
             </div>
         );
     }
 
     /* =====================================================
-       MAIN UI
+       EDIT MODE
+       ===================================================== */
+
+    if (isEditMode) {
+        return (
+            <>
+                {renderEditMode()}
+
+                {/* FOOTER */}
+
+                <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4 sm:px-8">
+                    <button
+                        type="button"
+                        onClick={onBack}
+                        disabled={
+                            isSubmitting
+                        }
+                        className="
+              inline-flex
+              items-center
+              gap-2
+              rounded-lg
+              border
+              border-gray-300
+              bg-white
+              px-4
+              py-2.5
+              text-sm
+              font-medium
+              text-gray-700
+              transition
+              hover:bg-gray-50
+              disabled:cursor-not-allowed
+              disabled:opacity-60
+            "
+                    >
+                        <ChevronLeft
+                            size={17}
+                        />
+
+                        Back
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={
+                            handleSubmit
+                        }
+                        disabled={
+                            isSubmitting ||
+                            userLoading ||
+                            isLoading
+                        }
+                        className="
+              inline-flex
+              items-center
+              gap-2
+              rounded-lg
+              bg-blue-600
+              px-5
+              py-2.5
+              text-sm
+              font-medium
+              text-white
+              transition
+              hover:bg-blue-700
+              disabled:cursor-not-allowed
+              disabled:opacity-60
+            "
+                    >
+                        {isSubmitting ? (
+                            <>
+                                <Loader2
+                                    size={17}
+                                    className="animate-spin"
+                                />
+
+                                Updating Project...
+                            </>
+                        ) : (
+                            <>
+                                <Check
+                                    size={17}
+                                />
+
+                                Update Project
+                            </>
+                        )}
+                    </button>
+                </div>
+            </>
+        );
+    }
+
+    /* =====================================================
+       CREATE MODE
        ===================================================== */
 
     return (
         <>
             <div className="p-6 sm:p-8">
-
                 {/* HEADER */}
 
                 <div className="mb-8">
-
                     <div className="flex items-center gap-2">
-
                         <Users
                             size={20}
                             className="text-blue-600"
@@ -1651,7 +2564,6 @@ export default function FolderAssignmentForm({
                         <h2 className="text-lg font-semibold text-gray-900">
                             Members & Roles
                         </h2>
-
                     </div>
 
                     <p className="mt-1 text-sm text-gray-500">
@@ -1659,7 +2571,6 @@ export default function FolderAssignmentForm({
                         and manually select the
                         workflow level for that role.
                     </p>
-
                 </div>
 
                 {/* ERROR */}
@@ -1684,16 +2595,13 @@ export default function FolderAssignmentForm({
                 {/* SUMMARY */}
 
                 <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-4">
-
                     <div className="flex items-start gap-3">
-
                         <Users
                             size={19}
                             className="mt-0.5 shrink-0 text-blue-600"
                         />
 
                         <div>
-
                             <p className="text-sm font-medium text-blue-900">
                                 Assign users and workflow levels
                             </p>
@@ -1707,11 +2615,8 @@ export default function FolderAssignmentForm({
                                 role name and workflow
                                 level are independent.
                             </p>
-
                         </div>
-
                     </div>
-
                 </div>
 
                 {/* FOLDER TREE */}
@@ -1727,7 +2632,6 @@ export default function FolderAssignmentForm({
 
                 {roleRows.length === 0 && (
                     <div className="mt-6 rounded-xl border border-yellow-200 bg-yellow-50 p-5">
-
                         <p className="text-sm font-medium text-yellow-900">
                             No roles found
                         </p>
@@ -1738,18 +2642,13 @@ export default function FolderAssignmentForm({
                             roles configured
                             for its folders.
                         </p>
-
                     </div>
                 )}
-
             </div>
 
             {/* FOOTER */}
 
             <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4 sm:px-8">
-
-                {/* BACK */}
-
                 <button
                     type="button"
                     onClick={onBack}
@@ -1781,8 +2680,6 @@ export default function FolderAssignmentForm({
 
                     Back
                 </button>
-
-                {/* SUBMIT */}
 
                 <button
                     type="button"
@@ -1820,9 +2717,7 @@ export default function FolderAssignmentForm({
                                 className="animate-spin"
                             />
 
-                            {isEditMode
-                                ? "Updating Project..."
-                                : "Creating Project..."}
+                            Creating Project...
                         </>
                     ) : (
                         <>
@@ -1830,13 +2725,10 @@ export default function FolderAssignmentForm({
                                 size={17}
                             />
 
-                            {isEditMode
-                                ? "Update Project"
-                                : "Create Project"}
+                            Create Project
                         </>
                     )}
                 </button>
-
             </div>
         </>
     );

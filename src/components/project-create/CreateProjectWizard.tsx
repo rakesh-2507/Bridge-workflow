@@ -894,7 +894,7 @@ export default function CreateProjectWizard({
      ===================================================== */
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className="mx-auto w-full px-8">
 
       {/* Header */}
 
