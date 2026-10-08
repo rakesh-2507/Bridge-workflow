@@ -14,7 +14,11 @@ import {
     Check,
 } from "lucide-react";
 
-import { getTemplates } from "../../api/templates";
+import {
+    getProjectTemplates,
+    getProjectTemplate,
+} from "../../api/projectTemplates";
+
 import { getProjectTypes } from "../../api/projectTypes";
 import { getCompanies } from "../../api/companies";
 import { getUsers } from "../../api/users";
@@ -29,6 +33,7 @@ import type {
 
 interface ProjectDetailsFormProps {
     initialData: CreateProjectFromTemplateDetails;
+
     onSubmit: (
         data: CreateProjectFromTemplateDetails
     ) => void | Promise<void>;
@@ -51,7 +56,6 @@ export default function ProjectDetailsForm({
     initialData,
     onSubmit,
 }: ProjectDetailsFormProps) {
-
     const [formData, setFormData] =
         useState<CreateProjectFromTemplateDetails>(
             initialData
@@ -77,6 +81,9 @@ export default function ProjectDetailsForm({
     const [isSubmitting, setIsSubmitting] =
         useState(false);
 
+    const [isLoadingTemplateDetails, setIsLoadingTemplateDetails] =
+        useState(false);
+
     const [error, setError] =
         useState<string | null>(null);
 
@@ -89,6 +96,9 @@ export default function ProjectDetailsForm({
     const membersDropdownRef =
         useRef<HTMLDivElement | null>(null);
 
+    /* =========================================================
+     * Load Project Form Data
+     * ========================================================= */
 
     useEffect(() => {
         let cancelled = false;
@@ -104,7 +114,7 @@ export default function ProjectDetailsForm({
                     companiesResponse,
                     usersResponse,
                 ] = await Promise.all([
-                    getTemplates(),
+                    getProjectTemplates(),
                     getProjectTypes(),
                     getCompanies(),
                     getUsers(),
@@ -114,9 +124,32 @@ export default function ProjectDetailsForm({
                     return;
                 }
 
-                setTemplates(
-                    templatesResponse.templates ?? []
-                );
+                /*
+                 * /api/getprojecttemplates currently does not
+                 * expose its successful response schema in Swagger.
+                 *
+                 * The expected structure is:
+                 *
+                 * {
+                 *   templates: [...]
+                 * }
+                 *
+                 * We normalize it here until the backend schema
+                 * is confirmed.
+                 */
+
+                const templateResponse =
+                    templatesResponse as {
+                        success: boolean;
+                        code: string;
+                        message: string;
+                        data: ProjectTemplate[];
+                    };
+
+                const templateList =
+                    templateResponse.data ?? [];
+
+                setTemplates(templateList);
 
                 setProjectTypes(
                     projectTypesResponse.projecttypes ?? []
@@ -154,6 +187,10 @@ export default function ProjectDetailsForm({
         };
     }, []);
 
+    /* =========================================================
+     * Close Members Dropdown
+     * ========================================================= */
+
     useEffect(() => {
         function handleClickOutside(
             event: MouseEvent
@@ -181,6 +218,10 @@ export default function ProjectDetailsForm({
         };
     }, []);
 
+    /* =========================================================
+     * Update Form Field
+     * ========================================================= */
+
     function updateField<
         K extends keyof CreateProjectFromTemplateDetails
     >(
@@ -207,7 +248,18 @@ export default function ProjectDetailsForm({
         });
     }
 
-    function handleTemplateChange(
+    /* =========================================================
+     * Template Change
+     *
+     * First gets the template from the list.
+     *
+     * Then loads:
+     * GET /api/getprojecttemplate/{template_id}
+     *
+     * so we get the authoritative workflow_config_id.
+     * ========================================================= */
+
+    async function handleTemplateChange(
         templateId: number
     ) {
         const selected =
@@ -216,6 +268,10 @@ export default function ProjectDetailsForm({
                     template.tid === templateId
             );
 
+        /*
+         * Clear the previous workflow config while the
+         * selected template details are being loaded.
+         */
         setFormData((current) => ({
             ...current,
 
@@ -225,6 +281,9 @@ export default function ProjectDetailsForm({
             projecttype:
                 selected?.projecttype ??
                 current.projecttype,
+
+            workflow_config_id:
+                selected?.workflow_config_id ?? "",
         }));
 
         setFieldErrors((current) => {
@@ -236,8 +295,63 @@ export default function ProjectDetailsForm({
 
             return updated;
         });
+
+        if (!templateId) {
+            return;
+        }
+
+        try {
+            setIsLoadingTemplateDetails(true);
+            setError(null);
+
+            const response =
+                await getProjectTemplate(
+                    templateId
+                );
+
+            const template =
+                response.data?.template;
+
+            if (!template) {
+                throw new Error(
+                    "Selected project template could not be loaded."
+                );
+            }
+
+            setFormData((current) => ({
+                ...current,
+
+                template_id:
+                    template.tid,
+
+                projecttype:
+                    template.projecttype,
+
+                workflow_config_id:
+                    template.workflow_config_id,
+            }));
+        } catch (err) {
+            console.error(
+                "Failed to load selected project template:",
+                err
+            );
+
+            setError(
+                "Unable to load the selected project template. Please try again."
+            );
+
+            setFormData((current) => ({
+                ...current,
+                workflow_config_id: "",
+            }));
+        } finally {
+            setIsLoadingTemplateDetails(false);
+        }
     }
 
+    /* =========================================================
+     * Selected Template
+     * ========================================================= */
 
     const selectedTemplate =
         templates.find(
@@ -245,6 +359,10 @@ export default function ProjectDetailsForm({
                 template.tid ===
                 formData.template_id
         );
+
+    /* =========================================================
+     * User Name
+     * ========================================================= */
 
     function getUserName(
         user: ApiUser
@@ -283,6 +401,10 @@ export default function ProjectDetailsForm({
 
         return `User ${user.uid}`;
     }
+
+    /* =========================================================
+     * Members
+     * ========================================================= */
 
     const selectedMemberIds =
         formData.member_ids ?? [];
@@ -345,24 +467,24 @@ export default function ProjectDetailsForm({
         );
     }
 
+    /* =========================================================
+     * Validation
+     * ========================================================= */
+
     function validate(): boolean {
         const errors: FieldErrors = {};
-
 
         if (!formData.template_id) {
             errors.template_id =
                 "Please select a template.";
         }
 
-
-        if (
-            !formData.project_name ||
+        if (!formData.project_name ||
             !formData.project_name.trim()
         ) {
             errors.project_name =
                 "Project name is required.";
         }
-
 
         if (!formData.company_id) {
             errors.company_id =
@@ -409,6 +531,19 @@ export default function ProjectDetailsForm({
                 "Please select at least one member.";
         }
 
+        /*
+         * The selected template must have a workflow
+         * configuration because the next wizard step
+         * uses its workflow levels.
+         */
+        if (
+            formData.template_id &&
+            !formData.workflow_config_id
+        ) {
+            errors.template_id =
+                "Unable to load the workflow configuration for this template.";
+        }
+
         setFieldErrors(errors);
 
         return (
@@ -416,12 +551,20 @@ export default function ProjectDetailsForm({
         );
     }
 
+    /* =========================================================
+     * Submit
+     * ========================================================= */
+
     async function handleSubmit(
         event: SubmitEvent<HTMLFormElement>
     ) {
         event.preventDefault();
 
         if (isSubmitting) {
+            return;
+        }
+
+        if (isLoadingTemplateDetails) {
             return;
         }
 
@@ -449,6 +592,10 @@ export default function ProjectDetailsForm({
             setIsSubmitting(false);
         }
     }
+
+    /* =========================================================
+     * Loading State
+     * ========================================================= */
 
     if (isLoading) {
         return (
@@ -486,11 +633,13 @@ export default function ProjectDetailsForm({
         );
     }
 
+    /* =========================================================
+     * UI
+     * ========================================================= */
+
     return (
         <form onSubmit={handleSubmit}>
-
             <div className="p-6 sm:p-8">
-
                 <div className="mb-8">
                     <div className="mb-2 flex items-center gap-2">
                         <BriefcaseBusiness
@@ -516,6 +665,9 @@ export default function ProjectDetailsForm({
                 )}
 
                 <div className="space-y-8">
+                    {/* =================================================
+                     * TEMPLATE
+                     * ================================================= */}
 
                     <section>
                         <div className="mb-4 flex items-center gap-2">
@@ -539,43 +691,57 @@ export default function ProjectDetailsForm({
                             </span>
                         </label>
 
-                        <select
-                            id="template_id"
-                            value={
-                                formData.template_id ||
-                                ""
-                            }
-                            onChange={(event) =>
-                                handleTemplateChange(
-                                    Number(
-                                        event.target.value
+                        <div className="relative">
+                            <select
+                                id="template_id"
+                                value={
+                                    formData.template_id ||
+                                    ""
+                                }
+                                onChange={(event) =>
+                                    handleTemplateChange(
+                                        Number(
+                                            event.target.value
+                                        )
                                     )
-                                )
-                            }
-                            className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${fieldErrors.template_id
+                                }
+                                disabled={
+                                    isLoadingTemplateDetails
+                                }
+                                className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-100 ${fieldErrors.template_id
                                     ? "border-red-400"
                                     : "border-gray-300"
-                                }`}
-                        >
-                            <option value="">
-                                Select a project template
-                            </option>
+                                    }`}
+                            >
+                                <option value="">
+                                    Select a project template
+                                </option>
 
-                            {templates.map(
-                                (template) => (
-                                    <option
-                                        key={
-                                            template.tid
-                                        }
-                                        value={
-                                            template.tid
-                                        }
-                                    >
-                                        {template.name}
-                                    </option>
-                                )
+                                {templates.map(
+                                    (template) => (
+                                        <option
+                                            key={
+                                                template.tid
+                                            }
+                                            value={
+                                                template.tid
+                                            }
+                                        >
+                                            {template.name}
+                                        </option>
+                                    )
+                                )}
+                            </select>
+
+                            {isLoadingTemplateDetails && (
+                                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                                    <Loader2
+                                        size={17}
+                                        className="animate-spin text-blue-600"
+                                    />
+                                </div>
                             )}
-                        </select>
+                        </div>
 
                         {fieldErrors.template_id && (
                             <p className="mt-1.5 text-xs text-red-600">
@@ -600,9 +766,19 @@ export default function ProjectDetailsForm({
                                         }
                                     </p>
                                 )}
+
+                                {formData.workflow_config_id && (
+                                    <p className="mt-2 text-[11px] text-blue-600">
+                                        Workflow configuration loaded.
+                                    </p>
+                                )}
                             </div>
                         )}
                     </section>
+
+                    {/* =================================================
+                     * PROJECT INFORMATION
+                     * ================================================= */}
 
                     <section>
                         <div className="mb-4">
@@ -636,8 +812,8 @@ export default function ProjectDetailsForm({
                                 }
                                 placeholder="Enter project name"
                                 className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${fieldErrors.project_name
-                                        ? "border-red-400"
-                                        : "border-gray-300"
+                                    ? "border-red-400"
+                                    : "border-gray-300"
                                     }`}
                             />
 
@@ -651,6 +827,10 @@ export default function ProjectDetailsForm({
                         </div>
                     </section>
 
+                    {/* =================================================
+                     * ORGANIZATION
+                     * ================================================= */}
+
                     <section>
                         <div className="mb-4">
                             <h3 className="text-sm font-semibold text-gray-900">
@@ -659,7 +839,6 @@ export default function ProjectDetailsForm({
                         </div>
 
                         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
                             {/* COMPANY */}
 
                             <div>
@@ -695,8 +874,8 @@ export default function ProjectDetailsForm({
                                         )
                                     }
                                     className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${fieldErrors.company_id
-                                            ? "border-red-400"
-                                            : "border-gray-300"
+                                        ? "border-red-400"
+                                        : "border-gray-300"
                                         }`}
                                 >
                                     <option value="">
@@ -730,6 +909,8 @@ export default function ProjectDetailsForm({
                                 )}
                             </div>
 
+                            {/* PROJECT TYPE */}
+
                             <div>
                                 <label
                                     htmlFor="projecttype"
@@ -756,8 +937,8 @@ export default function ProjectDetailsForm({
                                         )
                                     }
                                     className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${fieldErrors.projecttype
-                                            ? "border-red-400"
-                                            : "border-gray-300"
+                                        ? "border-red-400"
+                                        : "border-gray-300"
                                         }`}
                                 >
                                     <option value="">
@@ -793,6 +974,10 @@ export default function ProjectDetailsForm({
                         </div>
                     </section>
 
+                    {/* =================================================
+                     * PROJECT DATES
+                     * ================================================= */}
+
                     <section>
                         <div className="mb-4 flex items-center gap-2">
                             <CalendarDays
@@ -806,7 +991,6 @@ export default function ProjectDetailsForm({
                         </div>
 
                         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
                             <div>
                                 <label
                                     htmlFor="start_date"
@@ -831,8 +1015,8 @@ export default function ProjectDetailsForm({
                                         )
                                     }
                                     className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${fieldErrors.start_date
-                                            ? "border-red-400"
-                                            : "border-gray-300"
+                                        ? "border-red-400"
+                                        : "border-gray-300"
                                         }`}
                                 />
 
@@ -873,8 +1057,8 @@ export default function ProjectDetailsForm({
                                         )
                                     }
                                     className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${fieldErrors.end_date
-                                            ? "border-red-400"
-                                            : "border-gray-300"
+                                        ? "border-red-400"
+                                        : "border-gray-300"
                                         }`}
                                 />
 
@@ -889,6 +1073,10 @@ export default function ProjectDetailsForm({
                         </div>
                     </section>
 
+                    {/* =================================================
+                     * PROJECT MEMBERS
+                     * ================================================= */}
+
                     <section>
                         <div className="mb-4 flex items-center gap-2">
                             <UserIcon
@@ -902,6 +1090,7 @@ export default function ProjectDetailsForm({
                         </div>
 
                         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                            {/* MEMBERS */}
 
                             <div
                                 ref={
@@ -932,8 +1121,8 @@ export default function ProjectDetailsForm({
                                         )
                                     }
                                     className={`flex min-h-[42px] w-full items-center justify-between rounded-lg border bg-white px-3 py-2 text-left text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${fieldErrors.member_ids
-                                            ? "border-red-400"
-                                            : "border-gray-300"
+                                        ? "border-red-400"
+                                        : "border-gray-300"
                                         }`}
                                 >
                                     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
@@ -1007,15 +1196,14 @@ export default function ProjectDetailsForm({
                                     <ChevronDown
                                         size={18}
                                         className={`ml-2 flex-shrink-0 text-gray-400 transition-transform ${isMembersOpen
-                                                ? "rotate-180"
-                                                : ""
+                                            ? "rotate-180"
+                                            : ""
                                             }`}
                                     />
                                 </button>
 
                                 {isMembersOpen && (
                                     <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
-
                                         <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
                                             <span className="text-xs font-medium text-gray-500">
                                                 {
@@ -1076,11 +1264,10 @@ export default function ProjectDetailsForm({
                                                                     user.uid
                                                                 }
                                                                 className={`flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 transition ${isSelected
-                                                                        ? "bg-blue-50"
-                                                                        : "hover:bg-gray-50"
+                                                                    ? "bg-blue-50"
+                                                                    : "hover:bg-gray-50"
                                                                     }`}
                                                             >
-
                                                                 <input
                                                                     type="checkbox"
                                                                     checked={
@@ -1140,6 +1327,8 @@ export default function ProjectDetailsForm({
                                 </p>
                             </div>
 
+                            {/* COORDINATOR */}
+
                             <div>
                                 <label
                                     htmlFor="coordinator"
@@ -1166,8 +1355,8 @@ export default function ProjectDetailsForm({
                                         )
                                     }
                                     className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 ${fieldErrors.coordinator
-                                            ? "border-red-400"
-                                            : "border-gray-300"
+                                        ? "border-red-400"
+                                        : "border-gray-300"
                                         }`}
                                 >
                                     <option value="">
@@ -1207,6 +1396,10 @@ export default function ProjectDetailsForm({
                             </div>
                         </div>
                     </section>
+
+                    {/* =================================================
+                     * PROJECT MANAGEMENT
+                     * ================================================= */}
 
                     <section>
                         <div className="mb-4">
@@ -1248,13 +1441,21 @@ export default function ProjectDetailsForm({
                 </div>
             </div>
 
+            {/* =========================================================
+             * FOOTER
+             * ========================================================= */}
+
             <div className="flex items-center justify-end border-t border-gray-200 bg-gray-50 px-6 py-4 sm:px-8">
                 <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={
+                        isSubmitting ||
+                        isLoadingTemplateDetails
+                    }
                     className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    {isSubmitting ? (
+                    {isSubmitting ||
+                        isLoadingTemplateDetails ? (
                         <>
                             <Loader2
                                 size={17}
@@ -1262,7 +1463,9 @@ export default function ProjectDetailsForm({
                             />
 
                             <span>
-                                Loading...
+                                {isLoadingTemplateDetails
+                                    ? "Loading template..."
+                                    : "Loading..."}
                             </span>
                         </>
                     ) : (

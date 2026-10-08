@@ -4,6 +4,7 @@ import type {
   CreateProjectTemplatePayload,
   EditProjectTemplatePayload,
   GetProjectTemplateResponse,
+  GetProjectTemplatesResponse,
   GetWorkflowProcessResponse,
   UpdateWorkflowProcessPayload,
   WorkflowConfigResponse,
@@ -24,6 +25,17 @@ export const createProjectTemplate = async (
 
 /* =========================================================
  * Get Project Template
+ *
+ * Gets the complete details of one selected template.
+ *
+ * Response contains:
+ * - template
+ * - process
+ * - workflow_config
+ * - folders
+ *
+ * The workflow_config.levels are used when assigning
+ * project roles to workflow levels.
  * ========================================================= */
 
 export const getProjectTemplate = async (
@@ -36,6 +48,31 @@ export const getProjectTemplate = async (
     }
   );
 };
+
+/* =========================================================
+ * Get Project Templates
+ *
+ * Gets the list of available project templates.
+ *
+ * IMPORTANT:
+ * The Swagger documentation currently does not expose the
+ * actual 200-response schema for this endpoint. Therefore
+ * this is intentionally typed as unknown for now instead
+ * of incorrectly using GetProjectTemplateResponse.
+ *
+ * Once the actual successful response is available, we can
+ * create the exact response type.
+ * ========================================================= */
+
+export const getProjectTemplates =
+  async (): Promise<GetProjectTemplatesResponse> => {
+    return apiRequest<GetProjectTemplatesResponse>(
+      "/api/getprojecttemplates",
+      {
+        method: "GET",
+      }
+    );
+  };
 
 /* =========================================================
  * Edit Project Template
@@ -178,6 +215,12 @@ export const checkProjectTemplateName = async (
 
 /* =========================================================
  * Workflow Configs
+ *
+ * Kept because other existing pages may still use this API.
+ *
+ * CreateProjectWizard does not need to use this API for
+ * workflow levels once it loads the selected template using
+ * getProjectTemplate().
  * ========================================================= */
 
 export const getWorkflowConfigs =

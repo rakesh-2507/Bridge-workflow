@@ -13,7 +13,7 @@ export interface ProjectTemplate {
   name_desc: string;
   projecttype: number;
   workflow_config_id?: string;
-  workflow_scope?: "FOLDER";
+  workflow_scope?: "FOLDER" | "PROJECT";
   process_id?: number | null;
 }
 
@@ -31,7 +31,7 @@ export interface ProjectTemplateDetails {
   description: string;
   project_type_id: number;
   workflow_config_id: string;
-  workflow_scope: "FOLDER";
+  workflow_scope: "FOLDER" | "PROJECT";
 }
 
 /* ----------------------------------------
@@ -68,6 +68,10 @@ export interface CreateProjectTemplatePayload {
  * Get Project Template API
  * ---------------------------------------- */
 
+/* ----------------------------------------
+ * Template
+ * ---------------------------------------- */
+
 export interface GetProjectTemplateTemplate {
   tid: number;
   name: string;
@@ -75,15 +79,77 @@ export interface GetProjectTemplateTemplate {
   projecttype: number;
   workflow_config_id: string;
   process_id: number | null;
-  workflow_scope: "FOLDER";
+  workflow_scope: "FOLDER" | "PROJECT";
+}
+
+/* ----------------------------------------
+ * Process
+ * ---------------------------------------- */
+
+export interface GetProjectTemplateProcessConnection {
+  source: string;
+  target: string;
+}
+
+export interface GetProjectTemplateProcessPosition {
+  x: number;
+  y: number;
+}
+
+export interface GetProjectTemplateProcessLevel {
+  role: string;
+  level: number;
+}
+
+export interface GetProjectTemplateProcessTaskDetails {
+  Level: GetProjectTemplateProcessLevel;
+
+  Levels: GetProjectTemplateProcessLevel[];
+
+  Actions: string[];
+
+  ConfigID: string;
+
+  KeyParam: string;
+
+  TaskName: string;
+
+  position: GetProjectTemplateProcessPosition;
+
+  Attributes: unknown[];
+
+  ConfigType: string;
+
+  ItemParams: string[];
+}
+
+export interface GetProjectTemplateProcessTask {
+  task_config_id: number;
+  task_type: string;
+  task_details: GetProjectTemplateProcessTaskDetails;
 }
 
 export interface GetProjectTemplateProcess {
-  process_id: number | null;
-  process_name: string | null;
+  process_id: number;
+  process_name: string;
   number_of_tasks: number;
-  connections: unknown[];
-  tasks: unknown[];
+
+  connections: GetProjectTemplateProcessConnection[];
+
+  tasks: GetProjectTemplateProcessTask[];
+}
+
+/* ----------------------------------------
+ * Workflow Config
+ *
+ * This is the important part for the
+ * project creation role → workflow-level
+ * assignment.
+ * ---------------------------------------- */
+
+export interface WorkflowLevel {
+  label: string;
+  actions: string[];
 }
 
 export interface GetProjectTemplateWorkflowConfig {
@@ -91,13 +157,19 @@ export interface GetProjectTemplateWorkflowConfig {
   name: string;
   icon: string;
   configType: string;
-  itemParams: unknown[];
+  itemParams: string[];
   keyParam: string | null;
   status: string;
   version: number;
-  levels: number;
+
+  levels: WorkflowLevel[];
+
   hasSubWorkflow: boolean;
 }
+
+/* ----------------------------------------
+ * Template Folder
+ * ---------------------------------------- */
 
 export interface GetProjectTemplateFolder {
   fid: number;
@@ -108,14 +180,22 @@ export interface GetProjectTemplateFolder {
   roles: string[];
 }
 
+/* ----------------------------------------
+ * Get Project Template Response
+ * ---------------------------------------- */
+
 export interface GetProjectTemplateResponse {
   success: boolean;
   code: string;
   message: string;
+
   data: {
     template: GetProjectTemplateTemplate;
+
     process: GetProjectTemplateProcess;
+
     workflow_config: GetProjectTemplateWorkflowConfig;
+
     folders: GetProjectTemplateFolder[];
   };
 }
@@ -148,10 +228,15 @@ export interface WorkflowProcessPosition {
 
 export interface WorkflowProcessTask {
   TaskID: string | number;
+
   task_config_id: number | string;
+
   TaskTypeID?: number;
+
   TaskType?: string;
+
   position?: WorkflowProcessPosition;
+
   TaskDetails?: unknown;
 }
 
@@ -162,9 +247,13 @@ export interface WorkflowProcessConnection {
 
 export interface WorkflowProcessJson {
   Processid: number;
+
   ProcessName: string;
+
   NumberofTasks: number;
+
   Tasks: WorkflowProcessTask[];
+
   connections: WorkflowProcessConnection[];
 }
 
@@ -183,31 +272,47 @@ export interface UpdateWorkflowProcessTask {
 
 export interface UpdateWorkflowProcessPayload {
   process_name: string;
+
   tasks: UpdateWorkflowProcessTask[];
+
   connections: WorkflowProcessConnection[];
 }
 
 /* ----------------------------------------
  * Workflow Config
+ *
+ * Used by getworkflowconfigs.
  * ---------------------------------------- */
 
 export interface WorkflowConfig {
   id: string;
+
   name: string;
+
   icon: string;
+
   configType: string;
+
   itemParams: string[];
+
   keyParam: string | null;
+
   status: string;
+
   version: number;
-  levels: number;
+
+  levels: WorkflowLevel[];
+
   hasSubWorkflow: boolean;
 }
 
 export interface WorkflowConfigResponse {
   success: boolean;
+
   code: string;
+
   message: string;
+
   data: {
     configs: WorkflowConfig[];
   };
@@ -219,20 +324,26 @@ export interface WorkflowConfigResponse {
 
 export interface CreateProjectFromTemplateDetails {
   template_id: number;
+
   company_id: number;
 
   project_name: string;
+
   project_description: string;
 
   start_date: string;
+
   end_date: string;
 
   member_ids: number[];
+
   coordinator: number;
 
   is_project_manage: number;
 
   projecttype: number;
+
+  workflow_config_id?: string;
 }
 
 /* ----------------------------------------
@@ -241,7 +352,9 @@ export interface CreateProjectFromTemplateDetails {
 
 export interface FolderSchedule {
   folder_id: number;
+
   start_date: string;
+
   end_date: string;
 }
 
@@ -251,18 +364,23 @@ export interface FolderSchedule {
 
 export interface TemplateFolderRoleItem {
   fid: number;
+
   role: string;
+
   id: number;
 }
 
 export interface TemplateFolderRole {
   folder_id: number;
+
   folder_name: string;
+
   roles: TemplateFolderRoleItem[];
 }
 
 export interface TemplateFolderRolesResponse {
   template_id: number;
+
   folders: TemplateFolderRole[];
 }
 
@@ -272,14 +390,19 @@ export interface TemplateFolderRolesResponse {
 
 export interface RoleAssignment {
   role: string;
+
   user_id: number;
+
   workflow_level: string;
 }
 
 export interface FolderAssignment {
   folder_id: number;
+
   start_date: string;
+
   end_date: string;
+
   role_assignments: RoleAssignment[];
 }
 
@@ -289,6 +412,7 @@ export interface FolderAssignment {
 
 export interface CreateProjectFromTemplatePayload {
   project: CreateProjectFromTemplateDetails;
+
   folder_assignments: FolderAssignment[];
 }
 
@@ -298,6 +422,15 @@ export interface CreateProjectFromTemplatePayload {
 
 export interface CreateProjectWizardData {
   project: CreateProjectFromTemplateDetails;
+
   folderSchedules: FolderSchedule[];
+
   folderAssignments: FolderAssignment[];
+}
+
+export interface GetProjectTemplatesResponse {
+  success: boolean;
+  code: string;
+  message: string;
+  data: ProjectTemplate[];
 }
