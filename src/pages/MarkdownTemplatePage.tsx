@@ -53,7 +53,12 @@ interface ParsedTemplate {
     description: string;
     project_type: string;
     workflow_config: string;
-    workflow_scope: string;
+
+    /*
+     * Workflow scope is no longer configurable from Markdown.
+     * The application always creates templates with FOLDER scope.
+     */
+    workflow_scope: "FOLDER";
   };
 
   folders: ParsedFolder[];
@@ -88,9 +93,6 @@ Magazine
 
 ## Workflow
 Magazine Publishing Workflow
-
-## Workflow Scope
-PROJECT
 
 ## Folders
 
@@ -130,6 +132,10 @@ const emptyTemplate = (): ParsedTemplate => ({
     description: "",
     project_type: "",
     workflow_config: "",
+
+    /*
+     * Fixed scope.
+     */
     workflow_scope: "FOLDER",
   },
 
@@ -139,7 +145,7 @@ const emptyTemplate = (): ParsedTemplate => ({
 /* =========================================================
  * MARKDOWN PARSER
  *
- * Folder hierarchy is now decided by:
+ * Folder hierarchy is decided by:
  *
  * Parent: Root
  *
@@ -147,11 +153,14 @@ const emptyTemplate = (): ParsedTemplate => ({
  *
  * Parent: Another Folder
  *
- * Heading levels no longer determine the parent.
+ * Heading levels do not determine the parent.
+ *
+ * Workflow Scope is intentionally NOT parsed.
+ * The application always uses FOLDER scope.
  * ========================================================= */
 
 function parseMarkdown(
-  markdown: string
+  markdown: string,
 ): ParsedTemplate {
   const lines = markdown.split(/\r?\n/);
 
@@ -162,6 +171,7 @@ function parseMarkdown(
   let currentSection = "";
 
   let currentFolder: ParsedFolderSource | null = null;
+
   for (
     let i = 0;
     i < lines.length;
@@ -188,7 +198,7 @@ function parseMarkdown(
         line
           .replace(
             /^#\s*template:/i,
-            ""
+            "",
           )
           .trim();
 
@@ -227,14 +237,6 @@ function parseMarkdown(
 
     if (
       line.toLowerCase() ===
-      "## workflow scope"
-    ) {
-      currentSection = "workflow_scope";
-      continue;
-    }
-
-    if (
-      line.toLowerCase() ===
       "## folders"
     ) {
       currentSection = "folders";
@@ -252,7 +254,7 @@ function parseMarkdown(
       /^#{3,}\s+/.test(line)
     ) {
       const match = line.match(
-        /^(#{3,})\s+(.+)$/
+        /^(#{3,})\s+(.+)$/,
       );
 
       if (!match) {
@@ -291,7 +293,7 @@ function parseMarkdown(
         line
           .replace(
             /^parent:/i,
-            ""
+            "",
           )
           .trim();
 
@@ -316,7 +318,7 @@ function parseMarkdown(
         line
           .replace(
             /^roles:/i,
-            ""
+            "",
           )
           .trim();
 
@@ -324,7 +326,7 @@ function parseMarkdown(
         rolesText
           .split(",")
           .map((role) =>
-            role.trim()
+            role.trim(),
           )
           .filter(Boolean);
 
@@ -346,7 +348,7 @@ function parseMarkdown(
         line
           .replace(
             /^description:/i,
-            ""
+            "",
           )
           .trim();
 
@@ -403,36 +405,13 @@ function parseMarkdown(
 
       continue;
     }
-
-    /* =====================================================
-       WORKFLOW SCOPE
-    ===================================================== */
-
-    if (
-      currentSection === "workflow_scope"
-    ) {
-      const scope =
-        line.toUpperCase();
-
-      if (
-        scope === "PROJECT" ||
-        scope === "FOLDER"
-      ) {
-        result.project_template.workflow_scope =
-          scope;
-      }
-
-      currentSection = "";
-
-      continue;
-    }
   }
 
   /* =======================================================
      RESOLVE PARENT NAMES
-     
+
      This happens AFTER all folders have been parsed.
-     
+
      Therefore this works even when the parent appears
      later in the Markdown file.
   ======================================================= */
@@ -449,7 +428,7 @@ function parseMarkdown(
           folder.parentName
             .trim()
             .toLowerCase() !==
-          "root"
+            "root"
         ) {
           const normalizedParent =
             folder.parentName
@@ -462,7 +441,7 @@ function parseMarkdown(
                 candidate.name
                   .trim()
                   .toLowerCase() ===
-                normalizedParent
+                normalizedParent,
             );
 
           parentFolderIndex =
@@ -473,13 +452,16 @@ function parseMarkdown(
 
         return {
           name: folder.name,
+
           description:
             folder.description,
+
           parent_folder_index:
             parentFolderIndex,
+
           roles: folder.roles,
         };
-      }
+      },
     );
 
   return result;
@@ -572,7 +554,7 @@ function MarkdownTemplatePage() {
       async () => {
         try {
           setLoadingReferenceData(
-            true
+            true,
           );
 
           setReferenceDataError("");
@@ -590,7 +572,7 @@ function MarkdownTemplatePage() {
           }
 
           setProjectTypes(
-            projectTypeResponse.projecttypes
+            projectTypeResponse.projecttypes,
           );
 
           const activeConfigs =
@@ -598,27 +580,27 @@ function MarkdownTemplatePage() {
               (config) =>
                 config.status
                   .toLowerCase() ===
-                "active"
+                "active",
             );
 
           setWorkflowConfigs(
-            activeConfigs
+            activeConfigs,
           );
         } catch (error) {
           console.error(
             "Failed to load template reference data:",
-            error
+            error,
           );
 
           if (!cancelled) {
             setReferenceDataError(
-              "Unable to load project types and workflow configurations."
+              "Unable to load project types and workflow configurations.",
             );
           }
         } finally {
           if (!cancelled) {
             setLoadingReferenceData(
-              false
+              false,
             );
           }
         }
@@ -639,7 +621,7 @@ function MarkdownTemplatePage() {
     useMemo(() => {
       try {
         return parseMarkdown(
-          markdown
+          markdown,
         );
       } catch {
         return emptyTemplate();
@@ -662,7 +644,7 @@ function MarkdownTemplatePage() {
 
   const handleMarkdownFileUpload =
     async (
-      event: React.ChangeEvent<HTMLInputElement>
+      event: React.ChangeEvent<HTMLInputElement>,
     ) => {
       const file =
         event.target.files?.[0];
@@ -680,12 +662,12 @@ function MarkdownTemplatePage() {
         const isMarkdownFile =
           lowerName.endsWith(".md") ||
           lowerName.endsWith(
-            ".markdown"
+            ".markdown",
           );
 
         if (!isMarkdownFile) {
           throw new Error(
-            "Please select a Markdown (.md or .markdown) file."
+            "Please select a Markdown (.md or .markdown) file.",
           );
         }
 
@@ -694,19 +676,19 @@ function MarkdownTemplatePage() {
 
         if (!content.trim()) {
           throw new Error(
-            "The selected Markdown file is empty."
+            "The selected Markdown file is empty.",
           );
         }
 
         setMarkdown(content);
 
         setUploadedFileName(
-          file.name
+          file.name,
         );
       } catch (error) {
         console.error(
           "Failed to read Markdown file:",
-          error
+          error,
         );
 
         setUploadedFileName("");
@@ -714,7 +696,7 @@ function MarkdownTemplatePage() {
         setParseError(
           error instanceof Error
             ? error.message
-            : "Unable to read the Markdown file."
+            : "Unable to read the Markdown file.",
         );
       } finally {
         event.target.value = "";
@@ -751,7 +733,7 @@ function MarkdownTemplatePage() {
           [REFERENCE_MARKDOWN],
           {
             type: "text/markdown;charset=utf-8",
-          }
+          },
         );
 
       const url =
@@ -759,7 +741,7 @@ function MarkdownTemplatePage() {
 
       const anchor =
         document.createElement(
-          "a"
+          "a",
         );
 
       anchor.href = url;
@@ -768,13 +750,13 @@ function MarkdownTemplatePage() {
         "project-template-reference.md";
 
       document.body.appendChild(
-        anchor
+        anchor,
       );
 
       anchor.click();
 
       document.body.removeChild(
-        anchor
+        anchor,
       );
 
       URL.revokeObjectURL(url);
@@ -786,13 +768,13 @@ function MarkdownTemplatePage() {
 
   const validateParsedMarkdown =
     (
-      parsed: ParsedTemplate
+      parsed: ParsedTemplate,
     ) => {
       if (
         !parsed.project_template.name.trim()
       ) {
         throw new Error(
-          "Template name is required."
+          "Template name is required.",
         );
       }
 
@@ -800,7 +782,7 @@ function MarkdownTemplatePage() {
         !parsed.project_template.description.trim()
       ) {
         throw new Error(
-          "Template description is required."
+          "Template description is required.",
         );
       }
 
@@ -808,7 +790,7 @@ function MarkdownTemplatePage() {
         !parsed.project_template.project_type.trim()
       ) {
         throw new Error(
-          "Project Type is required."
+          "Project Type is required.",
         );
       }
 
@@ -816,21 +798,22 @@ function MarkdownTemplatePage() {
         !parsed.project_template.workflow_config.trim()
       ) {
         throw new Error(
-          "Workflow is required."
+          "Workflow is required.",
         );
       }
 
-      const scope =
-        parsed.project_template.workflow_scope
-          .trim()
-          .toUpperCase();
-
+      /*
+       * Workflow scope is intentionally fixed.
+       *
+       * Do not validate PROJECT/FOLDER here because
+       * PROJECT is no longer supported by this page.
+       */
       if (
-        scope !== "FOLDER" &&
-        scope !== "PROJECT"
+        parsed.project_template.workflow_scope !==
+        "FOLDER"
       ) {
         throw new Error(
-          "Workflow Scope must be FOLDER or PROJECT."
+          "Workflow scope must be FOLDER.",
         );
       }
 
@@ -838,7 +821,7 @@ function MarkdownTemplatePage() {
         parsed.folders.length === 0
       ) {
         throw new Error(
-          "At least one folder is required."
+          "At least one folder is required.",
         );
       }
 
@@ -858,7 +841,7 @@ function MarkdownTemplatePage() {
 
           if (!folder.name.trim()) {
             throw new Error(
-              `Folder ${index + 1} must have a name.`
+              `Folder ${index + 1} must have a name.`,
             );
           }
 
@@ -866,7 +849,7 @@ function MarkdownTemplatePage() {
             !folder.description.trim()
           ) {
             throw new Error(
-              `Folder "${folder.name}" requires a description.`
+              `Folder "${folder.name}" requires a description.`,
             );
           }
 
@@ -874,32 +857,32 @@ function MarkdownTemplatePage() {
             folder.roles.length === 0
           ) {
             throw new Error(
-              `Folder "${folder.name}" requires at least one role.`
+              `Folder "${folder.name}" requires at least one role.`,
             );
           }
 
           /* ===============================================
              DUPLICATE FOLDER NAME
-             
+
              Parent is selected by folder name in Markdown,
              therefore names must be unique.
           =============================================== */
 
           if (
             folderNames.has(
-              normalizedName
+              normalizedName,
             )
           ) {
             throw new Error(
-              `Duplicate folder name "${folder.name}" is not allowed.`
+              `Duplicate folder name "${folder.name}" is not allowed.`,
             );
           }
 
           folderNames.set(
             normalizedName,
-            index
+            index,
           );
-        }
+        },
       );
 
       /* ===================================================
@@ -917,18 +900,18 @@ function MarkdownTemplatePage() {
 
           if (
             folder.parent_folder_index <
-            0 ||
+              0 ||
             folder.parent_folder_index >=
-            parsed.folders.length
+              parsed.folders.length
           ) {
             throw new Error(
-              `Invalid parent folder for "${folder.name}".`
+              `Invalid parent folder for "${folder.name}".`,
             );
           }
 
           const parent =
             parsed.folders[
-            folder.parent_folder_index
+              folder.parent_folder_index
             ];
 
           if (
@@ -940,10 +923,10 @@ function MarkdownTemplatePage() {
               .toLowerCase()
           ) {
             throw new Error(
-              `Folder "${folder.name}" cannot be its own parent.`
+              `Folder "${folder.name}" cannot be its own parent.`,
             );
           }
-        }
+        },
       );
 
       /* ===================================================
@@ -965,25 +948,27 @@ function MarkdownTemplatePage() {
           ) {
             if (
               visited.has(
-                currentIndex
+                currentIndex,
               )
             ) {
               throw new Error(
-                `Circular parent relationship detected involving "${folder.name}".`
+                `Circular parent relationship detected involving "${folder.name}".`,
               );
             }
 
             visited.add(
-              currentIndex
+              currentIndex,
             );
 
             const folderAtIndex: ParsedFolder =
-              parsed.folders[currentIndex];
+              parsed.folders[
+                currentIndex
+              ];
 
             currentIndex =
               folderAtIndex.parent_folder_index;
           }
-        }
+        },
       );
     };
 
@@ -999,18 +984,18 @@ function MarkdownTemplatePage() {
         parseMarkdown(markdown);
 
       validateParsedMarkdown(
-        parsed
+        parsed,
       );
     } catch (error) {
       console.error(
         "Failed to parse Markdown:",
-        error
+        error,
       );
 
       setParseError(
         error instanceof Error
           ? error.message
-          : "Unable to parse the Markdown. Please check the format."
+          : "Unable to parse the Markdown. Please check the format.",
       );
     }
   };
@@ -1043,7 +1028,7 @@ function MarkdownTemplatePage() {
 
   const findProjectType =
     (
-      name: string
+      name: string,
     ) => {
       const normalized =
         name
@@ -1055,7 +1040,7 @@ function MarkdownTemplatePage() {
           type.projecttype
             .trim()
             .toLowerCase() ===
-          normalized
+          normalized,
       );
     };
 
@@ -1065,7 +1050,7 @@ function MarkdownTemplatePage() {
 
   const findWorkflowConfig =
     (
-      name: string
+      name: string,
     ) => {
       const normalized =
         name
@@ -1077,7 +1062,7 @@ function MarkdownTemplatePage() {
           config.name
             .trim()
             .toLowerCase() ===
-          normalized
+          normalized,
       );
     };
 
@@ -1087,26 +1072,26 @@ function MarkdownTemplatePage() {
 
   const validateTemplate =
     async (
-      template: ParsedTemplate
+      template: ParsedTemplate,
     ) => {
       const errors: string[] = [];
 
       try {
         validateParsedMarkdown(
-          template
+          template,
         );
       } catch (error) {
         errors.push(
           error instanceof Error
             ? error.message
-            : "Invalid Markdown template."
+            : "Invalid Markdown template.",
         );
       }
 
       const projectType =
         findProjectType(
           template.project_template
-            .project_type
+            .project_type,
         );
 
       if (
@@ -1116,14 +1101,14 @@ function MarkdownTemplatePage() {
           .trim()
       ) {
         errors.push(
-          `Project Type "${template.project_template.project_type}" was not found in the API data.`
+          `Project Type "${template.project_template.project_type}" was not found in the API data.`,
         );
       }
 
       const workflowConfig =
         findWorkflowConfig(
           template.project_template
-            .workflow_config
+            .workflow_config,
         );
 
       if (
@@ -1133,13 +1118,13 @@ function MarkdownTemplatePage() {
           .trim()
       ) {
         errors.push(
-          `Workflow "${template.project_template.workflow_config}" was not found in the API data.`
+          `Workflow "${template.project_template.workflow_config}" was not found in the API data.`,
         );
       }
 
       if (errors.length > 0) {
         throw new Error(
-          errors.join("\n")
+          errors.join("\n"),
         );
       }
 
@@ -1152,7 +1137,7 @@ function MarkdownTemplatePage() {
 
       const nameResponse =
         await checkProjectTemplateName(
-          name
+          name,
         );
 
       if (
@@ -1160,7 +1145,7 @@ function MarkdownTemplatePage() {
       ) {
         throw new Error(
           nameResponse.message ||
-          "Project template name already exists."
+            "Project template name already exists.",
         );
       }
 
@@ -1175,18 +1160,20 @@ function MarkdownTemplatePage() {
 
   /* =======================================================
      BUILD API PAYLOAD
-     
+
      IMPORTANT:
      No start_date / end_date are included here.
-     
+
      Dates belong to actual project creation.
+
+     Workflow scope is ALWAYS FOLDER.
   ======================================================= */
 
   const buildPayload =
     (
       template: ParsedTemplate,
       projectType: ProjectType,
-      workflowConfig: WorkflowConfig
+      workflowConfig: WorkflowConfig,
     ): CreateProjectTemplatePayload => {
       return {
         project_template: {
@@ -1202,10 +1189,14 @@ function MarkdownTemplatePage() {
           workflow_config_id:
             workflowConfig.id,
 
-          workflow_scope:
-            template.project_template.workflow_scope
-              .trim()
-              .toUpperCase(),
+          /*
+           * IMPORTANT:
+           * Do not pass a generic string here.
+           *
+           * The API/type definition expects:
+           * workflow_scope: "FOLDER"
+           */
+          workflow_scope: "FOLDER",
         },
 
         folders:
@@ -1223,9 +1214,9 @@ function MarkdownTemplatePage() {
               roles:
                 folder.roles.map(
                   (role) =>
-                    role.trim()
+                    role.trim(),
                 ),
-            })
+            }),
           ),
       };
     };
@@ -1249,7 +1240,7 @@ function MarkdownTemplatePage() {
           loadingReferenceData
         ) {
           setCreateError(
-            "Please wait while project types and workflow configurations are loading."
+            "Please wait while project types and workflow configurations are loading.",
           );
 
           return;
@@ -1259,7 +1250,7 @@ function MarkdownTemplatePage() {
           referenceDataError
         ) {
           setCreateError(
-            referenceDataError
+            referenceDataError,
           );
 
           return;
@@ -1271,7 +1262,7 @@ function MarkdownTemplatePage() {
 
         if (!markdown.trim()) {
           setCreateError(
-            "Please enter or upload a Markdown template."
+            "Please enter or upload a Markdown template.",
           );
 
           return;
@@ -1284,6 +1275,16 @@ function MarkdownTemplatePage() {
         const currentTemplate =
           parseMarkdown(markdown);
 
+        /*
+         * Explicitly enforce FOLDER scope.
+         *
+         * Even if an old Markdown file contains
+         * "## Workflow Scope PROJECT", it will not
+         * affect the generated API payload.
+         */
+        currentTemplate.project_template.workflow_scope =
+          "FOLDER";
+
         /* ================================================
            VALIDATE + RESOLVE API IDS
         ================================================= */
@@ -1293,7 +1294,7 @@ function MarkdownTemplatePage() {
           workflowConfig,
         } =
           await validateTemplate(
-            currentTemplate
+            currentTemplate,
           );
 
         /* ================================================
@@ -1304,12 +1305,12 @@ function MarkdownTemplatePage() {
           buildPayload(
             currentTemplate,
             projectType,
-            workflowConfig
+            workflowConfig,
           );
 
         console.log(
           "Create project template payload:",
-          payload
+          payload,
         );
 
         /* ================================================
@@ -1320,16 +1321,16 @@ function MarkdownTemplatePage() {
 
         const response =
           await createProjectTemplate(
-            payload
+            payload,
           );
 
         console.log(
           "Create project template response:",
-          response
+          response,
         );
 
         setCreateSuccess(
-          "Project template created successfully."
+          "Project template created successfully.",
         );
 
         /* ================================================
@@ -1338,13 +1339,13 @@ function MarkdownTemplatePage() {
 
         window.setTimeout(() => {
           navigate(
-            "/workflow-process"
+            "/workflow-process",
           );
         }, 800);
       } catch (error) {
         console.error(
           "Failed to create project template:",
-          error
+          error,
         );
 
         if (
@@ -1352,11 +1353,11 @@ function MarkdownTemplatePage() {
         ) {
           setCreateError(
             error.message ||
-            "Unable to create project template."
+              "Unable to create project template.",
           );
         } else {
           setCreateError(
-            "Unable to create project template. Please try again."
+            "Unable to create project template. Please try again.",
           );
         }
       } finally {
@@ -1570,11 +1571,11 @@ function MarkdownTemplatePage() {
                 value={markdown}
                 onChange={(event) => {
                   setMarkdown(
-                    event.target.value
+                    event.target.value,
                   );
 
                   setUploadedFileName(
-                    ""
+                    "",
                   );
 
                   clearStatusMessages();
@@ -1594,9 +1595,6 @@ Magazine
 
 ## Workflow
 Magazine Publishing Workflow
-
-## Workflow Scope
-PROJECT
 
 ## Folders
 
@@ -1680,7 +1678,7 @@ Roles: Reviewer`}
                 {JSON.stringify(
                   liveJson,
                   null,
-                  2
+                  2,
                 )}
               </pre>
 
